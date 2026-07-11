@@ -1,0 +1,22 @@
+.nv-root { font-family: var(--font-monospace); color: var(--text-normal); padding: 12px; }
+.nv-title { color: #39ff7a; letter-spacing: 0.12em; margin: 0 0 8px; }
+.nv-level { color: var(--text-muted); margin-bottom: 12px; font-size: 0.85em; }
+.nv-mission-list { display: flex; flex-direction: column; gap: 6px; }
+.nv-mission {
+  display: grid; grid-template-columns: auto 1fr auto; gap: 8px; align-items: center;
+  background: var(--background-secondary); border: 1px solid var(--background-modifier-border);
+  color: var(--text-normal); padding: 8px 10px; border-radius: 6px; cursor: pointer; text-align: left;
+}
+.nv-mission:hover:not(.is-locked) { border-color: #39ff7a; }
+.nv-mission.is-locked { opacity: 0.4; cursor: not-allowed; }
+.nv-mission.is-done .nv-mission-xp { color: #39ff7a; }
+.nv-mission-id { color: #39ff7a; font-weight: 600; }
+.nv-mission-xp { color: var(--text-muted); }
+.nv-control { display: flex; flex-direction: column; gap: 10px; }
+.nv-metrics { display: flex; gap: 16px; font-size: 1.4em; }
+.nv-timer { color: #39ff7a; }
+.nv-actions { display: flex; gap: 8px; }
+.nv-btn { flex: 1; padding: 8px; border-radius: 6px; cursor: pointer;
+  background: var(--background-secondary); border: 1px solid var(--background-modifier-border); color: var(--text-normal); }
+.nv-btn-primary { background: #103a24; border-color: #39ff7a; color: #39ff7a; }
+.nv-hint { color: var(--text-muted); font-size: 0.8em; }
