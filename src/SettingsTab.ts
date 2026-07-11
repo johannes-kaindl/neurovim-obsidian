@@ -1,5 +1,6 @@
 import { App, PluginSettingTab, Setting } from 'obsidian';
 import type NeuroVimPlugin from './main';
+import type { HudPlacement } from './hudPlacement';
 
 export class NeuroVimSettingTab extends PluginSettingTab {
   constructor(app: App, private readonly plugin: NeuroVimPlugin) { super(app, plugin); }
@@ -15,6 +16,21 @@ export class NeuroVimSettingTab extends PluginSettingTab {
           .setValue(this.plugin.settings.missionFolder)
           .onChange(async (v) => {
             this.plugin.settings.missionFolder = v.trim() || 'NeuroVim/';
+            await this.plugin.saveSettings();
+          }),
+      );
+
+    new Setting(containerEl)
+      .setName('HUD placement')
+      .setDesc('Where mission-control (timer, submit/reset/abort) appears during a mission. The floating box can also be dismissed per mission with its × button.')
+      .addDropdown((d) =>
+        d
+          .addOption('auto', 'Auto — sidebar when open, else floating box')
+          .addOption('sidebar', 'Sidebar only')
+          .addOption('box', 'Floating box only')
+          .setValue(this.plugin.settings.hudPlacement)
+          .onChange(async (v) => {
+            this.plugin.settings.hudPlacement = v as HudPlacement;
             await this.plugin.saveSettings();
           }),
       );

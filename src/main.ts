@@ -7,8 +7,9 @@ import { MissionSession } from './MissionSession';
 import { ObsidianMissionApp } from './ObsidianMissionApp';
 import { HubView, VIEW_TYPE_NEUROVIM } from './HubView';
 import type { HubProps } from './HubView';
-import { HudMount, type HudActive } from './HudMount';
+import { HudMount, type HudActive, type HudRenderProps } from './HudMount';
 import { ObsidianHudDom } from './ObsidianHudDom';
+import { resolveHudTarget } from './hudPlacement';
 import { diffHighlightField, showDivergentLine, clearHighlight } from './diffHighlight';
 import { NeuroVimSettingTab } from './SettingsTab';
 import { DEFAULT_SETTINGS, type VimDojoSettings } from './settings';
@@ -25,6 +26,7 @@ export default class NeuroVimPlugin extends Plugin {
   private missions: MissionSummary[] = [];
   private session!: MissionSession;
   private hud!: HudMount;
+  private boxDismissed = false;
   private tick: number | null = null;
 
   async onload(): Promise<void> {
@@ -69,6 +71,14 @@ export default class NeuroVimPlugin extends Plugin {
     this.hud.detach();
   }
 
+  /** True if a NeuroVim pane leaf is currently rendered (not in a collapsed sidebar). */
+  private isPaneVisible(): boolean {
+    return this.app.workspace.getLeavesOfType(VIEW_TYPE_NEUROVIM).some((leaf) => {
+      const el = (leaf.view as unknown as { containerEl?: HTMLElement }).containerEl;
+      return !!el && el.offsetParent !== null;
+    });
+  }
+
   /** CM6 EditorView of the active mission note, if it's open in a markdown leaf. */
   private missionEditorView(): EditorView | null {
     const path = this.session.notePath;
@@ -83,7 +93,7 @@ export default class NeuroVimPlugin extends Plugin {
     return null;
   }
 
-  async saveSettings(): Promise<void> { await this.persist(); }
+  async saveSettings(): Promise<void> { await this.persist(); this.repaint(); }
 
   /** Persist PluginData + settings under one data.json blob. */
   private async persist(): Promise<void> {
@@ -94,6 +104,7 @@ export default class NeuroVimPlugin extends Plugin {
   private async handleStart(id: string): Promise<void> {
     try {
       await this.session.start(id);
+      this.boxDismissed = false;
       this.repaint();
     } catch (e) {
       new Notice(`NeuroVim: ${(e as Error).message}`);
@@ -119,6 +130,7 @@ export default class NeuroVimPlugin extends Plugin {
   private async handleReset(): Promise<void> {
     if (!this.session.activeMissionId) return;
     await this.session.reset();
+    this.boxDismissed = false;
     const cm = this.missionEditorView();
     if (cm) clearHighlight(cm);
     new Notice('>_ Transmission reset. Timer restarted.');
@@ -149,31 +161,42 @@ export default class NeuroVimPlugin extends Plugin {
     const vimActive = !!(this.app.vault as unknown as { getConfig?: (k: string) => unknown })
       .getConfig?.('vimMode');
 
-    // Floating HUD: mission-control over the note (or hidden when no mission runs).
-    const active: HudActive | null = id && this.session.notePath
+    // Base mission-control props (shared by box and pane).
+    const control: HudRenderProps | null = id && this.session.notePath
       ? {
-          notePath: this.session.notePath,
-          props: {
-            id,
-            title: this.missions.find((m) => m.mission_id === id)?.title ?? id,
-            elapsedMs: this.session.metrics.getElapsedMs(),
-            keystrokes: this.session.metrics.getKeystrokes(),
-            vimActive,
-            onSubmit: () => void this.handleSubmit(),
-            onReset: () => void this.handleReset(),
-            onAbandon: () => this.handleAbandon(),
-          },
+          id,
+          title: this.missions.find((m) => m.mission_id === id)?.title ?? id,
+          elapsedMs: this.session.metrics.getElapsedMs(),
+          keystrokes: this.session.metrics.getKeystrokes(),
+          vimActive,
+          onSubmit: () => void this.handleSubmit(),
+          onReset: () => void this.handleReset(),
+          onAbandon: () => this.handleAbandon(),
         }
       : null;
-    this.hud.sync(active);
 
-    // Sidebar pane always shows the NEXUS mission list.
+    // Decide where the control goes: sidebar pane, floating box, or nowhere.
+    const target = control
+      ? resolveHudTarget(this.settings.hudPlacement, this.isPaneVisible(), this.boxDismissed)
+      : 'none';
+
+    // Floating box (with a dismiss handler for this mission).
+    const boxActive: HudActive | null = target === 'box' && control && this.session.notePath
+      ? {
+          notePath: this.session.notePath,
+          props: { ...control, onDismiss: () => { this.boxDismissed = true; this.repaint(); } },
+        }
+      : null;
+    this.hud.sync(boxActive);
+
+    // Sidebar pane: NEXUS list, with the control block on top when targeted there.
     const view = this.app.workspace.getLeavesOfType(VIEW_TYPE_NEUROVIM)[0]?.view;
     if (view instanceof HubView) {
       view.setProps({
         missions: this.missions,
         data: this.data,
         onStart: (mid) => void this.handleStart(mid),
+        control: target === 'sidebar' ? control : null,
       });
     }
   }

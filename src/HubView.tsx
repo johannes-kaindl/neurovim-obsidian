@@ -2,6 +2,8 @@ import { ItemView, WorkspaceLeaf } from 'obsidian';
 import { render, h } from 'preact';
 import { ProgressionEngine } from '@neurovim/core';
 import type { MissionSummary, PluginData } from '@neurovim/core';
+import { MissionHud } from './MissionHud';
+import type { HudRenderProps } from './HudMount';
 
 export const VIEW_TYPE_NEUROVIM = 'neurovim-hub';
 
@@ -9,12 +11,15 @@ export interface HubProps {
   missions: MissionSummary[];
   data: PluginData;
   onStart: (id: string) => void;
+  /** When set, the mission-control block is shown at the top of the pane. */
+  control: HudRenderProps | null;
 }
 
 function Nexus(p: HubProps) {
   const prog = ProgressionEngine.getXpProgress(p.data.total_xp);
   return (
     <div class="nv-nexus">
+      {p.control && <MissionHud {...p.control} />}
       <h2 class="nv-title">NEXUS</h2>
       <div class="nv-level">LVL {prog.level} · {p.data.total_xp} XP</div>
       <div class="nv-mission-list">

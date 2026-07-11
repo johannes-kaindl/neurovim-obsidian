@@ -90,3 +90,26 @@ Keine neue Datei-Fläche — das HUD fasst nur die schon materialisierte Mission
 ## Bewusst draußen (YAGNI)
 
 Hint-/Cheatsheet-Panel, guide-onboard/idle-Modi, Drag/Resize des HUD, Sandbox-HUD — spätere Iterationen.
+
+## Iteration 2026-07-12 — Placement-Modi, schmaler, wegklickbar
+
+Nach dem ersten Runtime-Blick (HUD zu breit, mitten über dem Text) verfeinert:
+
+1. **Setting `hudPlacement`** (`auto` | `sidebar` | `box`, Default `auto`):
+   - `sidebar`: Mission-Control **oben in der NEXUS-Pane** (Missionsliste bleibt darunter); Pane zu ⇒ kein HUD (Commands bleiben).
+   - `box`: immer die schwebende Box über dem Editor.
+   - `auto`: Pane sichtbar ⇒ Sidebar-Block; Pane zu ⇒ Box. Reagiert live auf `layout-change`.
+2. **`resolveHudTarget(placement, paneVisible, boxDismissed) → 'sidebar' | 'box' | 'none'`** — pure
+   Entscheidungslogik (`src/hudPlacement.ts`, 9 Tests). Einziger Ort der Placement-Regel.
+3. **`MissionHud` ist jetzt die geteilte Control-Komponente** für Box *und* Sidebar-Block (DRY). Der
+   Sidebar-Block rendert sie oben in `HubView`; die Box mountet sie via `ObsidianHudDom`. Box-vs-Pane-
+   Optik kommt allein aus dem Wrapper-CSS (`.nv-float-hud-container .nv-hud` vs. `.nv-nexus .nv-hud`).
+4. **Box wegklickbar (×)** — `onDismiss` (nur in der Box gesetzt) blendet die Box **für die laufende
+   Mission** aus (transientes `boxDismissed`-Flag in `main.ts`, reset bei Start/Reset). Steuerung dann
+   via Command-Palette; nächste Mission ⇒ Box wieder da.
+5. **Schmaler** — Box-Breite = Content-Breite (`width: max-content`, cap 440px); Vim-Hinweis kompakt
+   (`⚠ Vim mode off — Settings → Editor`) und als eigene Zeile unter der Control-Zeile, damit er die
+   Box nicht mehr in die Breite streckt.
+6. **`isPaneVisible()`** — DOM-Heuristik (`containerEl.offsetParent !== null`) erkennt, ob die
+   NeuroVim-Pane gerade gerendert (nicht in kollabierter Sidebar) ist. Dünner Adapter, nicht unit-getestet.
+7. **`saveSettings()` triggert `repaint()`** — Placement-Wechsel im Setting wirkt sofort.

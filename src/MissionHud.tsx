@@ -6,10 +6,14 @@ function fmt(ms: number): string {
   return `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
 }
 
-/** Floating CRT mission-control that lives over the editor of the active mission note. */
+/**
+ * Mission-control UI — shared by the floating box (over the editor) and the
+ * sidebar pane. Context-neutral: the box vs. pane look comes from the wrapper's
+ * CSS. Renders a dismiss (×) button only when `onDismiss` is provided (the box).
+ */
 export function MissionHud(p: HudRenderProps) {
   return (
-    <div class="nv-float-hud">
+    <div class="nv-hud">
       <div class="nv-hud-row">
         <span class="nv-hud-mission">{p.id}</span>
         <span class="nv-hud-timer">{fmt(p.elapsedMs)}</span>
@@ -19,11 +23,12 @@ export function MissionHud(p: HudRenderProps) {
           <button class="nv-btn nv-btn-reset" onClick={p.onReset}>RESET</button>
           <button class="nv-btn nv-btn-abort" onClick={p.onAbandon}>ABORT</button>
         </div>
+        {p.onDismiss && (
+          <button class="nv-hud-close" aria-label="Hide HUD (this mission)" onClick={p.onDismiss}>×</button>
+        )}
       </div>
       {!p.vimActive && (
-        <div class="nv-hud-vimhint">
-          Vim mode off — enable it in Settings → Editor for the real experience.
-        </div>
+        <div class="nv-hud-vimhint">⚠ Vim mode off — Settings → Editor</div>
       )}
     </div>
   );

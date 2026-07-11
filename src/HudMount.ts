@@ -8,6 +8,8 @@ export interface HudRenderProps {
   onSubmit: () => void;
   onReset: () => void;
   onAbandon: () => void;
+  /** Present only for the floating box — renders a dismiss (×) button. */
+  onDismiss?: () => void;
 }
 
 /** A live, mounted HUD instance. */
