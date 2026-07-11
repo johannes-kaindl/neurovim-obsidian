@@ -8,16 +8,7 @@ export const VIEW_TYPE_NEUROVIM = 'neurovim-hub';
 export interface HubProps {
   missions: MissionSummary[];
   data: PluginData;
-  active: { id: string; title: string; elapsedMs: number; keystrokes: number } | null;
   onStart: (id: string) => void;
-  onSubmit: () => void;
-  onReset: () => void;
-  onAbandon: () => void;
-}
-
-function fmt(ms: number): string {
-  const s = Math.floor(ms / 1000);
-  return `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
 }
 
 function Nexus(p: HubProps) {
@@ -47,26 +38,6 @@ function Nexus(p: HubProps) {
   );
 }
 
-function MissionControl(p: HubProps) {
-  const a = p.active!;
-  return (
-    <div class="nv-control">
-      <h2 class="nv-title">{a.id}</h2>
-      <div class="nv-mission-title">{a.title}</div>
-      <div class="nv-metrics">
-        <span class="nv-timer">{fmt(a.elapsedMs)}</span>
-        <span class="nv-keystrokes">{a.keystrokes} keys</span>
-      </div>
-      <div class="nv-actions">
-        <button class="nv-btn nv-btn-primary" onClick={p.onSubmit}>Submit</button>
-        <button class="nv-btn" onClick={p.onReset}>Reset</button>
-        <button class="nv-btn" onClick={p.onAbandon}>Abandon</button>
-      </div>
-      <p class="nv-hint">Edit the note to restore the transmission. Enable Obsidian&apos;s Vim mode (Settings → Editor) for the real experience.</p>
-    </div>
-  );
-}
-
 export class HubView extends ItemView {
   private props: HubProps | null = null;
 
@@ -85,7 +56,6 @@ export class HubView extends ItemView {
 
   private paint(): void {
     if (!this.props) return;
-    const view = this.props.active ? h(MissionControl, this.props) : h(Nexus, this.props);
-    render(h('div', { class: 'nv-root' }, view), this.contentEl);
+    render(h('div', { class: 'nv-root' }, h(Nexus, this.props)), this.contentEl);
   }
 }

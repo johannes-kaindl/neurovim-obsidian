@@ -1,4 +1,5 @@
-import { Plugin, Notice } from 'obsidian';
+import { Plugin, Notice, MarkdownView } from 'obsidian';
+import type { EditorView } from '@codemirror/view';
 import { loadPluginData } from './storage/loadPluginData';
 import { ObsidianStorage } from './storage/ObsidianStorage';
 import { BundledContent } from './content/BundledContent';
@@ -6,6 +7,9 @@ import { MissionSession } from './MissionSession';
 import { ObsidianMissionApp } from './ObsidianMissionApp';
 import { HubView, VIEW_TYPE_NEUROVIM } from './HubView';
 import type { HubProps } from './HubView';
+import { HudMount, type HudActive } from './HudMount';
+import { ObsidianHudDom } from './ObsidianHudDom';
+import { diffHighlightField, showDivergentLine, clearHighlight } from './diffHighlight';
 import { NeuroVimSettingTab } from './SettingsTab';
 import { DEFAULT_SETTINGS, type VimDojoSettings } from './settings';
 import type { PluginData, MissionSummary } from '@neurovim/core';
@@ -20,6 +24,7 @@ export default class NeuroVimPlugin extends Plugin {
   private content = new BundledContent();
   private missions: MissionSummary[] = [];
   private session!: MissionSession;
+  private hud!: HudMount;
   private tick: number | null = null;
 
   async onload(): Promise<void> {
@@ -36,6 +41,10 @@ export default class NeuroVimPlugin extends Plugin {
       getData: () => this.data,
       setData: async (d) => { this.data = d; await this.persist(); },
     });
+
+    this.hud = new HudMount(new ObsidianHudDom(this.app));
+    this.registerEditorExtension([diffHighlightField]);
+    this.registerEvent(this.app.workspace.on('layout-change', () => this.repaint()));
 
     this.registerView(VIEW_TYPE_NEUROVIM, (leaf) => new HubView(leaf));
     this.addRibbonIcon('terminal', 'NeuroVim', () => void this.activateView());
@@ -57,6 +66,21 @@ export default class NeuroVimPlugin extends Plugin {
 
   onunload(): void {
     if (this.tick !== null) window.clearInterval(this.tick);
+    this.hud.detach();
+  }
+
+  /** CM6 EditorView of the active mission note, if it's open in a markdown leaf. */
+  private missionEditorView(): EditorView | null {
+    const path = this.session.notePath;
+    if (!path) return null;
+    for (const leaf of this.app.workspace.getLeavesOfType('markdown')) {
+      const view = leaf.view;
+      if (view instanceof MarkdownView && view.file?.path === path) {
+        const cm = (view.editor as unknown as { cm?: EditorView }).cm;
+        if (cm) return cm;
+      }
+    }
+    return null;
   }
 
   async saveSettings(): Promise<void> { await this.persist(); }
@@ -79,10 +103,13 @@ export default class NeuroVimPlugin extends Plugin {
   private async handleSubmit(): Promise<void> {
     if (!this.session.activeMissionId) return;
     const res = await this.session.submit();
+    const cm = this.missionEditorView();
     if (res.ok) {
+      if (cm) clearHighlight(cm);
       new Notice(`>_ Mission ${res.result.mission_id} restored — +${res.result.xp_earned} XP`);
       this.session.end();
     } else {
+      if (cm) showDivergentLine(cm, res.diff.first_divergent_line);
       const off = res.diff.lines_off;
       new Notice(`>_ ${off} line${off !== 1 ? 's' : ''} differ — keep going`);
     }
@@ -92,11 +119,15 @@ export default class NeuroVimPlugin extends Plugin {
   private async handleReset(): Promise<void> {
     if (!this.session.activeMissionId) return;
     await this.session.reset();
+    const cm = this.missionEditorView();
+    if (cm) clearHighlight(cm);
     new Notice('>_ Transmission reset. Timer restarted.');
     this.repaint();
   }
 
   private handleAbandon(): void {
+    const cm = this.missionEditorView();
+    if (cm) clearHighlight(cm);
     this.session.end();
     new Notice('>_ Mission aborted.');
     this.repaint();
@@ -114,26 +145,36 @@ export default class NeuroVimPlugin extends Plugin {
   }
 
   private repaint(): void {
-    const view = this.app.workspace.getLeavesOfType(VIEW_TYPE_NEUROVIM)[0]?.view;
-    if (!(view instanceof HubView)) return;
     const id = this.session.activeMissionId;
-    const active = id
+    const vimActive = !!(this.app.vault as unknown as { getConfig?: (k: string) => unknown })
+      .getConfig?.('vimMode');
+
+    // Floating HUD: mission-control over the note (or hidden when no mission runs).
+    const active: HudActive | null = id && this.session.notePath
       ? {
-          id,
-          title: this.missions.find((m) => m.mission_id === id)?.title ?? id,
-          elapsedMs: this.session.metrics.getElapsedMs(),
-          keystrokes: this.session.metrics.getKeystrokes(),
+          notePath: this.session.notePath,
+          props: {
+            id,
+            title: this.missions.find((m) => m.mission_id === id)?.title ?? id,
+            elapsedMs: this.session.metrics.getElapsedMs(),
+            keystrokes: this.session.metrics.getKeystrokes(),
+            vimActive,
+            onSubmit: () => void this.handleSubmit(),
+            onReset: () => void this.handleReset(),
+            onAbandon: () => this.handleAbandon(),
+          },
         }
       : null;
-    const props: HubProps = {
-      missions: this.missions,
-      data: this.data,
-      active,
-      onStart: (mid) => void this.handleStart(mid),
-      onSubmit: () => void this.handleSubmit(),
-      onReset: () => void this.handleReset(),
-      onAbandon: () => this.handleAbandon(),
-    };
-    view.setProps(props);
+    this.hud.sync(active);
+
+    // Sidebar pane always shows the NEXUS mission list.
+    const view = this.app.workspace.getLeavesOfType(VIEW_TYPE_NEUROVIM)[0]?.view;
+    if (view instanceof HubView) {
+      view.setProps({
+        missions: this.missions,
+        data: this.data,
+        onStart: (mid) => void this.handleStart(mid),
+      });
+    }
   }
 }
