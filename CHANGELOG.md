@@ -5,6 +5,8 @@ All notable changes to this project are documented here. Format loosely follows
 
 ## [Unreleased]
 
+## [0.1.0] — 2026-07-12
+
 ### Added
 - MVP vertical slice: pick a mission in the NeuroVim pane (NEXUS), materialize it as a
   throwaway note in a configurable folder, edit in Obsidian's real Vim mode, submit to
