@@ -5,6 +5,12 @@ All notable changes to this project are documented here. Format loosely follows
 
 ## [Unreleased]
 
+### Added
+- Result modal after a successful submit: replaces the plain notice with a CRT modal showing
+  time / keystrokes / KS·MIN — each with a delta vs. your best (▲ improvement / ▼ regression)
+  and a `NEW BEST` badge — plus the XP earned. Pure `buildResultView` view-model (unit-tested),
+  rendered via an Obsidian `Modal` with the mission-scheme (CRT/native) applied to the frame.
+
 ## [0.1.0] — 2026-07-12
 
 ### Added
