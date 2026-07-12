@@ -5,6 +5,8 @@ All notable changes to this project are documented here. Format loosely follows
 
 ## [Unreleased]
 
+## [0.2.0] — 2026-07-12
+
 ### Added
 - Result modal after a successful submit: replaces the plain notice with a CRT modal showing
   time / keystrokes / KS·MIN — each with a delta vs. your best (▲ improvement / ▼ regression)

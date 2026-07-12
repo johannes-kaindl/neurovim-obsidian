@@ -1,7 +1,7 @@
 {
   "id": "neurovim",
   "name": "NeuroVim",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "minAppVersion": "1.5.0",
   "description": "Learn Vim by playing a cyberpunk spy-thriller. Missions are Vim exercises you fix in real Obsidian notes.",
   "author": "Johannes Kaindl",
