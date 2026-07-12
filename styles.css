@@ -102,6 +102,15 @@
 .nv-diff-line { background: rgba(255, 85, 85, 0.18); box-shadow: inset 2px 0 0 #ff5555; }
 
 /* ── Result modal (shown after a successful submit) ───────────── */
+/* Dark CRT frame for the whole modal — Obsidian's modal background is otherwise
+   light and clashes with the green panels. Only the CRT scheme overrides it;
+   the native scheme keeps Obsidian's themed modal look. */
+.modal.nv-result-modal.nv-crt {
+  background: var(--nv-pane-bg); border: 1px solid var(--nv-border);
+  box-shadow: 0 0 28px rgba(0, 0, 0, 0.55);
+}
+.nv-result-modal .modal-close-button { color: var(--nv-text-dim); }
+.nv-result-modal .modal-close-button:hover { color: var(--nv-accent); }
 .nv-result .nv-result-body {
   font-family: var(--font-monospace); color: var(--nv-text);
   display: flex; flex-direction: column; align-items: center; gap: 10px; text-align: center;

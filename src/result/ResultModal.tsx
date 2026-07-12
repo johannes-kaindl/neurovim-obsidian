@@ -45,7 +45,10 @@ export class ResultModal extends Modal {
   }
 
   onOpen(): void {
-    this.contentEl.addClass('nv-result', `nv-${this.scheme}`);
+    // Scheme class on the modal frame (modalEl) so --nv-* vars are in scope for the
+    // whole modal — including its background — not just the inner content.
+    this.modalEl.addClass('nv-result-modal', `nv-${this.scheme}`);
+    this.contentEl.addClass('nv-result');
     render(h(ResultApp, { view: this.view, onClose: () => this.close() }), this.contentEl);
   }
 
