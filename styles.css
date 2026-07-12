@@ -55,7 +55,7 @@
 
 /* ── Mission-control HUD (shared by floating box + sidebar block) ───── */
 .nv-hud { font-family: var(--font-monospace); color: var(--nv-text); }
-.nv-hud-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.nv-hud-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .nv-hud-mission { color: var(--nv-accent); font-weight: 600; letter-spacing: 0.06em; }
 .nv-hud-timer { color: var(--nv-accent); font-variant-numeric: tabular-nums; }
 .nv-hud-keystrokes { color: var(--nv-text-dim); font-size: 0.8em; }
@@ -73,7 +73,7 @@
 .nv-hud .nv-btn-submit { background: var(--nv-submit-bg); border-color: var(--nv-accent); color: var(--nv-submit-fg); }
 .nv-hud .nv-btn-abort:hover { border-color: var(--nv-danger); color: var(--nv-danger); }
 .nv-hud .nv-hud-close {
-  margin-left: 2px; padding: 0 4px; background: transparent; border: none;
+  padding: 0 2px; background: transparent; border: none;
   color: var(--nv-text-dim); font-size: 1.1em; line-height: 1; cursor: pointer;
 }
 .nv-hud .nv-hud-close:hover { color: var(--nv-danger); }
@@ -85,7 +85,9 @@
 }
 .nv-float-hud-container .nv-hud-row { flex-wrap: nowrap; }
 .nv-float-hud-container .nv-hud {
-  pointer-events: auto; width: max-content; max-width: min(80vw, 440px);
+  /* inline-flex shrinks to its content — no stray width so the box stays snug. */
+  pointer-events: auto; display: inline-flex; flex-direction: column; align-items: flex-start;
+  max-width: min(90vw, 460px);
   background: var(--nv-panel); border: 1px solid var(--nv-border); border-radius: 6px;
   padding: 5px 8px; box-shadow: 0 0 10px rgba(0, 0, 0, 0.35);
 }
