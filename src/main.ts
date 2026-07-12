@@ -71,7 +71,11 @@ export default class NeuroVimPlugin extends Plugin {
 
     this.addSettingTab(new NeuroVimSettingTab(this.app, this));
     this.tick = window.setInterval(() => this.repaint(), 500);
-    this.app.workspace.onLayoutReady(() => void this.activateView());
+    // Only auto-open the pane on startup if the user opted in (default off) — otherwise the
+    // pane still opens on demand via the ribbon icon or the "Open NeuroVim" command.
+    if (this.settings.openPaneOnStartup) {
+      this.app.workspace.onLayoutReady(() => void this.activateView());
+    }
   }
 
   onunload(): void {
