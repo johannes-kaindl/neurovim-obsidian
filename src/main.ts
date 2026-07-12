@@ -12,6 +12,8 @@ import { ObsidianHudDom } from './ObsidianHudDom';
 import { resolveHudTarget } from './hudPlacement';
 import { diffHighlightField, showDivergentLine, clearHighlight } from './diffHighlight';
 import { NeuroVimSettingTab } from './SettingsTab';
+import { buildResultView } from './result/resultView';
+import { ResultModal } from './result/ResultModal';
 import { DEFAULT_SETTINGS, type VimDojoSettings } from './settings';
 import type { PluginData, MissionSummary } from '@neurovim/core';
 
@@ -148,9 +150,9 @@ export default class NeuroVimPlugin extends Plugin {
     const cm = this.missionEditorView();
     if (res.ok) {
       if (cm) clearHighlight(cm);
-      new Notice(`>_ Mission ${res.result.mission_id} restored — +${res.result.xp_earned} XP`);
       this.session.end();
       this.restoreVim();
+      new ResultModal(this.app, buildResultView(res.result), this.settings.colorScheme).open();
     } else {
       if (cm) showDivergentLine(cm, res.diff.first_divergent_line);
       const off = res.diff.lines_off;
