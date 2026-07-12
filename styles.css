@@ -100,3 +100,41 @@
 
 /* First divergent line, highlighted after a failed submit (editor follows Obsidian theme). */
 .nv-diff-line { background: rgba(255, 85, 85, 0.18); box-shadow: inset 2px 0 0 #ff5555; }
+
+/* ── Result modal (shown after a successful submit) ───────────── */
+.nv-result .nv-result-body {
+  font-family: var(--font-monospace); color: var(--nv-text);
+  display: flex; flex-direction: column; align-items: center; gap: 10px; text-align: center;
+}
+.nv-result .nv-result-title {
+  color: var(--nv-accent); font-size: 1.3em; font-weight: 700; letter-spacing: 0.14em;
+  text-shadow: 0 0 8px var(--nv-accent);
+}
+.nv-result .nv-result-mission { color: var(--nv-text-dim); letter-spacing: 0.1em; font-size: 0.85em; }
+.nv-result .nv-result-xp {
+  color: var(--nv-accent); font-size: 2em; font-weight: 800;
+  text-shadow: 0 0 12px var(--nv-accent); margin: 4px 0;
+}
+.nv-result .nv-result-metrics { display: flex; flex-direction: column; gap: 6px; width: 100%; }
+.nv-result .nv-result-row {
+  display: grid; grid-template-columns: 6em 1fr auto auto; align-items: center; gap: 10px;
+  padding: 6px 10px; background: var(--nv-panel); border: 1px solid var(--nv-border-soft);
+  border-radius: 6px; font-variant-numeric: tabular-nums;
+}
+.nv-result .nv-result-label { color: var(--nv-text-dim); font-size: 0.78em; letter-spacing: 0.08em; text-align: left; }
+.nv-result .nv-result-value { color: var(--nv-text); font-weight: 600; text-align: left; }
+.nv-result .nv-result-delta { font-size: 0.82em; }
+.nv-result .nv-result-delta.is-good { color: var(--nv-accent); }
+.nv-result .nv-result-delta.is-bad { color: var(--nv-danger); }
+.nv-result .nv-result-delta.is-neutral { color: var(--nv-text-dim); }
+.nv-result .nv-result-newbest {
+  color: var(--nv-submit-fg); background: var(--nv-submit-bg); border: 1px solid var(--nv-accent);
+  font-size: 0.68em; letter-spacing: 0.08em; padding: 1px 6px; border-radius: 4px;
+}
+.nv-result .nv-result-actions { margin-top: 6px; }
+/* Button scoped under .nv-result so our color outranks Obsidian's button rule. */
+.nv-result .nv-btn {
+  padding: 6px 14px; font-size: 0.8em; letter-spacing: 0.06em; border-radius: 4px; cursor: pointer;
+  background: var(--nv-btn-bg); border: 1px solid var(--nv-border-soft); color: var(--nv-text);
+}
+.nv-result .nv-btn:hover { border-color: var(--nv-accent); color: var(--nv-accent); }
