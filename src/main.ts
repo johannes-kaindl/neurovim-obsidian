@@ -27,6 +27,7 @@ export default class NeuroVimPlugin extends Plugin {
   private session!: MissionSession;
   private hud!: HudMount;
   private boxDismissed = false;
+  private vimRestore: boolean | null = null;
   private tick: number | null = null;
 
   async onload(): Promise<void> {
@@ -69,6 +70,35 @@ export default class NeuroVimPlugin extends Plugin {
   onunload(): void {
     if (this.tick !== null) window.clearInterval(this.tick);
     this.hud.detach();
+    this.restoreVim();
+  }
+
+  /** Read Obsidian's Vim-mode editor config. */
+  private vimEnabled(): boolean {
+    return !!(this.app.vault as unknown as { getConfig?: (k: string) => unknown })
+      .getConfig?.('vimMode');
+  }
+
+  /** Set Obsidian's Vim mode and apply it live to open editors. */
+  private setVim(on: boolean): void {
+    const vault = this.app.vault as unknown as { setConfig?: (k: string, v: unknown) => void };
+    vault.setConfig?.('vimMode', on);
+    this.app.workspace.updateOptions();
+  }
+
+  /** On mission start (if autoVim): remember the current Vim state and turn it on. */
+  private enterAutoVim(): void {
+    if (!this.settings.autoVim || this.vimRestore !== null) return;
+    this.vimRestore = this.vimEnabled();
+    if (!this.vimRestore) this.setVim(true);
+  }
+
+  /** On mission end: restore the Vim state we found before the mission. */
+  private restoreVim(): void {
+    if (this.vimRestore === null) return;
+    const restore = this.vimRestore;
+    this.vimRestore = null;
+    if (!restore) this.setVim(false);
   }
 
   /** True if a NeuroVim pane leaf is currently rendered (not in a collapsed sidebar). */
@@ -105,6 +135,7 @@ export default class NeuroVimPlugin extends Plugin {
     try {
       await this.session.start(id);
       this.boxDismissed = false;
+      this.enterAutoVim();
       this.repaint();
     } catch (e) {
       new Notice(`NeuroVim: ${(e as Error).message}`);
@@ -119,6 +150,7 @@ export default class NeuroVimPlugin extends Plugin {
       if (cm) clearHighlight(cm);
       new Notice(`>_ Mission ${res.result.mission_id} restored — +${res.result.xp_earned} XP`);
       this.session.end();
+      this.restoreVim();
     } else {
       if (cm) showDivergentLine(cm, res.diff.first_divergent_line);
       const off = res.diff.lines_off;
@@ -141,6 +173,7 @@ export default class NeuroVimPlugin extends Plugin {
     const cm = this.missionEditorView();
     if (cm) clearHighlight(cm);
     this.session.end();
+    this.restoreVim();
     new Notice('>_ Mission aborted.');
     this.repaint();
   }
@@ -158,8 +191,7 @@ export default class NeuroVimPlugin extends Plugin {
 
   private repaint(): void {
     const id = this.session.activeMissionId;
-    const vimActive = !!(this.app.vault as unknown as { getConfig?: (k: string) => unknown })
-      .getConfig?.('vimMode');
+    const vimActive = this.vimEnabled();
 
     // Base mission-control props (shared by box and pane).
     const control: HudRenderProps | null = id && this.session.notePath

@@ -46,5 +46,17 @@ export class NeuroVimSettingTab extends PluginSettingTab {
             await this.plugin.saveSettings();
           }),
       );
+
+    new Setting(containerEl)
+      .setName('Auto Vim mode')
+      .setDesc("Turn Obsidian's Vim mode on while a mission is active and restore your previous setting when it ends. Changes your global editor Vim setting for the duration.")
+      .addToggle((t) =>
+        t
+          .setValue(this.plugin.settings.autoVim)
+          .onChange(async (v) => {
+            this.plugin.settings.autoVim = v;
+            await this.plugin.saveSettings();
+          }),
+      );
   }
 }

@@ -7,10 +7,13 @@ export interface VimDojoSettings {
   missionFolder: string;
   hudPlacement: HudPlacement;
   colorScheme: ColorScheme;
+  /** Turn Obsidian's Vim mode on for the duration of a mission, restore it after. */
+  autoVim: boolean;
 }
 
 export const DEFAULT_SETTINGS: VimDojoSettings = {
   missionFolder: 'NeuroVim/',
   hudPlacement: 'auto',
   colorScheme: 'crt',
+  autoVim: false,
 };
