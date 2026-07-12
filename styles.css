@@ -3,18 +3,18 @@
    (.nv-crt / .nv-native) sits on each UI root (.nv-root pane, .nv-hud box)
    and supplies the whole palette — so colors never mix theme + fixed. */
 .nv-crt {
-  --nv-accent: #39ff7a;
-  --nv-accent-dim: #5fae82;
-  --nv-panel: #0c1f16;
-  --nv-pane-bg: #060f0a;
+  --nv-accent: #45ff8a;
+  --nv-accent-dim: #9fd7b8;
+  --nv-panel: #13271c;
+  --nv-pane-bg: #08120c;
   --nv-border: #39ff7a;
-  --nv-border-soft: #21402f;
-  --nv-text: #d8f0e2;
-  --nv-text-dim: #6f9c83;
-  --nv-btn-bg: #10271b;
-  --nv-submit-bg: #103a24;
-  --nv-submit-fg: #39ff7a;
-  --nv-danger: #ff5555;
+  --nv-border-soft: #315f45;
+  --nv-text: #eafaf1;
+  --nv-text-dim: #a7cdb8;
+  --nv-btn-bg: #17331f;
+  --nv-submit-bg: #164a2c;
+  --nv-submit-fg: #7dffab;
+  --nv-danger: #ff6b6b;
 }
 .nv-native {
   --nv-accent: var(--text-accent);
@@ -45,7 +45,7 @@
   color: var(--nv-text); padding: 8px 10px; border-radius: 6px; cursor: pointer; text-align: left;
 }
 .nv-mission:hover:not(.is-locked) { border-color: var(--nv-accent); }
-.nv-mission.is-locked { opacity: 0.4; cursor: not-allowed; }
+.nv-mission.is-locked { opacity: 0.58; cursor: not-allowed; }
 .nv-mission.is-done .nv-mission-xp { color: var(--nv-accent); }
 .nv-mission-id { color: var(--nv-accent); font-weight: 600; }
 .nv-mission-xp { color: var(--nv-text-dim); }
@@ -56,7 +56,10 @@
 .nv-hud-mission { color: var(--nv-accent); font-weight: 600; letter-spacing: 0.06em; }
 .nv-hud-timer { color: var(--nv-accent); font-variant-numeric: tabular-nums; }
 .nv-hud-keystrokes { color: var(--nv-text-dim); font-size: 0.8em; }
-.nv-hud-actions { display: flex; gap: 5px; margin-left: auto; }
+.nv-hud-actions { display: flex; gap: 5px; }
+/* In the wide pane, push the buttons to the right; in the narrow box, keep them
+   snug against the metrics so the box stays as narrow as its content. */
+.nv-nexus .nv-hud .nv-hud-actions { margin-left: auto; }
 .nv-btn {
   padding: 3px 8px; font-size: 0.75em; letter-spacing: 0.05em; border-radius: 4px; cursor: pointer;
   white-space: nowrap;
