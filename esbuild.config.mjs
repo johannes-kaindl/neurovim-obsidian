@@ -16,7 +16,13 @@ const alias = {
 const ctx = await esbuild.context({
   entryPoints: ['src/main.ts'],
   bundle: true,
-  external: ['obsidian', 'electron', ...builtins],
+  // CM6 packages are provided by Obsidian at runtime — must stay external so we
+  // don't bundle a second CodeMirror instance (would break editor integration).
+  external: [
+    'obsidian', 'electron',
+    '@codemirror/state', '@codemirror/view',
+    ...builtins,
+  ],
   format: 'cjs',
   target: 'es2018',
   logLevel: 'info',

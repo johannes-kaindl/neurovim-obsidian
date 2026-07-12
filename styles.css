@@ -1,22 +1,102 @@
-.nv-root { font-family: var(--font-monospace); color: var(--text-normal); padding: 12px; }
-.nv-title { color: #39ff7a; letter-spacing: 0.12em; margin: 0 0 8px; }
-.nv-level { color: var(--text-muted); margin-bottom: 12px; font-size: 0.85em; }
+/* ── Color schemes ────────────────────────────────────────────────
+   Every colored rule below uses a --nv-* variable. A scheme class
+   (.nv-crt / .nv-native) sits on each UI root (.nv-root pane, .nv-hud box)
+   and supplies the whole palette — so colors never mix theme + fixed. */
+.nv-crt {
+  --nv-accent: #45ff8a;
+  --nv-accent-dim: #9fd7b8;
+  --nv-panel: #13271c;
+  --nv-pane-bg: #08120c;
+  --nv-border: #39ff7a;
+  --nv-border-soft: #315f45;
+  --nv-text: #eafaf1;
+  --nv-text-dim: #a7cdb8;
+  --nv-btn-bg: #17331f;
+  --nv-submit-bg: #164a2c;
+  --nv-submit-fg: #7dffab;
+  --nv-danger: #ff6b6b;
+}
+.nv-native {
+  --nv-accent: var(--text-accent);
+  --nv-accent-dim: var(--text-muted);
+  --nv-panel: var(--background-secondary);
+  --nv-pane-bg: transparent;
+  --nv-border: var(--background-modifier-border);
+  --nv-border-soft: var(--background-modifier-border);
+  --nv-text: var(--text-normal);
+  --nv-text-dim: var(--text-muted);
+  --nv-btn-bg: var(--background-secondary);
+  --nv-submit-bg: var(--interactive-accent);
+  --nv-submit-fg: var(--text-on-accent);
+  --nv-danger: var(--text-error, #e05252);
+}
+
+/* ── NEXUS pane ───────────────────────────────────────────────────── */
+.nv-root {
+  font-family: var(--font-monospace); color: var(--nv-text); padding: 12px;
+  min-height: 100%; box-sizing: border-box; background: var(--nv-pane-bg);
+}
+.nv-title { color: var(--nv-accent); letter-spacing: 0.12em; margin: 0 0 8px; }
+.nv-level { color: var(--nv-text-dim); margin-bottom: 12px; font-size: 0.85em; }
 .nv-mission-list { display: flex; flex-direction: column; gap: 6px; }
 .nv-mission {
   display: grid; grid-template-columns: auto 1fr auto; gap: 8px; align-items: center;
-  background: var(--background-secondary); border: 1px solid var(--background-modifier-border);
-  color: var(--text-normal); padding: 8px 10px; border-radius: 6px; cursor: pointer; text-align: left;
+  background: var(--nv-panel); border: 1px solid var(--nv-border-soft);
+  color: var(--nv-text); padding: 8px 10px; border-radius: 6px; cursor: pointer; text-align: left;
 }
-.nv-mission:hover:not(.is-locked) { border-color: #39ff7a; }
-.nv-mission.is-locked { opacity: 0.4; cursor: not-allowed; }
-.nv-mission.is-done .nv-mission-xp { color: #39ff7a; }
-.nv-mission-id { color: #39ff7a; font-weight: 600; }
-.nv-mission-xp { color: var(--text-muted); }
-.nv-control { display: flex; flex-direction: column; gap: 10px; }
-.nv-metrics { display: flex; gap: 16px; font-size: 1.4em; }
-.nv-timer { color: #39ff7a; }
-.nv-actions { display: flex; gap: 8px; }
-.nv-btn { flex: 1; padding: 8px; border-radius: 6px; cursor: pointer;
-  background: var(--background-secondary); border: 1px solid var(--background-modifier-border); color: var(--text-normal); }
-.nv-btn-primary { background: #103a24; border-color: #39ff7a; color: #39ff7a; }
-.nv-hint { color: var(--text-muted); font-size: 0.8em; }
+.nv-mission:hover:not(.is-locked) { border-color: var(--nv-accent); }
+.nv-mission.is-locked { opacity: 0.58; cursor: not-allowed; }
+.nv-mission.is-done .nv-mission-xp { color: var(--nv-accent); }
+.nv-mission-id { color: var(--nv-accent); font-weight: 600; }
+/* Explicit (not inherited) — Obsidian's button color rule outranks .nv-mission,
+   so the inherited title text would otherwise stay the theme's color. */
+.nv-mission .nv-mission-title { color: var(--nv-text); }
+.nv-mission-xp { color: var(--nv-text-dim); }
+
+/* ── Mission-control HUD (shared by floating box + sidebar block) ───── */
+.nv-hud { font-family: var(--font-monospace); color: var(--nv-text); }
+.nv-hud-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.nv-hud-mission { color: var(--nv-accent); font-weight: 600; letter-spacing: 0.06em; }
+.nv-hud-timer { color: var(--nv-accent); font-variant-numeric: tabular-nums; }
+.nv-hud-keystrokes { color: var(--nv-text-dim); font-size: 0.8em; }
+.nv-hud-actions { display: flex; gap: 5px; }
+/* In the wide pane, push the buttons to the right; in the narrow box, keep them
+   snug against the metrics so the box stays as narrow as its content. */
+.nv-nexus .nv-hud .nv-hud-actions { margin-left: auto; }
+/* Buttons scoped under .nv-hud so our color outranks Obsidian's button rule
+   (which has higher specificity than a bare .nv-btn and would win otherwise). */
+.nv-hud .nv-btn {
+  padding: 3px 8px; font-size: 0.75em; letter-spacing: 0.05em; border-radius: 4px; cursor: pointer;
+  white-space: nowrap;
+  background: var(--nv-btn-bg); border: 1px solid var(--nv-border-soft); color: var(--nv-text);
+}
+.nv-hud .nv-btn-submit { background: var(--nv-submit-bg); border-color: var(--nv-accent); color: var(--nv-submit-fg); }
+.nv-hud .nv-btn-abort:hover { border-color: var(--nv-danger); color: var(--nv-danger); }
+.nv-hud .nv-hud-close {
+  padding: 0 2px; background: transparent; border: none;
+  color: var(--nv-text-dim); font-size: 1.1em; line-height: 1; cursor: pointer;
+}
+.nv-hud .nv-hud-close:hover { color: var(--nv-danger); }
+.nv-hud-vimhint { margin-top: 4px; color: var(--nv-text-dim); font-size: 0.72em; }
+
+/* Floating box: positioned over the editor, width follows content (stays narrow). */
+.nv-float-hud-container {
+  position: absolute; top: 6px; right: 12px; z-index: 20; pointer-events: none;
+}
+.nv-float-hud-container .nv-hud-row { flex-wrap: nowrap; }
+.nv-float-hud-container .nv-hud {
+  /* inline-flex shrinks to its content — no stray width so the box stays snug. */
+  pointer-events: auto; display: inline-flex; flex-direction: column; align-items: flex-start;
+  max-width: min(90vw, 460px);
+  background: var(--nv-panel); border: 1px solid var(--nv-border); border-radius: 6px;
+  padding: 5px 8px; box-shadow: 0 0 10px rgba(0, 0, 0, 0.35);
+}
+
+/* Sidebar block: control on top of the NEXUS list. */
+.nv-nexus .nv-hud {
+  margin-bottom: 12px; padding: 8px 10px; border-radius: 6px;
+  border: 1px solid var(--nv-border); background: var(--nv-panel);
+}
+
+/* First divergent line, highlighted after a failed submit (editor follows Obsidian theme). */
+.nv-diff-line { background: rgba(255, 85, 85, 0.18); box-shadow: inset 2px 0 0 #ff5555; }
