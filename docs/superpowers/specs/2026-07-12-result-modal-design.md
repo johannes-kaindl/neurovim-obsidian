@@ -42,8 +42,8 @@ alle Felder (`elapsed_ms`, `keystrokes`, `ks_per_min`, `xp_earned`, `is_new_best
 
 | Datei | Verantwortung | Verifikation |
 |---|---|---|
-| `src/result/resultView.ts` | **PURE.** `buildResultView(result: RunResult): ResultView` — formt `RunResult` in ein reines View-Model. Kein Obsidian, kein Preact, kein DOM. | Vitest (ohne Mock) |
-| `src/result/ResultModal.ts` | Obsidian-`Modal`-Subklasse. `onOpen` → Preact-`render` des View-Models in `contentEl`; `onClose` → `render(null, contentEl)`. Button ruft `this.close()`. | Smoke-Test |
+| `src/result/resultView.ts` | **PURE.** `buildResultView(result: RunResult): ResultView` + Helper `formatDuration`. Formt `RunResult` in ein reines View-Model. Kein Obsidian, kein Preact, kein DOM. | Vitest (ohne Mock), `test/resultView.test.ts` |
+| `src/result/ResultModal.ts` | Obsidian-`Modal`-Subklasse `(app, view, scheme)`. `onOpen` → Preact-`render` des View-Models in `contentEl` (Root `nv-result nv-${scheme}`); `onClose` → `render(null, contentEl)`. Button ruft `this.close()`. | Smoke-Test |
 | `src/main.ts` (`handleSubmit`) | Erfolgs-`Notice` (`main.ts:151`) → `new ResultModal(this.app, buildResultView(res.result)).open()`. | Smoke-Test |
 
 Die Preact-Komponente kann inline in `ResultModal.ts` liegen (via `h(...)`) oder als `.tsx` — beides
@@ -92,9 +92,11 @@ interface ResultView {
 ```
 
 Zeilen-Regeln:
-- **TIME** — `value = formatTime(elapsed_ms)` (aus `vendor/.../core/utils/time.ts`, „0.7s"-Stil).
+- **TIME** — `value = formatDuration(elapsed_ms)` (lokaler pure Helper; unter 1 Min → Sekunden
+  mit einer Nachkommastelle „0.7s", ab 1 Min → „M:SS". Der Vendor-`formatTime` ist `MM:SS` und
+  zeigt für sub-Minuten-Missionen „00:00" — daher hier ungeeignet.)
   Delta aus `delta_time_ms`, **besser wenn < 0**. `newBest = is_new_best_time`.
-  Delta-`magnitude` in Sekunden: `Math.round(|delta_time_ms| / 1000) + "s"`.
+  Delta-`magnitude` in Sekunden mit einer Nachkommastelle: `(|delta_time_ms| / 1000).toFixed(1) + "s"`.
 - **KEYSTROKES** — `value = keystrokes`. Delta aus `delta_keystrokes`, **besser wenn < 0**.
   `newBest = is_new_best_ks`. `magnitude` = Ganzzahl.
 - **KS/MIN** — `value = ks_per_min`. Delta aus `delta_ks_per_min`, **besser wenn > 0**.
