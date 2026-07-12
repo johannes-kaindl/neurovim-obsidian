@@ -5,6 +5,8 @@ All notable changes to this project are documented here. Format loosely follows
 
 ## [Unreleased]
 
+## [0.2.1] — 2026-07-12
+
 ### Fixed
 - Keystroke counting now captures Vim normal-mode commands and navigation (`h`/`j`/`k`/`l`,
   motions, operators). These are consumed by the CodeMirror/Vim layer and never reached the
