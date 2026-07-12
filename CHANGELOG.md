@@ -5,6 +5,11 @@ All notable changes to this project are documented here. Format loosely follows
 
 ## [Unreleased]
 
+### Changed
+- The NeuroVim pane no longer opens automatically on Obsidian startup. Added an opt-in
+  **Open pane on startup** setting (off by default); open the pane anytime via the ribbon
+  icon or the "Open NeuroVim" command.
+
 ## [0.2.1] — 2026-07-12
 
 ### Fixed
