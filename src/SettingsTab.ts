@@ -58,5 +58,17 @@ export class NeuroVimSettingTab extends PluginSettingTab {
             await this.plugin.saveSettings();
           }),
       );
+
+    new Setting(containerEl)
+      .setName('Open pane on startup')
+      .setDesc('Open the NeuroVim pane automatically when Obsidian starts. Off by default — open it anytime via the ribbon icon or the "Open NeuroVim" command.')
+      .addToggle((t) =>
+        t
+          .setValue(this.plugin.settings.openPaneOnStartup)
+          .onChange(async (v) => {
+            this.plugin.settings.openPaneOnStartup = v;
+            await this.plugin.saveSettings();
+          }),
+      );
   }
 }

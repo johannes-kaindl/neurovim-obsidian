@@ -9,6 +9,8 @@ export interface VimDojoSettings {
   colorScheme: ColorScheme;
   /** Turn Obsidian's Vim mode on for the duration of a mission, restore it after. */
   autoVim: boolean;
+  /** Open the NeuroVim pane automatically when Obsidian starts. Off by default. */
+  openPaneOnStartup: boolean;
 }
 
 export const DEFAULT_SETTINGS: VimDojoSettings = {
@@ -16,4 +18,5 @@ export const DEFAULT_SETTINGS: VimDojoSettings = {
   hudPlacement: 'auto',
   colorScheme: 'crt',
   autoVim: false,
+  openPaneOnStartup: false,
 };
