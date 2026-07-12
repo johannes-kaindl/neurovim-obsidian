@@ -11,6 +11,7 @@ import { HudMount, type HudActive, type HudRenderProps } from './HudMount';
 import { ObsidianHudDom } from './ObsidianHudDom';
 import { resolveHudTarget } from './hudPlacement';
 import { diffHighlightField, showDivergentLine, clearHighlight } from './diffHighlight';
+import { countsAsKeystroke, isEditorKeydownTarget } from './keystrokeCounter';
 import { NeuroVimSettingTab } from './SettingsTab';
 import { buildResultView } from './result/resultView';
 import { ResultModal } from './result/ResultModal';
@@ -58,11 +59,15 @@ export default class NeuroVimPlugin extends Plugin {
     this.addCommand({ id: 'submit', name: 'Submit mission', callback: () => void this.handleSubmit() });
     this.addCommand({ id: 'reset', name: 'Reset mission', callback: () => void this.handleReset() });
 
+    // Count keystrokes in the capture phase so Vim normal-mode commands and navigation
+    // (h/j/k/l, motions, operators) are seen before CodeMirror/Vim consumes them — a bubble
+    // or in-editor keydown handler never fires for those. Scoped to editor targets only.
     this.registerDomEvent(document, 'keydown', (e: KeyboardEvent) => {
       if (!this.session.activeMissionId) return;
-      if (['Control', 'Alt', 'Meta', 'Shift', 'CapsLock'].includes(e.key)) return;
+      if (!countsAsKeystroke(e.key)) return;
+      if (!isEditorKeydownTarget(e.target)) return;
       this.session.metrics.addKeystroke();
-    });
+    }, { capture: true });
 
     this.addSettingTab(new NeuroVimSettingTab(this.app, this));
     this.tick = window.setInterval(() => this.repaint(), 500);
