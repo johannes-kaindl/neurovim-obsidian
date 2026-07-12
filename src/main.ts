@@ -169,6 +169,7 @@ export default class NeuroVimPlugin extends Plugin {
           elapsedMs: this.session.metrics.getElapsedMs(),
           keystrokes: this.session.metrics.getKeystrokes(),
           vimActive,
+          scheme: this.settings.colorScheme,
           onSubmit: () => void this.handleSubmit(),
           onReset: () => void this.handleReset(),
           onAbandon: () => this.handleAbandon(),
@@ -197,6 +198,7 @@ export default class NeuroVimPlugin extends Plugin {
         data: this.data,
         onStart: (mid) => void this.handleStart(mid),
         control: target === 'sidebar' ? control : null,
+        scheme: this.settings.colorScheme,
       });
     }
   }

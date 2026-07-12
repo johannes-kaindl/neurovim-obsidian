@@ -113,3 +113,23 @@ Nach dem ersten Runtime-Blick (HUD zu breit, mitten über dem Text) verfeinert:
 6. **`isPaneVisible()`** — DOM-Heuristik (`containerEl.offsetParent !== null`) erkennt, ob die
    NeuroVim-Pane gerade gerendert (nicht in kollabierter Sidebar) ist. Dünner Adapter, nicht unit-getestet.
 7. **`saveSettings()` triggert `repaint()`** — Placement-Wechsel im Setting wirkt sofort.
+
+## Iteration 2026-07-12 (2) — konsistentes Farb-System (CRT vs. native)
+
+Runtime-Beobachtung: Box (fest dunkel) und Pane-Block (theme-adaptiv) sahen im Light-Theme
+unterschiedlich aus, und die feste Phosphor-grüne Schrift (`#39ff7a`) war auf hellem Theme-Grund
+schlecht lesbar. **Grundsatz (Jay): Farben nicht mischen** — entweder ganz theme-agnostisch oder ganz
+theme-adaptiv, per Setting wählbar.
+
+1. **Setting `colorScheme` (`'crt' | 'native'`, Default `'crt'`)** — Toggle „CRT color scheme". Gilt fürs
+   **ganze NeuroVim-UI** (HUD-Box, Pane-Control-Block, NEXUS-Titel/Level/Missionsliste), nicht nur das HUD.
+2. **CSS-Variablen pro Scheme** — jede farbige Regel nutzt eine `--nv-*`-Variable; die Scheme-Klasse
+   (`.nv-crt` / `.nv-native`) sitzt auf jedem UI-Root (`.nv-root` Pane, `.nv-hud` Box) und liefert die
+   ganze Palette. So mischen Farben nie Theme + fest; ein Variablen-Block pro Modus statt doppelter Regeln.
+   - `crt`: fester dunkler Grund + Phosphor-grün, theme-unabhängig (im CRT-Modus wird auch der
+     Pane-Hintergrund dunkel, damit Grün lesbar bleibt).
+   - `native`: durchgängig Obsidian-Variablen (`--text-accent`, `--background-secondary`,
+     `--interactive-accent`, …) — fügt sich in hell/dunkel ein, garantiert lesbar.
+3. **Box- und Pane-Optik damit automatisch angeglichen** — beide beziehen dieselben `--nv-*`-Werte.
+4. `HudRenderProps.scheme` + `HubProps.scheme` tragen den Modus zu den Komponenten; `MissionHud` und
+   `nv-root` setzen `nv-${scheme}`. Toggle wirkt sofort (`saveSettings()` → `repaint()`).

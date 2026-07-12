@@ -13,7 +13,7 @@ function fmt(ms: number): string {
  */
 export function MissionHud(p: HudRenderProps) {
   return (
-    <div class="nv-hud">
+    <div class={`nv-hud nv-${p.scheme}`}>
       <div class="nv-hud-row">
         <span class="nv-hud-mission">{p.id}</span>
         <span class="nv-hud-timer">{fmt(p.elapsedMs)}</span>

@@ -4,6 +4,7 @@ import { ProgressionEngine } from '@neurovim/core';
 import type { MissionSummary, PluginData } from '@neurovim/core';
 import { MissionHud } from './MissionHud';
 import type { HudRenderProps } from './HudMount';
+import type { ColorScheme } from './settings';
 
 export const VIEW_TYPE_NEUROVIM = 'neurovim-hub';
 
@@ -13,6 +14,7 @@ export interface HubProps {
   onStart: (id: string) => void;
   /** When set, the mission-control block is shown at the top of the pane. */
   control: HudRenderProps | null;
+  scheme: ColorScheme;
 }
 
 function Nexus(p: HubProps) {
@@ -61,6 +63,6 @@ export class HubView extends ItemView {
 
   private paint(): void {
     if (!this.props) return;
-    render(h('div', { class: 'nv-root' }, h(Nexus, this.props)), this.contentEl);
+    render(h('div', { class: `nv-root nv-${this.props.scheme}` }, h(Nexus, this.props)), this.contentEl);
   }
 }

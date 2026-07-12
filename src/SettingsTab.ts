@@ -34,5 +34,17 @@ export class NeuroVimSettingTab extends PluginSettingTab {
             await this.plugin.saveSettings();
           }),
       );
+
+    new Setting(containerEl)
+      .setName('CRT color scheme')
+      .setDesc('On: fixed cyberpunk look (dark background, phosphor green) — theme-independent, always legible. Off: adaptive Obsidian-theme colors that blend into your light/dark theme.')
+      .addToggle((t) =>
+        t
+          .setValue(this.plugin.settings.colorScheme === 'crt')
+          .onChange(async (v) => {
+            this.plugin.settings.colorScheme = v ? 'crt' : 'native';
+            await this.plugin.saveSettings();
+          }),
+      );
   }
 }

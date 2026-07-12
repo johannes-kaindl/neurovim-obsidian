@@ -1,37 +1,75 @@
-.nv-root { font-family: var(--font-monospace); color: var(--text-normal); padding: 12px; }
-.nv-title { color: #39ff7a; letter-spacing: 0.12em; margin: 0 0 8px; }
-.nv-level { color: var(--text-muted); margin-bottom: 12px; font-size: 0.85em; }
+/* ── Color schemes ────────────────────────────────────────────────
+   Every colored rule below uses a --nv-* variable. A scheme class
+   (.nv-crt / .nv-native) sits on each UI root (.nv-root pane, .nv-hud box)
+   and supplies the whole palette — so colors never mix theme + fixed. */
+.nv-crt {
+  --nv-accent: #39ff7a;
+  --nv-accent-dim: #5fae82;
+  --nv-panel: #0c1f16;
+  --nv-pane-bg: #060f0a;
+  --nv-border: #39ff7a;
+  --nv-border-soft: #21402f;
+  --nv-text: #d8f0e2;
+  --nv-text-dim: #6f9c83;
+  --nv-btn-bg: #10271b;
+  --nv-submit-bg: #103a24;
+  --nv-submit-fg: #39ff7a;
+  --nv-danger: #ff5555;
+}
+.nv-native {
+  --nv-accent: var(--text-accent);
+  --nv-accent-dim: var(--text-muted);
+  --nv-panel: var(--background-secondary);
+  --nv-pane-bg: transparent;
+  --nv-border: var(--background-modifier-border);
+  --nv-border-soft: var(--background-modifier-border);
+  --nv-text: var(--text-normal);
+  --nv-text-dim: var(--text-muted);
+  --nv-btn-bg: var(--background-secondary);
+  --nv-submit-bg: var(--interactive-accent);
+  --nv-submit-fg: var(--text-on-accent);
+  --nv-danger: var(--text-error, #e05252);
+}
+
+/* ── NEXUS pane ───────────────────────────────────────────────────── */
+.nv-root {
+  font-family: var(--font-monospace); color: var(--nv-text); padding: 12px;
+  min-height: 100%; box-sizing: border-box; background: var(--nv-pane-bg);
+}
+.nv-title { color: var(--nv-accent); letter-spacing: 0.12em; margin: 0 0 8px; }
+.nv-level { color: var(--nv-text-dim); margin-bottom: 12px; font-size: 0.85em; }
 .nv-mission-list { display: flex; flex-direction: column; gap: 6px; }
 .nv-mission {
   display: grid; grid-template-columns: auto 1fr auto; gap: 8px; align-items: center;
-  background: var(--background-secondary); border: 1px solid var(--background-modifier-border);
-  color: var(--text-normal); padding: 8px 10px; border-radius: 6px; cursor: pointer; text-align: left;
+  background: var(--nv-panel); border: 1px solid var(--nv-border-soft);
+  color: var(--nv-text); padding: 8px 10px; border-radius: 6px; cursor: pointer; text-align: left;
 }
-.nv-mission:hover:not(.is-locked) { border-color: #39ff7a; }
+.nv-mission:hover:not(.is-locked) { border-color: var(--nv-accent); }
 .nv-mission.is-locked { opacity: 0.4; cursor: not-allowed; }
-.nv-mission.is-done .nv-mission-xp { color: #39ff7a; }
-.nv-mission-id { color: #39ff7a; font-weight: 600; }
-.nv-mission-xp { color: var(--text-muted); }
-/* ── Mission-control HUD (shared by floating box + sidebar block) ─── */
-.nv-hud { font-family: var(--font-monospace); }
+.nv-mission.is-done .nv-mission-xp { color: var(--nv-accent); }
+.nv-mission-id { color: var(--nv-accent); font-weight: 600; }
+.nv-mission-xp { color: var(--nv-text-dim); }
+
+/* ── Mission-control HUD (shared by floating box + sidebar block) ───── */
+.nv-hud { font-family: var(--font-monospace); color: var(--nv-text); }
 .nv-hud-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-.nv-hud-mission { color: #39ff7a; font-weight: 600; letter-spacing: 0.06em; }
-.nv-hud-timer { color: #39ff7a; font-variant-numeric: tabular-nums; }
-.nv-hud-keystrokes { color: var(--text-muted); font-size: 0.8em; }
+.nv-hud-mission { color: var(--nv-accent); font-weight: 600; letter-spacing: 0.06em; }
+.nv-hud-timer { color: var(--nv-accent); font-variant-numeric: tabular-nums; }
+.nv-hud-keystrokes { color: var(--nv-text-dim); font-size: 0.8em; }
 .nv-hud-actions { display: flex; gap: 5px; margin-left: auto; }
 .nv-btn {
   padding: 3px 8px; font-size: 0.75em; letter-spacing: 0.05em; border-radius: 4px; cursor: pointer;
   white-space: nowrap;
-  background: var(--background-secondary); border: 1px solid var(--background-modifier-border); color: var(--text-normal);
+  background: var(--nv-btn-bg); border: 1px solid var(--nv-border-soft); color: var(--nv-text);
 }
-.nv-btn-submit { background: #103a24; border-color: #39ff7a; color: #39ff7a; }
-.nv-btn-abort:hover { border-color: #ff5555; color: #ff5555; }
+.nv-btn-submit { background: var(--nv-submit-bg); border-color: var(--nv-accent); color: var(--nv-submit-fg); }
+.nv-btn-abort:hover { border-color: var(--nv-danger); color: var(--nv-danger); }
 .nv-hud-close {
   margin-left: 2px; padding: 0 4px; background: transparent; border: none;
-  color: var(--text-muted); font-size: 1.1em; line-height: 1; cursor: pointer;
+  color: var(--nv-text-dim); font-size: 1.1em; line-height: 1; cursor: pointer;
 }
-.nv-hud-close:hover { color: #ff5555; }
-.nv-hud-vimhint { margin-top: 4px; color: var(--text-muted); font-size: 0.72em; }
+.nv-hud-close:hover { color: var(--nv-danger); }
+.nv-hud-vimhint { margin-top: 4px; color: var(--nv-text-dim); font-size: 0.72em; }
 
 /* Floating box: positioned over the editor, width follows content (stays narrow). */
 .nv-float-hud-container {
@@ -39,15 +77,15 @@
 }
 .nv-float-hud-container .nv-hud {
   pointer-events: auto; width: max-content; max-width: min(80vw, 440px);
-  background: rgba(6, 18, 12, 0.94); border: 1px solid #39ff7a; border-radius: 6px;
-  padding: 5px 8px; box-shadow: 0 0 10px rgba(57, 255, 122, 0.22);
+  background: var(--nv-panel); border: 1px solid var(--nv-border); border-radius: 6px;
+  padding: 5px 8px; box-shadow: 0 0 10px rgba(0, 0, 0, 0.35);
 }
 
 /* Sidebar block: control on top of the NEXUS list. */
 .nv-nexus .nv-hud {
   margin-bottom: 12px; padding: 8px 10px; border-radius: 6px;
-  border: 1px solid #39ff7a; background: var(--background-secondary);
+  border: 1px solid var(--nv-border); background: var(--nv-panel);
 }
 
-/* First divergent line, highlighted after a failed submit. */
+/* First divergent line, highlighted after a failed submit (editor follows Obsidian theme). */
 .nv-diff-line { background: rgba(255, 85, 85, 0.18); box-shadow: inset 2px 0 0 #ff5555; }

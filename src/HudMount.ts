@@ -1,3 +1,5 @@
+import type { ColorScheme } from './settings';
+
 /** Data the HUD renders — the contract HudMount passes through to the view. */
 export interface HudRenderProps {
   id: string;
@@ -5,6 +7,7 @@ export interface HudRenderProps {
   elapsedMs: number;
   keystrokes: number;
   vimActive: boolean;
+  scheme: ColorScheme;
   onSubmit: () => void;
   onReset: () => void;
   onAbandon: () => void;
