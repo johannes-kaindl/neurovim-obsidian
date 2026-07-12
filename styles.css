@@ -48,6 +48,9 @@
 .nv-mission.is-locked { opacity: 0.58; cursor: not-allowed; }
 .nv-mission.is-done .nv-mission-xp { color: var(--nv-accent); }
 .nv-mission-id { color: var(--nv-accent); font-weight: 600; }
+/* Explicit (not inherited) — Obsidian's button color rule outranks .nv-mission,
+   so the inherited title text would otherwise stay the theme's color. */
+.nv-mission .nv-mission-title { color: var(--nv-text); }
 .nv-mission-xp { color: var(--nv-text-dim); }
 
 /* ── Mission-control HUD (shared by floating box + sidebar block) ───── */
@@ -60,24 +63,27 @@
 /* In the wide pane, push the buttons to the right; in the narrow box, keep them
    snug against the metrics so the box stays as narrow as its content. */
 .nv-nexus .nv-hud .nv-hud-actions { margin-left: auto; }
-.nv-btn {
+/* Buttons scoped under .nv-hud so our color outranks Obsidian's button rule
+   (which has higher specificity than a bare .nv-btn and would win otherwise). */
+.nv-hud .nv-btn {
   padding: 3px 8px; font-size: 0.75em; letter-spacing: 0.05em; border-radius: 4px; cursor: pointer;
   white-space: nowrap;
   background: var(--nv-btn-bg); border: 1px solid var(--nv-border-soft); color: var(--nv-text);
 }
-.nv-btn-submit { background: var(--nv-submit-bg); border-color: var(--nv-accent); color: var(--nv-submit-fg); }
-.nv-btn-abort:hover { border-color: var(--nv-danger); color: var(--nv-danger); }
-.nv-hud-close {
+.nv-hud .nv-btn-submit { background: var(--nv-submit-bg); border-color: var(--nv-accent); color: var(--nv-submit-fg); }
+.nv-hud .nv-btn-abort:hover { border-color: var(--nv-danger); color: var(--nv-danger); }
+.nv-hud .nv-hud-close {
   margin-left: 2px; padding: 0 4px; background: transparent; border: none;
   color: var(--nv-text-dim); font-size: 1.1em; line-height: 1; cursor: pointer;
 }
-.nv-hud-close:hover { color: var(--nv-danger); }
+.nv-hud .nv-hud-close:hover { color: var(--nv-danger); }
 .nv-hud-vimhint { margin-top: 4px; color: var(--nv-text-dim); font-size: 0.72em; }
 
 /* Floating box: positioned over the editor, width follows content (stays narrow). */
 .nv-float-hud-container {
   position: absolute; top: 6px; right: 12px; z-index: 20; pointer-events: none;
 }
+.nv-float-hud-container .nv-hud-row { flex-wrap: nowrap; }
 .nv-float-hud-container .nv-hud {
   pointer-events: auto; width: max-content; max-width: min(80vw, 440px);
   background: var(--nv-panel); border: 1px solid var(--nv-border); border-radius: 6px;
