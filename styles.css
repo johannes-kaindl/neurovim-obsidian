@@ -147,3 +147,24 @@
   background: var(--nv-btn-bg); border: 1px solid var(--nv-border-soft); color: var(--nv-text);
 }
 .nv-result .nv-btn:hover { border-color: var(--nv-accent); color: var(--nv-accent); }
+
+/* ── Briefing modal (shown before a mission's transmission opens) ── */
+/* Dark CRT frame (CRT scheme only); native scheme keeps Obsidian's themed modal. */
+.modal.nv-briefing-modal.nv-crt {
+  background: var(--nv-pane-bg); border: 1px solid var(--nv-border);
+  box-shadow: 0 0 28px rgba(0, 0, 0, 0.55);
+}
+.nv-briefing-modal .modal-close-button { color: var(--nv-text-dim); }
+.nv-briefing-modal .modal-close-button:hover { color: var(--nv-accent); }
+.nv-briefing .nv-briefing-title {
+  color: var(--nv-accent); font-family: var(--font-monospace); letter-spacing: 0.1em;
+  font-weight: 700; margin-bottom: 10px; text-shadow: 0 0 8px var(--nv-accent);
+}
+.nv-briefing .nv-briefing-body { max-height: 60vh; overflow-y: auto; }
+.nv-briefing .nv-briefing-actions { display: flex; justify-content: center; margin-top: 12px; }
+/* Button scoped under .nv-briefing so our color outranks Obsidian's button rule. */
+.nv-briefing .nv-btn {
+  padding: 6px 16px; font-size: 0.85em; letter-spacing: 0.06em; border-radius: 4px; cursor: pointer;
+  background: var(--nv-submit-bg); border: 1px solid var(--nv-accent); color: var(--nv-submit-fg);
+}
+.nv-briefing .nv-btn:hover { box-shadow: 0 0 10px var(--nv-accent); }
