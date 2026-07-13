@@ -15,6 +15,7 @@ import { countsAsKeystroke, isEditorKeydownTarget } from './keystrokeCounter';
 import { NeuroVimSettingTab } from './SettingsTab';
 import { buildResultView } from './result/resultView';
 import { ResultModal } from './result/ResultModal';
+import { BriefingModal } from './briefing/BriefingModal';
 import { DEFAULT_SETTINGS, type VimDojoSettings } from './settings';
 import type { PluginData, MissionSummary } from '@neurovim/core';
 
@@ -143,6 +144,25 @@ export default class NeuroVimPlugin extends Plugin {
   }
 
   private async handleStart(id: string): Promise<void> {
+    let doc;
+    try {
+      doc = await this.content.getMission(id);
+    } catch (e) {
+      new Notice(`NeuroVim: ${(e as Error).message}`);
+      return;
+    }
+    if (doc.briefingBody) {
+      new BriefingModal(
+        this.app, doc.title, doc.briefingBody, this.settings.colorScheme,
+        () => void this.beginMission(id),
+      ).open();
+    } else {
+      await this.beginMission(id);
+    }
+  }
+
+  /** Actually start the mission: materialize + open the transmission, start the timer. */
+  private async beginMission(id: string): Promise<void> {
     try {
       await this.session.start(id);
       this.boxDismissed = false;
