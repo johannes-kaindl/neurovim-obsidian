@@ -232,7 +232,10 @@ export default class NeuroVimPlugin extends Plugin {
     this.cipherSession.append({ role: 'user', text: question });
     this.cipherSession.busy = true;
     this.cipherSession.streaming = '';
-    this.cipherAbort = new AbortController();
+    // Capture this turn's controller locally: `this.cipherAbort` may be reassigned
+    // (new turn) or nulled (reset) by the time our await resolves.
+    const myAbort = new AbortController();
+    this.cipherAbort = myAbort;
     const messages = buildChatMessages({
       knowledge: this.cipherKnowledge,
       mission: this.cipherSession.mission,
@@ -245,9 +248,15 @@ export default class NeuroVimPlugin extends Plugin {
       model: this.settings.llmModel,
     };
     const outcome = await this.cipherClient.stream(cfg, messages, (t) => {
+      // Stale stream from a reset/superseded turn — don't write into the new turn's state.
+      if (this.cipherAbort !== myAbort) return;
       // The 500ms repaint tick picks this up — no extra render plumbing.
       this.cipherSession.streaming = (this.cipherSession.streaming ?? '') + t;
-    }, this.cipherAbort.signal);
+    }, myAbort.signal);
+
+    // Only the current turn may mutate session state after its await — a reset or a
+    // newer ask already owns `cipherSession`/`cipherAbort` if the identity check fails.
+    if (this.cipherAbort !== myAbort) return;
 
     if (outcome.ok) {
       this.cipherSession.append({ role: 'assistant', text: outcome.content });
