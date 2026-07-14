@@ -5,6 +5,8 @@ All notable changes to this project are documented here. Format loosely follows
 
 ## [Unreleased]
 
+## [0.3.0] — 2026-07-14
+
 ### Added
 - Mission briefings are now shown before a mission starts. Selecting a mission opens a
   briefing modal that renders the briefing's markdown — the CIPHER transmission, objective,
