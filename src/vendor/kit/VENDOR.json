@@ -1,0 +1,7 @@
+{
+  "source": "obsidian-kit",
+  "version": "0.13.0",
+  "sha": "80abae9",
+  "vendored": "pure/sse.ts, pure/think-splitter.ts (als think.ts), pure/endpoint.ts",
+  "note": "Verbatim snapshot. Never hand-edit. Re-copy from obsidian-kit to update."
+}
