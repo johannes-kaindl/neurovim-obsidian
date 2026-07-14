@@ -16,7 +16,11 @@ import { NeuroVimSettingTab } from './SettingsTab';
 import { buildResultView } from './result/resultView';
 import { ResultModal } from './result/ResultModal';
 import { BriefingModal } from './briefing/BriefingModal';
-import { DEFAULT_SETTINGS, type VimDojoSettings } from './settings';
+import { ChatSession } from './llm/chatSession';
+import { CipherClient } from './llm/CipherClient';
+import { XhrSseTransport } from './llm/XhrSseTransport';
+import { buildKnowledge, buildChatMessages, type CipherKnowledge, type MissionContext } from './llm/cipherPrompt';
+import { DEFAULT_SETTINGS, isLlmConfigured, type VimDojoSettings } from './settings';
 import type { PluginData, MissionSummary } from '@neurovim/core';
 
 /** data.json blob = PluginData plus our settings under a reserved key. */
@@ -33,6 +37,10 @@ export default class NeuroVimPlugin extends Plugin {
   private boxDismissed = false;
   private vimRestore: boolean | null = null;
   private tick: number | null = null;
+  private cipherSession = new ChatSession();
+  private cipherClient = new CipherClient(new XhrSseTransport());
+  private cipherAbort: AbortController | null = null;
+  private cipherKnowledge: CipherKnowledge | null = null;
 
   async onload(): Promise<void> {
     this.storage = new ObsidianStorage(this);
@@ -82,6 +90,7 @@ export default class NeuroVimPlugin extends Plugin {
   onunload(): void {
     if (this.tick !== null) window.clearInterval(this.tick);
     this.hud.detach();
+    this.cipherAbort?.abort();
     this.restoreVim();
   }
 
@@ -167,6 +176,10 @@ export default class NeuroVimPlugin extends Plugin {
       await this.session.start(id);
       this.boxDismissed = false;
       this.enterAutoVim();
+      const m = this.missions.find((x) => x.mission_id === id);
+      this.cipherSession.setMission(m
+        ? { id: m.mission_id, title: m.title, category: m.category, why: m.why, parKeystrokes: m.par_keystrokes }
+        : null);
       this.repaint();
     } catch (e) {
       new Notice(`NeuroVim: ${(e as Error).message}`);
@@ -181,6 +194,7 @@ export default class NeuroVimPlugin extends Plugin {
       if (cm) clearHighlight(cm);
       this.session.end();
       this.restoreVim();
+      this.cipherSession.setMission(null);
       new ResultModal(this.app, buildResultView(res.result), this.settings.colorScheme).open();
     } else {
       if (cm) showDivergentLine(cm, res.diff.first_divergent_line);
@@ -205,7 +219,46 @@ export default class NeuroVimPlugin extends Plugin {
     if (cm) clearHighlight(cm);
     this.session.end();
     this.restoreVim();
+    this.cipherSession.setMission(null);
     new Notice('>_ Mission aborted.');
+    this.repaint();
+  }
+
+  /** One CIPHER chat turn: append the question, stream the answer into the session. */
+  private async handleCipherAsk(question: string): Promise<void> {
+    if (this.cipherSession.busy || !isLlmConfigured(this.settings)) return;
+    this.cipherKnowledge ??= buildKnowledge();
+    const history = this.cipherSession.historyForPrompt();
+    this.cipherSession.append({ role: 'user', text: question });
+    this.cipherSession.busy = true;
+    this.cipherSession.streaming = '';
+    this.cipherAbort = new AbortController();
+    const messages = buildChatMessages({
+      knowledge: this.cipherKnowledge,
+      mission: this.cipherSession.mission,
+      history,
+      question,
+    });
+    const cfg = {
+      endpoint: this.settings.llmEndpoint,
+      apiKey: this.settings.llmApiKey,
+      model: this.settings.llmModel,
+    };
+    const outcome = await this.cipherClient.stream(cfg, messages, (t) => {
+      // The 500ms repaint tick picks this up — no extra render plumbing.
+      this.cipherSession.streaming = (this.cipherSession.streaming ?? '') + t;
+    }, this.cipherAbort.signal);
+
+    if (outcome.ok) {
+      this.cipherSession.append({ role: 'assistant', text: outcome.content });
+    } else if (outcome.kind === 'aborted' && outcome.partial) {
+      this.cipherSession.append({ role: 'assistant', text: `${outcome.partial} — signal cut` });
+    } else if (outcome.kind !== 'aborted') {
+      this.cipherSession.append({ role: 'error', text: 'Signal lost. Check your uplink.', detail: outcome.detail });
+    }
+    this.cipherSession.streaming = null;
+    this.cipherSession.busy = false;
+    this.cipherAbort = null;
     this.repaint();
   }
 
@@ -236,6 +289,7 @@ export default class NeuroVimPlugin extends Plugin {
           onSubmit: () => void this.handleSubmit(),
           onReset: () => void this.handleReset(),
           onAbandon: () => this.handleAbandon(),
+          onCipher: isLlmConfigured(this.settings) ? () => void this.activateView() : undefined,
         }
       : null;
 
@@ -261,7 +315,17 @@ export default class NeuroVimPlugin extends Plugin {
         data: this.data,
         onStart: (mid) => void this.handleStart(mid),
         control: target === 'sidebar' ? control : null,
-        cipher: null,
+        cipher: isLlmConfigured(this.settings)
+          ? {
+              entries: this.cipherSession.entries,
+              streaming: this.cipherSession.streaming,
+              busy: this.cipherSession.busy,
+              missionTitle: this.cipherSession.mission?.title ?? null,
+              onAsk: (q) => void this.handleCipherAsk(q),
+              onAbort: () => this.cipherAbort?.abort(),
+              onReset: () => { this.cipherAbort?.abort(); this.cipherSession.reset(); this.repaint(); },
+            }
+          : null,
         scheme: this.settings.colorScheme,
       });
     }

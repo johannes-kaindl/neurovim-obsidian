@@ -22,6 +22,9 @@ export function MissionHud(p: HudRenderProps) {
           <button class="nv-btn nv-btn-submit" onClick={p.onSubmit}>SUBMIT</button>
           <button class="nv-btn nv-btn-reset" onClick={p.onReset}>RESET</button>
           <button class="nv-btn nv-btn-abort" onClick={p.onAbandon}>ABORT</button>
+          {p.onCipher && (
+            <button class="nv-btn nv-btn-cipher" title="Ask CIPHER for Vim advice" onClick={p.onCipher}>CIPHER</button>
+          )}
         </div>
         {p.onDismiss && (
           <button class="nv-hud-close" aria-label="Hide HUD (this mission)" onClick={p.onDismiss}>×</button>

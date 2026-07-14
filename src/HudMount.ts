@@ -11,6 +11,8 @@ export interface HudRenderProps {
   onSubmit: () => void;
   onReset: () => void;
   onAbandon: () => void;
+  /** Present only when the CIPHER uplink is configured — renders the CIPHER button. */
+  onCipher?: () => void;
   /** Present only for the floating box — renders a dismiss (×) button. */
   onDismiss?: () => void;
 }
