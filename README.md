@@ -10,6 +10,17 @@ NeuroVim originally started life as an Obsidian plugin, then grew into a multi-t
 game ([`neurovim-standalone`](https://codeberg.org/jkaindl/NeuroVIM): web + desktop +
 Obsidian). **vim-dojo** brings it back home as a first-class, standalone Obsidian plugin.
 
+## CIPHER uplink (experimental, optional)
+
+Ask CIPHER for Vim advice — in character, powered by any OpenAI-compatible endpoint
+(LM Studio, Ollama, OpenRouter, …). Configure endpoint + model under
+Settings → NeuroVim → CIPHER uplink; leave them empty and the feature stays fully off.
+During a mission, the HUD gains a CIPHER button that opens the uplink with the
+mission's context attached.
+
+Privacy: your questions plus the active mission's metadata (title, category, goal)
+are sent to the endpoint you configure — never any other vault content.
+
 ## How it works (the hybrid model)
 
 - **Content is bundled in the plugin** — the story is *earned by playing*, never spoiled by

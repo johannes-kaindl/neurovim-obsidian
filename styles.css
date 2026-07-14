@@ -204,3 +204,19 @@
 /* Obsidian auto-adds a copy button to the ASCII code-block that opens every
    briefing. The briefing is read-only lore — the button is meaningless here. */
 .nv-briefing .copy-code-button { display: none; }
+
+/* ── UPLINK // CIPHER ─────────────────────────────────────────── */
+.nv-uplink { margin-top: 1.5em; border-top: 1px dashed currentColor; padding-top: 0.75em; }
+.nv-uplink-context { font-size: 0.8em; opacity: 0.7; margin-bottom: 0.5em; }
+.nv-uplink-log { max-height: 40vh; overflow-y: auto; display: flex; flex-direction: column; gap: 0.5em; }
+.nv-uplink-line { white-space: pre-wrap; word-break: break-word; }
+.nv-uplink-prefix { font-weight: bold; margin-right: 0.5em; opacity: 0.8; }
+.nv-uplink-user .nv-uplink-prefix { opacity: 0.6; }
+.nv-uplink-error { opacity: 0.9; }
+.nv-uplink-detail { font-size: 0.75em; opacity: 0.55; margin-left: 1.5em; }
+.nv-uplink-cursor { animation: nv-uplink-blink 1s steps(1) infinite; }
+@keyframes nv-uplink-blink { 50% { opacity: 0; } }
+.nv-uplink-input-row { display: flex; gap: 0.4em; margin-top: 0.6em; }
+.nv-uplink-input { flex: 1; min-width: 0; background: transparent; border: 1px solid currentColor; color: inherit; font-family: inherit; padding: 0.3em 0.5em; }
+.nv-crt .nv-uplink-error .nv-uplink-text { color: #ff5f56; }
+.nv-native .nv-uplink-error .nv-uplink-text { color: var(--text-error); }
