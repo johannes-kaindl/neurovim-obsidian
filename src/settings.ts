@@ -11,6 +11,12 @@ export interface VimDojoSettings {
   autoVim: boolean;
   /** Open the NeuroVim pane automatically when Obsidian starts. Off by default. */
   openPaneOnStartup: boolean;
+  /** OpenAI-compatible endpoint for the optional CIPHER uplink. Empty = feature off. */
+  llmEndpoint: string;
+  /** Optional bearer token for cloud proxies (LM Studio/Ollama need none). */
+  llmApiKey: string;
+  /** Model id to request, e.g. "qwen3-8b". Empty = feature off. */
+  llmModel: string;
 }
 
 export const DEFAULT_SETTINGS: VimDojoSettings = {
@@ -19,4 +25,12 @@ export const DEFAULT_SETTINGS: VimDojoSettings = {
   colorScheme: 'crt',
   autoVim: false,
   openPaneOnStartup: false,
+  llmEndpoint: '',
+  llmApiKey: '',
+  llmModel: '',
 };
+
+/** The CIPHER uplink is live only when both an endpoint and a model are set. */
+export function isLlmConfigured(s: Pick<VimDojoSettings, 'llmEndpoint' | 'llmModel'>): boolean {
+  return s.llmEndpoint.trim() !== '' && s.llmModel.trim() !== '';
+}

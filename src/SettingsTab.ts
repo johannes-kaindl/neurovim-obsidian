@@ -70,5 +70,51 @@ export class NeuroVimSettingTab extends PluginSettingTab {
             await this.plugin.saveSettings();
           }),
       );
+
+    new Setting(containerEl).setName('CIPHER uplink (experimental)').setHeading();
+    containerEl.createEl('p', {
+      text:
+        'Ask CIPHER for Vim advice via any OpenAI-compatible endpoint (LM Studio, Ollama, ' +
+        'OpenRouter, …). Privacy: your questions plus the active mission\'s metadata ' +
+        '(title, category, goal) are sent to the endpoint you configure — never any ' +
+        'other vault content. Leave endpoint or model empty to disable the feature.',
+      cls: 'setting-item-description',
+    });
+
+    new Setting(containerEl)
+      .setName('LLM endpoint')
+      .setDesc('Base URL, e.g. http://localhost:1234 — a trailing /v1 is handled either way.')
+      .addText((t) =>
+        t.setPlaceholder('http://localhost:1234')
+          .setValue(this.plugin.settings.llmEndpoint)
+          .onChange(async (v) => {
+            this.plugin.settings.llmEndpoint = v.trim();
+            await this.plugin.saveSettings();
+          }),
+      );
+
+    new Setting(containerEl)
+      .setName('Model')
+      .setDesc('Model id to request from the endpoint, e.g. qwen3-8b.')
+      .addText((t) =>
+        t.setPlaceholder('qwen3-8b')
+          .setValue(this.plugin.settings.llmModel)
+          .onChange(async (v) => {
+            this.plugin.settings.llmModel = v.trim();
+            await this.plugin.saveSettings();
+          }),
+      );
+
+    new Setting(containerEl)
+      .setName('API key (optional)')
+      .setDesc('Bearer token for endpoints that need one. Local servers usually don\'t.')
+      .addText((t) => {
+        t.inputEl.type = 'password';
+        t.setValue(this.plugin.settings.llmApiKey)
+          .onChange(async (v) => {
+            this.plugin.settings.llmApiKey = v.trim();
+            await this.plugin.saveSettings();
+          });
+      });
   }
 }
