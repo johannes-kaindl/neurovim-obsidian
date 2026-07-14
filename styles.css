@@ -218,5 +218,15 @@
 @keyframes nv-uplink-blink { 50% { opacity: 0; } }
 .nv-uplink-input-row { display: flex; gap: 0.4em; margin-top: 0.6em; }
 .nv-uplink-input { flex: 1; min-width: 0; background: transparent; border: 1px solid currentColor; color: inherit; font-family: inherit; padding: 0.3em 0.5em; }
-.nv-crt .nv-uplink-error .nv-uplink-text { color: #ff5f56; }
+/* Buttons scoped under .nv-uplink so our color outranks Obsidian's button rule
+   (same reasoning as .nv-hud .nv-btn above — CipherChat mounts under .nv-nexus,
+   which doesn't itself carry the scheme's panel background). */
+.nv-uplink .nv-btn {
+  padding: 3px 8px; font-size: 0.75em; letter-spacing: 0.05em; border-radius: 4px; cursor: pointer;
+  white-space: nowrap;
+  background: var(--nv-btn-bg); border: 1px solid var(--nv-border-soft); color: var(--nv-text);
+}
+.nv-uplink .nv-btn-submit { background: var(--nv-submit-bg); border-color: var(--nv-accent); color: var(--nv-submit-fg); }
+.nv-uplink .nv-btn-abort:hover { border-color: var(--nv-danger); color: var(--nv-danger); }
+.nv-crt .nv-uplink-error .nv-uplink-text { color: var(--nv-danger); }
 .nv-native .nv-uplink-error .nv-uplink-text { color: var(--text-error); }
