@@ -5,6 +5,22 @@ All notable changes to this project are documented here. Format loosely follows
 
 ## [Unreleased]
 
+### Added
+- Mission briefings are now shown before a mission starts. Selecting a mission opens a
+  briefing modal that renders the briefing's markdown — the CIPHER transmission, objective,
+  skills and XP — as CRT-styled callouts; the mission itself begins only on **▶ Mission
+  beginnen**, so the story is surfaced instead of skipped straight into the editor.
+
+### Fixed
+- Light-theme readability for the fixed CRT scheme. Sidebar mission entries kept the theme's
+  light button background (green-on-light, barely legible); the CRT palette now wins on those
+  buttons regardless of theme.
+- Briefing callouts were invisible under a light theme: Obsidian blends callouts with
+  `mix-blend-mode: darken`, which erased them against the modal's dark background. They now
+  render on the CRT palette in every theme.
+- Removed the copy button Obsidian attaches to the briefing's ASCII code block — meaningless
+  for read-only lore.
+
 ## [0.2.2] — 2026-07-12
 
 ### Changed

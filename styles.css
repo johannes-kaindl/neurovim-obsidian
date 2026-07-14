@@ -39,10 +39,15 @@
 .nv-title { color: var(--nv-accent); letter-spacing: 0.12em; margin: 0 0 8px; }
 .nv-level { color: var(--nv-text-dim); margin-bottom: 12px; font-size: 0.85em; }
 .nv-mission-list { display: flex; flex-direction: column; gap: 6px; }
-.nv-mission {
+/* Scoped under .nv-nexus so the scheme's panel background outranks Obsidian's
+   button rule — otherwise the theme paints these <button>s with a light
+   background and the scheme's fixed (green/light) text becomes unreadable
+   on a light theme. box-shadow:none kills Obsidian's raised-input look. */
+.nv-nexus .nv-mission {
   display: grid; grid-template-columns: auto 1fr auto; gap: 8px; align-items: center;
   background: var(--nv-panel); border: 1px solid var(--nv-border-soft);
   color: var(--nv-text); padding: 8px 10px; border-radius: 6px; cursor: pointer; text-align: left;
+  box-shadow: none;
 }
 .nv-mission:hover:not(.is-locked) { border-color: var(--nv-accent); }
 .nv-mission.is-locked { opacity: 0.58; cursor: not-allowed; }
@@ -161,6 +166,34 @@
   font-weight: 700; margin-bottom: 10px; text-shadow: 0 0 8px var(--nv-accent);
 }
 .nv-briefing .nv-briefing-body { max-height: 60vh; overflow-y: auto; }
+/* The body is Obsidian-rendered markdown (callouts, quotes, the ASCII block)
+   that inherits the theme's text/code colors. On the fixed-dark CRT modal under
+   a LIGHT theme that renders dark-on-dark → unreadable. Remap the theme vars to
+   the CRT palette for the rendered content so it reads as dark-mode. Custom
+   props set on this closer ancestor win over Obsidian's :root/body defaults. */
+.nv-briefing-modal.nv-crt .nv-briefing-body {
+  --text-normal: var(--nv-text);
+  --text-muted: var(--nv-text-dim);
+  --text-faint: var(--nv-border-soft);
+  --text-accent: var(--nv-accent);
+  --background-primary: var(--nv-pane-bg);
+  --background-primary-alt: var(--nv-panel);
+  --background-secondary: var(--nv-panel);
+  --code-background: var(--nv-panel);
+  --code-normal: var(--nv-text);
+  color: var(--nv-text);
+}
+/* Obsidian blends callouts with mix-blend-mode: darken under a LIGHT theme.
+   Against the fixed-black CRT modal that darkens the whole callout to black
+   (darken keeps the darker pixel) — no colour override survives it. Force
+   normal blending, then paint the CRT palette: green title/icon via
+   --callout-color, dark panel bg, light body — monochrome-green terminal look. */
+.nv-briefing-modal.nv-crt .nv-briefing-body .callout {
+  mix-blend-mode: normal;
+  --callout-color: 69, 255, 138;
+  background-color: var(--nv-panel);
+  border: 1px solid var(--nv-border-soft);
+}
 .nv-briefing .nv-briefing-actions { display: flex; justify-content: center; margin-top: 12px; }
 /* Button scoped under .nv-briefing so our color outranks Obsidian's button rule. */
 .nv-briefing .nv-btn {
@@ -168,3 +201,6 @@
   background: var(--nv-submit-bg); border: 1px solid var(--nv-accent); color: var(--nv-submit-fg);
 }
 .nv-briefing .nv-btn:hover { box-shadow: 0 0 10px var(--nv-accent); }
+/* Obsidian auto-adds a copy button to the ASCII code-block that opens every
+   briefing. The briefing is read-only lore — the button is meaningless here. */
+.nv-briefing .copy-code-button { display: none; }
