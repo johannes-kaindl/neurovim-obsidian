@@ -5,6 +5,7 @@ import type { MissionSummary, PluginData } from '@neurovim/core';
 import { MissionHud } from './MissionHud';
 import type { HudRenderProps } from './HudMount';
 import type { ColorScheme } from './settings';
+import { CipherChat, type CipherChatProps } from './CipherChat';
 
 export const VIEW_TYPE_NEUROVIM = 'neurovim-hub';
 
@@ -14,6 +15,8 @@ export interface HubProps {
   onStart: (id: string) => void;
   /** When set, the mission-control block is shown at the top of the pane. */
   control: HudRenderProps | null;
+  /** When set, the UPLINK // CIPHER chat is shown below the mission list. */
+  cipher: CipherChatProps | null;
   scheme: ColorScheme;
 }
 
@@ -41,6 +44,7 @@ function Nexus(p: HubProps) {
           );
         })}
       </div>
+      {p.cipher && <CipherChat key="cipher-chat" {...p.cipher} />}
     </div>
   );
 }

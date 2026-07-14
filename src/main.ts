@@ -261,6 +261,7 @@ export default class NeuroVimPlugin extends Plugin {
         data: this.data,
         onStart: (mid) => void this.handleStart(mid),
         control: target === 'sidebar' ? control : null,
+        cipher: null,
         scheme: this.settings.colorScheme,
       });
     }
