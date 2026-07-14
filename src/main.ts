@@ -19,7 +19,7 @@ import { BriefingModal } from './briefing/BriefingModal';
 import { ChatSession } from './llm/chatSession';
 import { CipherClient } from './llm/CipherClient';
 import { XhrSseTransport } from './llm/XhrSseTransport';
-import { buildKnowledge, buildChatMessages, type CipherKnowledge, type MissionContext } from './llm/cipherPrompt';
+import { buildKnowledge, buildChatMessages, type CipherKnowledge } from './llm/cipherPrompt';
 import { DEFAULT_SETTINGS, isLlmConfigured, type VimDojoSettings } from './settings';
 import type { PluginData, MissionSummary } from '@neurovim/core';
 
@@ -90,7 +90,10 @@ export default class NeuroVimPlugin extends Plugin {
   onunload(): void {
     if (this.tick !== null) window.clearInterval(this.tick);
     this.hud.detach();
+    // Null after abort so a resumed continuation fails the identity check in handleCipherAsk
+    // instead of calling repaint() and re-creating the HUD after teardown.
     this.cipherAbort?.abort();
+    this.cipherAbort = null;
     this.restoreVim();
   }
 
@@ -236,6 +239,7 @@ export default class NeuroVimPlugin extends Plugin {
     // (new turn) or nulled (reset) by the time our await resolves.
     const myAbort = new AbortController();
     this.cipherAbort = myAbort;
+    this.repaint();
     const messages = buildChatMessages({
       knowledge: this.cipherKnowledge,
       mission: this.cipherSession.mission,
@@ -331,8 +335,12 @@ export default class NeuroVimPlugin extends Plugin {
               busy: this.cipherSession.busy,
               missionTitle: this.cipherSession.mission?.title ?? null,
               onAsk: (q) => void this.handleCipherAsk(q),
+              // onAbort leaves cipherAbort set: the killed turn still owns the identity check
+              // and must append its partial "— signal cut" answer into the live session.
               onAbort: () => this.cipherAbort?.abort(),
-              onReset: () => { this.cipherAbort?.abort(); this.cipherSession.reset(); this.repaint(); },
+              // onReset wipes the session, so the killed turn must NOT be allowed to append
+              // into it — null the controller to fail its identity check in handleCipherAsk.
+              onReset: () => { this.cipherAbort?.abort(); this.cipherAbort = null; this.cipherSession.reset(); this.repaint(); },
             }
           : null,
         scheme: this.settings.colorScheme,
