@@ -102,4 +102,77 @@ describe('CipherClient.stream', () => {
     const r = await new CipherClient(t).stream(CFG, MSGS, () => undefined, new AbortController().signal);
     expect(r).toEqual({ ok: true, content: '' });
   });
+
+  it('pre-aborted caller signal → returns aborted immediately, never calls the transport', async () => {
+    const t = fakeTransport(['data: [DONE]\n']);
+    const controller = new AbortController();
+    controller.abort();
+    const r = await new CipherClient(t).stream(CFG, MSGS, () => undefined, controller.signal);
+    expect(r).toEqual({ ok: false, kind: 'aborted', detail: 'stream aborted', partial: '' });
+    expect(t.calls.length).toBe(0);
+  });
+
+  it('drains the splitter tail on an error path so partial content is not dropped', async () => {
+    // "<th" is a plausible prefix of "<think>" in Vim-syntax-heavy content; it must
+    // survive into `partial` via splitter.flush() even though the stream then errors.
+    const t: SseTransport = {
+      postStream(_u, _b, _h, onChunk, _s): Promise<number> {
+        onChunk(sse('leading <th'));
+        const e = new Error('Aborted');
+        e.name = 'AbortError';
+        return Promise.reject(e);
+      },
+    };
+    const r = await new CipherClient(t).stream(CFG, MSGS, () => undefined, new AbortController().signal);
+    expect(r.ok).toBe(false);
+    if (!r.ok) {
+      expect(r.kind).toBe('aborted');
+      expect(r.partial.endsWith('<th')).toBe(true);
+    }
+  });
+
+  it('timeout: transport never resolves but honors signal abort → kind "timeout"', async () => {
+    const t: SseTransport = {
+      postStream(_u, _b, _h, _onChunk, signal): Promise<number> {
+        return new Promise((_resolve, reject) => {
+          signal.addEventListener('abort', () => {
+            const e = new Error('Aborted');
+            e.name = 'AbortError';
+            reject(e);
+          });
+        });
+      },
+    };
+    const r = await new CipherClient(t, 10).stream(CFG, MSGS, () => undefined, new AbortController().signal);
+    expect(r.ok).toBe(false);
+    if (!r.ok) {
+      expect(r.kind).toBe('timeout');
+      expect(r.detail).toContain('0.01s'); // timeoutMs=10 → 10/1000 = 0.01s
+    }
+  });
+
+  it('caller abort() after first token forwards to the inner controller → kind "aborted"', async () => {
+    const controller = new AbortController();
+    const t: SseTransport = {
+      postStream(_u, _b, _h, onChunk, signal): Promise<number> {
+        // Register the abort listener *before* emitting the token — onToken below
+        // calls controller.abort() synchronously, which must be observed by this
+        // listener (it dispatches ctrl.signal's 'abort' event synchronously too).
+        return new Promise((_resolve, reject) => {
+          signal.addEventListener('abort', () => {
+            const e = new Error('Aborted');
+            e.name = 'AbortError';
+            reject(e);
+          });
+          onChunk(sse('par'));
+        });
+      },
+    };
+    const r = await new CipherClient(t).stream(CFG, MSGS, () => controller.abort(), controller.signal);
+    expect(r.ok).toBe(false);
+    if (!r.ok) {
+      expect(r.kind).toBe('aborted');
+      expect(r.partial).toBe('par');
+    }
+  });
 });

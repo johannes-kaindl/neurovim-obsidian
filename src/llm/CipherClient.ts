@@ -39,6 +39,12 @@ export class CipherClient {
     onToken: (t: string) => void,
     signal: AbortSignal,
   ): Promise<StreamOutcome> {
+    // A signal that was already aborted before we got here would never fire our
+    // listener (added below) — check up front so we never start the transport.
+    if (signal.aborted) {
+      return { ok: false, kind: 'aborted', detail: 'stream aborted', partial: '' };
+    }
+
     const url = `${normalizeEndpoint(cfg.endpoint)}/v1/chat/completions`;
     const headers: Record<string, string> = {};
     if (cfg.apiKey) headers.Authorization = `Bearer ${cfg.apiKey}`;
@@ -65,6 +71,14 @@ export class CipherClient {
       // Reasoning (think spans + reasoning_content) is dropped by design.
     };
 
+    // Drain any tail buffered by the splitter (e.g. an unterminated "<th" prefix)
+    // into `content`/`onToken`. Shared by the success and error paths so partial
+    // content is never silently dropped.
+    const drainSplitter = (): void => {
+      const tail = splitter.flush();
+      if (tail.content !== '') { content += tail.content; onToken(tail.content); }
+    };
+
     let status: number;
     try {
       status = await this.transport.postStream(url, body, headers, (raw) => {
@@ -75,6 +89,7 @@ export class CipherClient {
       }, ctrl.signal);
     } catch (e) {
       const err = e instanceof Error ? e : new Error('unknown stream error');
+      drainSplitter();
       if (err.name === 'AbortError') {
         return timedOut
           ? { ok: false, kind: 'timeout', detail: `no answer within ${this.timeoutMs / 1000}s`, partial: content }
@@ -86,8 +101,7 @@ export class CipherClient {
       signal.removeEventListener('abort', onCallerAbort);
     }
 
-    const tail = splitter.flush();
-    if (tail.content !== '') { content += tail.content; onToken(tail.content); }
+    drainSplitter();
 
     if (status < 200 || status >= 300) {
       return { ok: false, kind: 'http', detail: `HTTP ${status}: ${rawBody.slice(0, ERROR_BODY_CAP)}`, partial: content };
