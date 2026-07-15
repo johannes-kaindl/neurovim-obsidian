@@ -21,6 +21,7 @@ import { CipherClient } from './llm/CipherClient';
 import { XhrSseTransport } from './llm/XhrSseTransport';
 import { buildKnowledge, buildChatMessages, type CipherKnowledge } from './llm/cipherPrompt';
 import { DEFAULT_SETTINGS, isLlmConfigured, type VimDojoSettings } from './settings';
+import type { HubTab } from './hubTabs';
 import type { PluginData, MissionSummary } from '@neurovim/core';
 
 /** data.json blob = PluginData plus our settings under a reserved key. */
@@ -41,6 +42,9 @@ export default class NeuroVimPlugin extends Plugin {
   private cipherClient = new CipherClient(new XhrSseTransport());
   private cipherAbort: AbortController | null = null;
   private cipherKnowledge: CipherKnowledge | null = null;
+  /** Active hub tab + guide search query — session-local UI state, not persisted. */
+  private hubTab: HubTab = 'nexus';
+  private guideQuery = '';
 
   async onload(): Promise<void> {
     this.storage = new ObsidianStorage(this);
@@ -302,7 +306,9 @@ export default class NeuroVimPlugin extends Plugin {
           onSubmit: () => void this.handleSubmit(),
           onReset: () => void this.handleReset(),
           onAbandon: () => this.handleAbandon(),
-          onCipher: isLlmConfigured(this.settings) ? () => void this.activateView() : undefined,
+          onCipher: isLlmConfigured(this.settings)
+            ? () => { this.hubTab = 'uplink'; void this.activateView(); }
+            : undefined,
         }
       : null;
 
@@ -343,6 +349,10 @@ export default class NeuroVimPlugin extends Plugin {
               onReset: () => { this.cipherAbort?.abort(); this.cipherAbort = null; this.cipherSession.reset(); this.repaint(); },
             }
           : null,
+        activeTab: this.hubTab,
+        onSelectTab: (t) => { this.hubTab = t; this.repaint(); },
+        guideQuery: this.guideQuery,
+        onGuideQuery: (q) => { this.guideQuery = q; this.repaint(); },
         scheme: this.settings.colorScheme,
       });
     }
