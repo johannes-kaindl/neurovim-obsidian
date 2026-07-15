@@ -43,11 +43,14 @@
    button rule — otherwise the theme paints these <button>s with a light
    background and the scheme's fixed (green/light) text becomes unreadable
    on a light theme. box-shadow:none kills Obsidian's raised-input look. */
+/* height: auto !important — Obsidian's own <button> default pins a fixed
+   single-line height that otherwise wins the cascade fight, so a wrapped
+   two-line mission title spilled out below the box instead of growing it. */
 .nv-nexus .nv-mission {
   display: grid; grid-template-columns: auto 1fr auto; gap: 8px; align-items: center;
   background: var(--nv-panel) !important; border: 1px solid var(--nv-border-soft) !important;
   color: var(--nv-text) !important; padding: 8px 10px; border-radius: 6px; cursor: pointer; text-align: left;
-  box-shadow: none;
+  box-shadow: none; height: auto !important;
 }
 .nv-mission:hover:not(.is-locked) { border-color: var(--nv-accent) !important; }
 .nv-mission.is-locked { opacity: 0.58; cursor: not-allowed; }
