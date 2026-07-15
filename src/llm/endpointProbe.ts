@@ -13,7 +13,7 @@ export interface ProbeResult { status: EndpointStatus; models: string[] }
 export async function probeEndpoint(endpoint: string, apiKey: string): Promise<ProbeResult> {
   const url = `${normalizeEndpoint(endpoint)}/v1/models`;
   const headers: Record<string, string> = apiKey ? { Authorization: `Bearer ${apiKey}` } : {};
-  const timeout = new Promise<'timeout'>((res) => globalThis.setTimeout(() => res('timeout'), PROBE_TIMEOUT_MS));
+  const timeout = new Promise<'timeout'>((res) => window.setTimeout(() => res('timeout'), PROBE_TIMEOUT_MS));
   try {
     const r = await Promise.race([requestUrl({ url, method: 'GET', headers, throw: false }), timeout]);
     if (r === 'timeout') return { status: classifyEndpointStatus({ kind: 'timeout' }), models: [] };

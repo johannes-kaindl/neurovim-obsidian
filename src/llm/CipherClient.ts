@@ -7,6 +7,7 @@ import { parseSSE } from '../vendor/kit/sse';
 import { ThinkSplitter } from '../vendor/kit/think';
 import { normalizeEndpoint } from '../vendor/kit/endpoint';
 import type { LlmMessage } from './cipherPrompt';
+import { realClock, type ClockPort } from './clock';
 
 export interface SseTransport {
   postStream(
@@ -31,6 +32,7 @@ export class CipherClient {
   constructor(
     private readonly transport: SseTransport,
     private readonly timeoutMs: number = DEFAULT_TIMEOUT_MS,
+    private readonly clock: ClockPort = realClock,
   ) {}
 
   async stream(
@@ -55,7 +57,7 @@ export class CipherClient {
     let timedOut = false;
     const onCallerAbort = (): void => ctrl.abort();
     signal.addEventListener('abort', onCallerAbort, { once: true });
-    const timer = globalThis.setTimeout(() => { timedOut = true; ctrl.abort(); }, this.timeoutMs);
+    const timer = this.clock.setTimeout(() => { timedOut = true; ctrl.abort(); }, this.timeoutMs);
 
     const splitter = new ThinkSplitter();
     let content = '';
@@ -97,7 +99,7 @@ export class CipherClient {
       }
       return { ok: false, kind: 'network', detail: err.message, partial: content };
     } finally {
-      globalThis.clearTimeout(timer);
+      this.clock.clearTimeout(timer);
       signal.removeEventListener('abort', onCallerAbort);
     }
 

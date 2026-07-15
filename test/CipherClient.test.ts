@@ -1,8 +1,16 @@
 import { describe, it, expect } from 'vitest';
 import { CipherClient, type SseTransport } from '../src/llm/CipherClient';
+import type { ClockPort } from '../src/llm/clock';
 
 const CFG = { endpoint: 'http://localhost:1234/v1/', apiKey: '', model: 'test-model' };
 const MSGS = [{ role: 'user' as const, content: 'q' }];
+
+/** Node's own timers — CipherClient's default clock uses `window`, which
+ *  doesn't exist in this Vitest node environment. */
+const fakeClock: ClockPort = {
+  setTimeout: (fn, ms) => setTimeout(fn, ms) as unknown as number,
+  clearTimeout: (id) => clearTimeout(id as unknown as NodeJS.Timeout),
+};
 
 /** Fake transport: replays fixture chunks, records url/body/headers. */
 function fakeTransport(chunks: string[], status = 200): SseTransport & { calls: { url: string; body: unknown; headers: Record<string, string> }[] } {
@@ -23,7 +31,7 @@ describe('CipherClient.stream', () => {
   it('happy path: accumulates deltas, emits tokens, normalizes the endpoint url', async () => {
     const t = fakeTransport([sse('Hel'), sse('lo'), 'data: [DONE]\n']);
     const tokens: string[] = [];
-    const r = await new CipherClient(t).stream(CFG, MSGS, (tok) => tokens.push(tok), new AbortController().signal);
+    const r = await new CipherClient(t, undefined, fakeClock).stream(CFG, MSGS, (tok) => tokens.push(tok), new AbortController().signal);
     expect(r).toEqual({ ok: true, content: 'Hello' });
     expect(tokens.join('')).toBe('Hello');
     expect(t.calls[0].url).toBe('http://localhost:1234/v1/chat/completions');
@@ -35,30 +43,30 @@ describe('CipherClient.stream', () => {
   it('handles SSE lines split across chunk boundaries (rest carry-over)', async () => {
     const line = sse('Hello');
     const t = fakeTransport([line.slice(0, 20), line.slice(20), 'data: [DONE]\n']);
-    const r = await new CipherClient(t).stream(CFG, MSGS, () => undefined, new AbortController().signal);
+    const r = await new CipherClient(t, undefined, fakeClock).stream(CFG, MSGS, () => undefined, new AbortController().signal);
     expect(r).toEqual({ ok: true, content: 'Hello' });
   });
 
   it('suppresses <think> spans from content and tokens', async () => {
     const t = fakeTransport([sse('<think>secret plan</think>'), sse('visible'), 'data: [DONE]\n']);
     const tokens: string[] = [];
-    const r = await new CipherClient(t).stream(CFG, MSGS, (tok) => tokens.push(tok), new AbortController().signal);
+    const r = await new CipherClient(t, undefined, fakeClock).stream(CFG, MSGS, (tok) => tokens.push(tok), new AbortController().signal);
     expect(r).toEqual({ ok: true, content: 'visible' });
     expect(tokens.join('')).toBe('visible');
   });
 
   it('sends an Authorization header only when an api key is set', async () => {
     const t1 = fakeTransport(['data: [DONE]\n']);
-    await new CipherClient(t1).stream(CFG, MSGS, () => undefined, new AbortController().signal);
+    await new CipherClient(t1, undefined, fakeClock).stream(CFG, MSGS, () => undefined, new AbortController().signal);
     expect(t1.calls[0].headers.Authorization).toBeUndefined();
     const t2 = fakeTransport(['data: [DONE]\n']);
-    await new CipherClient(t2).stream({ ...CFG, apiKey: 'sk-x' }, MSGS, () => undefined, new AbortController().signal);
+    await new CipherClient(t2, undefined, fakeClock).stream({ ...CFG, apiKey: 'sk-x' }, MSGS, () => undefined, new AbortController().signal);
     expect(t2.calls[0].headers.Authorization).toBe('Bearer sk-x');
   });
 
   it('non-2xx status → { ok: false, kind: "http" } with body excerpt as detail', async () => {
     const t = fakeTransport(['{"error":{"message":"model not found"}}'], 404);
-    const r = await new CipherClient(t).stream(CFG, MSGS, () => undefined, new AbortController().signal);
+    const r = await new CipherClient(t, undefined, fakeClock).stream(CFG, MSGS, () => undefined, new AbortController().signal);
     expect(r.ok).toBe(false);
     if (!r.ok) {
       expect(r.kind).toBe('http');
@@ -76,7 +84,7 @@ describe('CipherClient.stream', () => {
         return Promise.reject(e);
       },
     };
-    const r = await new CipherClient(t).stream(CFG, MSGS, () => undefined, new AbortController().signal);
+    const r = await new CipherClient(t, undefined, fakeClock).stream(CFG, MSGS, () => undefined, new AbortController().signal);
     expect(r.ok).toBe(false);
     if (!r.ok) {
       expect(r.kind).toBe('aborted');
@@ -92,14 +100,14 @@ describe('CipherClient.stream', () => {
         return Promise.reject(e);
       },
     };
-    const r = await new CipherClient(t).stream(CFG, MSGS, () => undefined, new AbortController().signal);
+    const r = await new CipherClient(t, undefined, fakeClock).stream(CFG, MSGS, () => undefined, new AbortController().signal);
     expect(r.ok).toBe(false);
     if (!r.ok) expect(r.kind).toBe('network');
   });
 
   it('garbage chunks without valid SSE data yield ok with empty content', async () => {
     const t = fakeTransport(['not sse at all\n', 'data: {broken json\n']);
-    const r = await new CipherClient(t).stream(CFG, MSGS, () => undefined, new AbortController().signal);
+    const r = await new CipherClient(t, undefined, fakeClock).stream(CFG, MSGS, () => undefined, new AbortController().signal);
     expect(r).toEqual({ ok: true, content: '' });
   });
 
@@ -107,7 +115,7 @@ describe('CipherClient.stream', () => {
     const t = fakeTransport(['data: [DONE]\n']);
     const controller = new AbortController();
     controller.abort();
-    const r = await new CipherClient(t).stream(CFG, MSGS, () => undefined, controller.signal);
+    const r = await new CipherClient(t, undefined, fakeClock).stream(CFG, MSGS, () => undefined, controller.signal);
     expect(r).toEqual({ ok: false, kind: 'aborted', detail: 'stream aborted', partial: '' });
     expect(t.calls.length).toBe(0);
   });
@@ -123,7 +131,7 @@ describe('CipherClient.stream', () => {
         return Promise.reject(e);
       },
     };
-    const r = await new CipherClient(t).stream(CFG, MSGS, () => undefined, new AbortController().signal);
+    const r = await new CipherClient(t, undefined, fakeClock).stream(CFG, MSGS, () => undefined, new AbortController().signal);
     expect(r.ok).toBe(false);
     if (!r.ok) {
       expect(r.kind).toBe('aborted');
@@ -143,7 +151,7 @@ describe('CipherClient.stream', () => {
         });
       },
     };
-    const r = await new CipherClient(t, 10).stream(CFG, MSGS, () => undefined, new AbortController().signal);
+    const r = await new CipherClient(t, 10, fakeClock).stream(CFG, MSGS, () => undefined, new AbortController().signal);
     expect(r.ok).toBe(false);
     if (!r.ok) {
       expect(r.kind).toBe('timeout');
@@ -168,7 +176,7 @@ describe('CipherClient.stream', () => {
         });
       },
     };
-    const r = await new CipherClient(t).stream(CFG, MSGS, () => controller.abort(), controller.signal);
+    const r = await new CipherClient(t, undefined, fakeClock).stream(CFG, MSGS, () => controller.abort(), controller.signal);
     expect(r.ok).toBe(false);
     if (!r.ok) {
       expect(r.kind).toBe('aborted');
