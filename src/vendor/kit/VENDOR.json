@@ -1,7 +1,7 @@
 {
   "source": "obsidian-kit",
-  "version": "0.13.0",
-  "sha": "80abae9",
-  "vendored": "pure/sse.ts, pure/think-splitter.ts (als think.ts), pure/endpoint.ts, pure/endpoint_diagnostics.ts",
+  "version": "0.14.0",
+  "sha": "644603c",
+  "vendored": "pure/sse.ts, pure/think-splitter.ts (als think.ts), pure/endpoint.ts, pure/endpoint_diagnostics.ts, obsidian/clock.ts",
   "note": "Verbatim snapshot. Never hand-edit. Re-copy from obsidian-kit to update."
 }
