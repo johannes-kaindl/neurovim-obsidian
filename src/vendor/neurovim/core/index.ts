@@ -38,6 +38,7 @@ export * from './utils/diff';
 export * from './utils/time';
 export * from './utils/hints';
 export * from './utils/chapterNav';
+export * from './utils/clock';
 
 // ── Web audio (platform-neutral) ─────────────────────────────
 export * from './audio/AudioEngine';

@@ -1,18 +1,21 @@
 import { AudioEngine } from './AudioEngine';
+import { realClock, type ClockPort } from '../utils/clock';
 
 export type AmbientContext = 'idle' | 'arc1' | 'arc2';
 
 export class AmbientLayer {
   private engine: AudioEngine;
+  private clock: ClockPort;
   private currentCtx: AmbientContext = 'idle';
   private enabled = false;
   private nodes: AudioNode[] = [];
   private fadeGain: GainNode | null = null;
-  private glitchTimer: ReturnType<typeof setTimeout> | null = null;
-  private distantPulseTimer: ReturnType<typeof setTimeout> | null = null;
+  private glitchTimer: number | null = null;
+  private distantPulseTimer: number | null = null;
 
-  constructor(engine: AudioEngine) {
+  constructor(engine: AudioEngine, clock: ClockPort = realClock) {
     this.engine = engine;
+    this.clock = clock;
   }
 
   get isEnabled(): boolean { return this.enabled; }
@@ -33,11 +36,11 @@ export class AmbientLayer {
 
   private stopNodes(): void {
     if (this.glitchTimer !== null) {
-      globalThis.clearTimeout(this.glitchTimer);
+      this.clock.clearTimeout(this.glitchTimer);
       this.glitchTimer = null;
     }
     if (this.distantPulseTimer !== null) {
-      globalThis.clearTimeout(this.distantPulseTimer);
+      this.clock.clearTimeout(this.distantPulseTimer);
       this.distantPulseTimer = null;
     }
     const ac = this.engine.context;
@@ -45,7 +48,7 @@ export class AmbientLayer {
       this.fadeGain.gain.linearRampToValueAtTime(0, ac.currentTime + 2);
     }
     const nodesToStop = this.nodes.slice();
-    globalThis.setTimeout(() => {
+    this.clock.setTimeout(() => {
       nodesToStop.forEach(n => {
         try {
           if ('stop' in n && typeof (n as AudioScheduledSourceNode).stop === 'function') (n as AudioScheduledSourceNode).stop();
@@ -117,7 +120,7 @@ export class AmbientLayer {
   private scheduleDistantPulse(): void {
     if (!this.enabled || !this.engine.isReady || this.currentCtx !== 'idle') return;
     const delay = 10000 + Math.random() * 18000;
-    this.distantPulseTimer = globalThis.setTimeout(() => {
+    this.distantPulseTimer = this.clock.setTimeout(() => {
       this.distantPulseTimer = null;
       if (!this.enabled || !this.engine.isReady || this.currentCtx !== 'idle' || !this.fadeGain) return;
       const a = this.engine.context!;
@@ -252,7 +255,7 @@ export class AmbientLayer {
       if (!this.enabled || !this.engine.isReady) return;
       const a = this.engine.context!;
       const delay = 3000 + Math.random() * 5000;
-      this.glitchTimer = globalThis.setTimeout(() => {
+      this.glitchTimer = this.clock.setTimeout(() => {
         this.glitchTimer = null;
         if (this.enabled && this.engine.isReady && this.currentCtx === 'arc2' && this.fadeGain) {
           const t = a.currentTime;
@@ -277,11 +280,11 @@ export class AmbientLayer {
 
   dispose(): void {
     if (this.glitchTimer !== null) {
-      globalThis.clearTimeout(this.glitchTimer);
+      this.clock.clearTimeout(this.glitchTimer);
       this.glitchTimer = null;
     }
     if (this.distantPulseTimer !== null) {
-      globalThis.clearTimeout(this.distantPulseTimer);
+      this.clock.clearTimeout(this.distantPulseTimer);
       this.distantPulseTimer = null;
     }
     this.enabled = false;
