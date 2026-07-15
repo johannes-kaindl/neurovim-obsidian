@@ -1,8 +1,16 @@
 import { App, PluginSettingTab, Setting } from 'obsidian';
 import type NeuroVimPlugin from './main';
 import type { HudPlacement } from './hudPlacement';
+import { ENDPOINT_PRESETS, validateEndpointInput } from './vendor/kit/endpoint_diagnostics';
+import { endpointStatusEn, endpointWarningEn } from './llm/endpointText';
+import { probeEndpoint } from './llm/endpointProbe';
 
 export class NeuroVimSettingTab extends PluginSettingTab {
+  /** Result of the last "Test connection" run — survives display() re-renders. */
+  private probeText: string | null = null;
+  private probeOk = false;
+  private models: string[] = [];
+
   constructor(app: App, private readonly plugin: NeuroVimPlugin) { super(app, plugin); }
 
   display(): void {
@@ -81,7 +89,15 @@ export class NeuroVimSettingTab extends PluginSettingTab {
       cls: 'setting-item-description',
     });
 
-    new Setting(containerEl)
+    let warningsEl: HTMLElement;
+    const renderWarnings = (): void => {
+      warningsEl.empty();
+      for (const w of validateEndpointInput(this.plugin.settings.llmEndpoint)) {
+        warningsEl.createEl('div', { text: `⚠ ${endpointWarningEn(w.rule)}`, cls: 'nv-setting-warning' });
+      }
+    };
+
+    const endpointSetting = new Setting(containerEl)
       .setName('LLM endpoint')
       .setDesc('Base URL, e.g. http://localhost:1234 — a trailing /v1 is handled either way.')
       .addText((t) =>
@@ -89,21 +105,78 @@ export class NeuroVimSettingTab extends PluginSettingTab {
           .setValue(this.plugin.settings.llmEndpoint)
           .onChange(async (v) => {
             this.plugin.settings.llmEndpoint = v.trim();
+            renderWarnings();
             await this.plugin.saveSettings();
           }),
       );
+    ENDPOINT_PRESETS.forEach((preset) => {
+      endpointSetting.addButton((b) =>
+        b.setButtonText(preset.label)
+          .setTooltip(`Use ${preset.url}`)
+          .onClick(async () => {
+            this.plugin.settings.llmEndpoint = preset.url;
+            await this.plugin.saveSettings();
+            this.display();
+          }),
+      );
+    });
+    warningsEl = containerEl.createEl('div', { cls: 'nv-setting-warnings' });
+    renderWarnings();
 
     new Setting(containerEl)
-      .setName('Model')
-      .setDesc('Model id to request from the endpoint, e.g. qwen3-8b.')
-      .addText((t) =>
-        t.setPlaceholder('qwen3-8b')
-          .setValue(this.plugin.settings.llmModel)
-          .onChange(async (v) => {
-            this.plugin.settings.llmModel = v.trim();
-            await this.plugin.saveSettings();
-          }),
+      .setName('Connection')
+      .setDesc('Check the endpoint and load its model list.')
+      .addButton((b) =>
+        b.setButtonText('Test connection').onClick(async () => {
+          b.setButtonText('Testing…');
+          b.setDisabled(true);
+          const r = await probeEndpoint(this.plugin.settings.llmEndpoint, this.plugin.settings.llmApiKey);
+          this.probeOk = r.status.reachable;
+          this.probeText = endpointStatusEn(r.status.kind, r.status.raw)
+            + (r.models.length ? ` ${r.models.length} models found.` : '');
+          this.models = r.models;
+          this.display();
+        }),
       );
+    if (this.probeText !== null) {
+      containerEl.createEl('div', {
+        text: `${this.probeOk ? '✓' : '✗'} ${this.probeText}`,
+        cls: `nv-setting-probe ${this.probeOk ? 'is-ok' : 'is-bad'}`,
+      });
+    }
+
+    const modelSetting = new Setting(containerEl).setName('Model');
+    if (this.models.length > 0) {
+      modelSetting
+        .setDesc('Pick one of the models the endpoint reports.')
+        .addDropdown((d) => {
+          const current = this.plugin.settings.llmModel;
+          if (current && !this.models.includes(current)) d.addOption(current, `${current} (saved)`);
+          for (const id of this.models) d.addOption(id, id);
+          d.setValue(current || this.models[0]);
+          // A dropdown has no empty state: adopt the shown value so the visible
+          // selection and the saved setting can't drift apart.
+          if (!current) {
+            this.plugin.settings.llmModel = this.models[0];
+            void this.plugin.saveSettings();
+          }
+          d.onChange(async (v) => {
+            this.plugin.settings.llmModel = v;
+            await this.plugin.saveSettings();
+          });
+        });
+    } else {
+      modelSetting
+        .setDesc('Model id to request from the endpoint, e.g. qwen3-8b — or run "Test connection" to pick from a list.')
+        .addText((t) =>
+          t.setPlaceholder('qwen3-8b')
+            .setValue(this.plugin.settings.llmModel)
+            .onChange(async (v) => {
+              this.plugin.settings.llmModel = v.trim();
+              await this.plugin.saveSettings();
+            }),
+        );
+    }
 
     new Setting(containerEl)
       .setName('API key (optional)')
