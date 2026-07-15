@@ -5,6 +5,6 @@
   "minAppVersion": "1.7.2",
   "description": "Learn Vim by playing a cyberpunk spy-thriller. Missions are Vim exercises you fix in real notes.",
   "author": "Johannes Kaindl",
-  "authorUrl": "https://codeberg.org/jkaindl",
+  "authorUrl": "https://jkaindl.de",
   "isDesktopOnly": false
 }
