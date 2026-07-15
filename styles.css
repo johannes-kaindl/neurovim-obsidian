@@ -55,7 +55,7 @@
 .nv-mission-id { color: var(--nv-accent); font-weight: 600; }
 /* Explicit (not inherited) — Obsidian's button color rule outranks .nv-mission,
    so the inherited title text would otherwise stay the theme's color. */
-.nv-mission .nv-mission-title { color: var(--nv-text); }
+.nv-mission .nv-mission-title { color: var(--nv-text); white-space: normal; overflow-wrap: anywhere; }
 .nv-mission-xp { color: var(--nv-text-dim); }
 
 /* ── Mission-control HUD (shared by floating box + sidebar block) ───── */
@@ -193,6 +193,35 @@
   --callout-color: 69, 255, 138;
   background-color: var(--nv-panel);
   border: 1px solid var(--nv-border-soft);
+}
+/* CRT hardening: custom themes (e.g. Minimal derivatives) style markdown/callout
+   content with rules MORE SPECIFIC than our CSS-variable remap above — the remap
+   alone cannot win. On a fixed-dark container text must be forced per element:
+   theme-agnostic means theme-agnostic. (Sibling lesson to the mix-blend-mode fix.) */
+.nv-briefing-modal.nv-crt .nv-briefing-body p,
+.nv-briefing-modal.nv-crt .nv-briefing-body li,
+.nv-briefing-modal.nv-crt .nv-briefing-body em,
+.nv-briefing-modal.nv-crt .nv-briefing-body strong,
+.nv-briefing-modal.nv-crt .nv-briefing-body blockquote,
+.nv-briefing-modal.nv-crt .nv-briefing-body blockquote p,
+.nv-briefing-modal.nv-crt .nv-briefing-body .callout-content,
+.nv-briefing-modal.nv-crt .nv-briefing-body .callout-content p,
+.nv-briefing-modal.nv-crt .nv-briefing-body .callout-content em {
+  color: var(--nv-text);
+}
+.nv-briefing-modal.nv-crt .nv-briefing-body h1,
+.nv-briefing-modal.nv-crt .nv-briefing-body h2,
+.nv-briefing-modal.nv-crt .nv-briefing-body h3,
+.nv-briefing-modal.nv-crt .nv-briefing-body h4,
+.nv-briefing-modal.nv-crt .nv-briefing-body h5,
+.nv-briefing-modal.nv-crt .nv-briefing-body h6,
+.nv-briefing-modal.nv-crt .nv-briefing-body .callout-title,
+.nv-briefing-modal.nv-crt .nv-briefing-body .callout-title-inner {
+  color: var(--nv-accent);
+}
+.nv-briefing-modal.nv-crt .nv-briefing-body code {
+  color: var(--nv-text);
+  background: var(--nv-panel);
 }
 .nv-briefing .nv-briefing-actions { display: flex; justify-content: center; margin-top: 12px; }
 /* Button scoped under .nv-briefing so our color outranks Obsidian's button rule. */
