@@ -106,7 +106,7 @@ function GuideTab(p: { query: string; onQuery: (q: string) => void }) {
         type="search"
         placeholder="search keys… (e.g. delete, ciw, :%s)"
         value={p.query}
-        onInput={(e) => p.onQuery((e.currentTarget as HTMLInputElement).value)}
+        onInput={(e) => p.onQuery(e.currentTarget.value)}
       />
       {cats.length === 0 && <div class="nv-guide-empty">No matches. CORP scrubbed that page.</div>}
       {cats.map((cat) => (

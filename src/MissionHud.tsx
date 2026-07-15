@@ -1,4 +1,3 @@
-import { h } from 'preact';
 import type { HudRenderProps } from './HudMount';
 
 function fmt(ms: number): string {

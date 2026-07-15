@@ -26,7 +26,7 @@ export interface HudHandle {
 /** Port: the DOM/Preact surface HudMount drives. Real impl mounts on the CM editor; fake in tests. */
 export interface HudDom {
   /** Editor element for the note if it's in a visible leaf, else null. */
-  editorElFor(notePath: string): unknown | null;
+  editorElFor(notePath: string): unknown;
   /** Mount a fresh HUD container into the editor element and return its handle. */
   create(editorEl: unknown): HudHandle;
 }

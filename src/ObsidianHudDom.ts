@@ -24,7 +24,7 @@ export class ObsidianHudDom implements HudDom {
 
   create(editorEl: unknown): HudHandle {
     const host = editorEl as HTMLElement;
-    const container = document.createElement('div');
+    const container = activeDocument.createElement('div');
     container.className = 'nv-float-hud-container';
     host.appendChild(container);
     return {

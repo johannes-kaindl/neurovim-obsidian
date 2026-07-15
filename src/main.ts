@@ -6,7 +6,6 @@ import { BundledContent } from './content/BundledContent';
 import { MissionSession } from './MissionSession';
 import { ObsidianMissionApp } from './ObsidianMissionApp';
 import { HubView, VIEW_TYPE_NEUROVIM } from './HubView';
-import type { HubProps } from './HubView';
 import { HudMount, type HudActive, type HudRenderProps } from './HudMount';
 import { ObsidianHudDom } from './ObsidianHudDom';
 import { resolveHudTarget } from './hudPlacement';
@@ -68,14 +67,14 @@ export default class NeuroVimPlugin extends Plugin {
     this.registerView(VIEW_TYPE_NEUROVIM, (leaf) => new HubView(leaf));
     this.addRibbonIcon('terminal', 'NeuroVim', () => void this.activateView());
 
-    this.addCommand({ id: 'open', name: 'Open NeuroVim', callback: () => void this.activateView() });
+    this.addCommand({ id: 'open', name: 'Open', callback: () => void this.activateView() });
     this.addCommand({ id: 'submit', name: 'Submit mission', callback: () => void this.handleSubmit() });
     this.addCommand({ id: 'reset', name: 'Reset mission', callback: () => void this.handleReset() });
 
     // Count keystrokes in the capture phase so Vim normal-mode commands and navigation
     // (h/j/k/l, motions, operators) are seen before CodeMirror/Vim consumes them — a bubble
     // or in-editor keydown handler never fires for those. Scoped to editor targets only.
-    this.registerDomEvent(document, 'keydown', (e: KeyboardEvent) => {
+    this.registerDomEvent(activeDocument, 'keydown', (e: KeyboardEvent) => {
       if (!this.session.activeMissionId) return;
       if (!countsAsKeystroke(e.key)) return;
       if (!isEditorKeydownTarget(e.target)) return;
@@ -282,11 +281,11 @@ export default class NeuroVimPlugin extends Plugin {
   private async activateView(): Promise<void> {
     const { workspace } = this.app;
     const existing = workspace.getLeavesOfType(VIEW_TYPE_NEUROVIM);
-    if (existing.length) { workspace.revealLeaf(existing[0]); this.repaint(); return; }
+    if (existing.length) { await workspace.revealLeaf(existing[0]); this.repaint(); return; }
     const leaf = workspace.getRightLeaf(false);
     if (!leaf) return;
     await leaf.setViewState({ type: VIEW_TYPE_NEUROVIM, active: true });
-    workspace.revealLeaf(leaf);
+    await workspace.revealLeaf(leaf);
     this.repaint();
   }
 

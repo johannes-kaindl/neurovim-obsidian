@@ -1,4 +1,3 @@
-import { h } from 'preact';
 import type { ChatEntry } from './llm/chatSession';
 
 export interface CipherChatProps {
@@ -48,13 +47,13 @@ export function CipherChat(p: CipherChatProps) {
           type="text"
           placeholder="ask CIPHER…"
           disabled={p.busy}
-          onKeyDown={(e) => { if (e.key === 'Enter') send(e.currentTarget as HTMLInputElement); }}
+          onKeyDown={(e) => { if (e.key === 'Enter') send(e.currentTarget); }}
         />
         {p.busy
           ? <button class="nv-btn nv-btn-abort" onClick={p.onAbort}>CUT</button>
           : <button class="nv-btn nv-btn-submit" onClick={(e) => {
               const input = (e.currentTarget as HTMLElement).parentElement?.querySelector('input');
-              if (input) send(input as HTMLInputElement);
+              if (input) send(input);
             }}>SEND</button>}
         <button class="nv-btn nv-btn-reset" title="Reset channel (clear history)" onClick={p.onReset}>RST</button>
       </div>

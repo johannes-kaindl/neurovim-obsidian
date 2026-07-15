@@ -55,7 +55,7 @@ export class CipherClient {
     let timedOut = false;
     const onCallerAbort = (): void => ctrl.abort();
     signal.addEventListener('abort', onCallerAbort, { once: true });
-    const timer = setTimeout(() => { timedOut = true; ctrl.abort(); }, this.timeoutMs);
+    const timer = globalThis.setTimeout(() => { timedOut = true; ctrl.abort(); }, this.timeoutMs);
 
     const splitter = new ThinkSplitter();
     let content = '';
@@ -97,7 +97,7 @@ export class CipherClient {
       }
       return { ok: false, kind: 'network', detail: err.message, partial: content };
     } finally {
-      clearTimeout(timer);
+      globalThis.clearTimeout(timer);
       signal.removeEventListener('abort', onCallerAbort);
     }
 

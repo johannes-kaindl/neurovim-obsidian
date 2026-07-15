@@ -1,7 +1,7 @@
 {
   "name": "vim-dojo",
   "version": "0.4.0",
-  "description": "NeuroVim — learn Vim by playing a cyberpunk spy-thriller, inside Obsidian.",
+  "description": "NeuroVim — learn Vim by playing a cyberpunk spy-thriller, inside real notes.",
   "license": "AGPL-3.0-only",
   "type": "module",
   "scripts": {
@@ -15,13 +15,14 @@
   },
   "devDependencies": {
     "@types/node": "^20.0.0",
-    "builtin-modules": "^3.3.0",
     "esbuild": "^0.20.0",
     "obsidian": "1.12.3",
     "typescript": "^5.4.0",
     "vitest": "^2.0.0"
   },
   "dependencies": {
+    "@codemirror/state": "^6.5.0",
+    "@codemirror/view": "^6.38.0",
     "preact": "^10.29.1"
   }
 }
