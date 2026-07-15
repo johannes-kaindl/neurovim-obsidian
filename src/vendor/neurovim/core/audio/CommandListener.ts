@@ -27,17 +27,17 @@ export class CommandListener {
   }
 
   detach(): void {
-    this.comboTimers.forEach(id => clearTimeout(id));
+    this.comboTimers.forEach(id => globalThis.clearTimeout(id));
     this.comboTimers = [];
     if (this.el) this.el.removeEventListener('keydown', this.keyRef, true);
     this.el = null;
     this.pendingOp = null;
-    if (this.resetTimer) { clearTimeout(this.resetTimer); this.resetTimer = null; }
+    if (this.resetTimer) { globalThis.clearTimeout(this.resetTimer); this.resetTimer = null; }
   }
 
   private scheduleReset(): void {
-    if (this.resetTimer) clearTimeout(this.resetTimer);
-    this.resetTimer = setTimeout(() => { this.pendingOp = null; this.resetTimer = null; }, 300);
+    if (this.resetTimer) globalThis.clearTimeout(this.resetTimer);
+    this.resetTimer = globalThis.setTimeout(() => { this.pendingOp = null; this.resetTimer = null; }, 300);
   }
 
   private onKeyDown(e: KeyboardEvent): void {
@@ -56,7 +56,7 @@ export class CommandListener {
     if (this.pendingOp) {
       const op = this.pendingOp;
       this.pendingOp = null;
-      if (this.resetTimer) { clearTimeout(this.resetTimer); this.resetTimer = null; }
+      if (this.resetTimer) { globalThis.clearTimeout(this.resetTimer); this.resetTimer = null; }
       this.playCombo(op, e.key);
       return;
     }
@@ -95,18 +95,18 @@ export class CommandListener {
     }
 
     if (op === motion) {
-      if (op === 'd') { SoundCues.commandDelete(this.engine); this.comboTimers.push(setTimeout(() => SoundCues.commandDelete(this.engine), 60)); }
-      else if (op === 'y') { SoundCues.commandYank(this.engine); this.comboTimers.push(setTimeout(() => SoundCues.commandYank(this.engine), 60)); }
-      else if (op === 'c') { SoundCues.commandChange(this.engine); this.comboTimers.push(setTimeout(() => SoundCues.vimModeInsert(this.engine), 80)); }
+      if (op === 'd') { SoundCues.commandDelete(this.engine); this.comboTimers.push(globalThis.setTimeout(() => SoundCues.commandDelete(this.engine), 60)); }
+      else if (op === 'y') { SoundCues.commandYank(this.engine); this.comboTimers.push(globalThis.setTimeout(() => SoundCues.commandYank(this.engine), 60)); }
+      else if (op === 'c') { SoundCues.commandChange(this.engine); this.comboTimers.push(globalThis.setTimeout(() => SoundCues.vimModeInsert(this.engine), 80)); }
       return;
     }
     const motionSound = ['b'].includes(motion)
       ? () => SoundCues.commandMotionBack(this.engine)
       : () => SoundCues.commandMotionForward(this.engine);
 
-    if (op === 'd') { SoundCues.commandDelete(this.engine); this.comboTimers.push(setTimeout(motionSound, 80)); }
-    else if (op === 'y') { SoundCues.commandYank(this.engine); this.comboTimers.push(setTimeout(motionSound, 80)); }
-    else if (op === 'c') { SoundCues.commandChange(this.engine); this.comboTimers.push(setTimeout(() => SoundCues.vimModeInsert(this.engine), 80)); }
+    if (op === 'd') { SoundCues.commandDelete(this.engine); this.comboTimers.push(globalThis.setTimeout(motionSound, 80)); }
+    else if (op === 'y') { SoundCues.commandYank(this.engine); this.comboTimers.push(globalThis.setTimeout(motionSound, 80)); }
+    else if (op === 'c') { SoundCues.commandChange(this.engine); this.comboTimers.push(globalThis.setTimeout(() => SoundCues.vimModeInsert(this.engine), 80)); }
   }
 
   dispose(): void {

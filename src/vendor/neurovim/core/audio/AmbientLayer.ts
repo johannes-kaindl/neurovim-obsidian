@@ -33,11 +33,11 @@ export class AmbientLayer {
 
   private stopNodes(): void {
     if (this.glitchTimer !== null) {
-      clearTimeout(this.glitchTimer);
+      globalThis.clearTimeout(this.glitchTimer);
       this.glitchTimer = null;
     }
     if (this.distantPulseTimer !== null) {
-      clearTimeout(this.distantPulseTimer);
+      globalThis.clearTimeout(this.distantPulseTimer);
       this.distantPulseTimer = null;
     }
     const ac = this.engine.context;
@@ -45,7 +45,7 @@ export class AmbientLayer {
       this.fadeGain.gain.linearRampToValueAtTime(0, ac.currentTime + 2);
     }
     const nodesToStop = this.nodes.slice();
-    setTimeout(() => {
+    globalThis.setTimeout(() => {
       nodesToStop.forEach(n => {
         try {
           if ('stop' in n && typeof (n as AudioScheduledSourceNode).stop === 'function') (n as AudioScheduledSourceNode).stop();
@@ -117,7 +117,7 @@ export class AmbientLayer {
   private scheduleDistantPulse(): void {
     if (!this.enabled || !this.engine.isReady || this.currentCtx !== 'idle') return;
     const delay = 10000 + Math.random() * 18000;
-    this.distantPulseTimer = setTimeout(() => {
+    this.distantPulseTimer = globalThis.setTimeout(() => {
       this.distantPulseTimer = null;
       if (!this.enabled || !this.engine.isReady || this.currentCtx !== 'idle' || !this.fadeGain) return;
       const a = this.engine.context!;
@@ -137,7 +137,7 @@ export class AmbientLayer {
       g.gain.linearRampToValueAtTime(0, t + 0.9);
       src.connect(f);
       f.connect(g);
-      g.connect(this.fadeGain!);
+      g.connect(this.fadeGain);
       src.start(t);
       src.onended = () => { try { src.disconnect(); f.disconnect(); g.disconnect(); } catch { /* */ } };
       this.scheduleDistantPulse();
@@ -252,7 +252,7 @@ export class AmbientLayer {
       if (!this.enabled || !this.engine.isReady) return;
       const a = this.engine.context!;
       const delay = 3000 + Math.random() * 5000;
-      this.glitchTimer = setTimeout(() => {
+      this.glitchTimer = globalThis.setTimeout(() => {
         this.glitchTimer = null;
         if (this.enabled && this.engine.isReady && this.currentCtx === 'arc2' && this.fadeGain) {
           const t = a.currentTime;
@@ -264,7 +264,7 @@ export class AmbientLayer {
           intrGain.gain.linearRampToValueAtTime(0.07, t + 0.008); // hard attack — CORP precision
           intrGain.gain.linearRampToValueAtTime(0, t + 0.07);     // linear decay — CORP character
           intrOsc.connect(intrGain);
-          intrGain.connect(this.fadeGain!);
+          intrGain.connect(this.fadeGain);
           intrOsc.start(t);
           intrOsc.stop(t + 0.08);
           intrOsc.onended = () => { try { intrOsc.disconnect(); intrGain.disconnect(); } catch { /* */ } };
@@ -277,11 +277,11 @@ export class AmbientLayer {
 
   dispose(): void {
     if (this.glitchTimer !== null) {
-      clearTimeout(this.glitchTimer);
+      globalThis.clearTimeout(this.glitchTimer);
       this.glitchTimer = null;
     }
     if (this.distantPulseTimer !== null) {
-      clearTimeout(this.distantPulseTimer);
+      globalThis.clearTimeout(this.distantPulseTimer);
       this.distantPulseTimer = null;
     }
     this.enabled = false;

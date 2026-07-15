@@ -78,7 +78,7 @@ export function SandboxHUD({
             >
               <span>{d.toUpperCase()} {d === 'easy' ? '3' : d === 'normal' ? '7' : '15'}</span>
               {sandboxBests[d] !== null && (
-                <span className="nv-difficulty-pb">PB {formatTime(sandboxBests[d]!)}</span>
+                <span className="nv-difficulty-pb">PB {formatTime(sandboxBests[d])}</span>
               )}
             </button>
           ))}
