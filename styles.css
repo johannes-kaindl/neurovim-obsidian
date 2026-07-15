@@ -45,17 +45,17 @@
    on a light theme. box-shadow:none kills Obsidian's raised-input look. */
 .nv-nexus .nv-mission {
   display: grid; grid-template-columns: auto 1fr auto; gap: 8px; align-items: center;
-  background: var(--nv-panel); border: 1px solid var(--nv-border-soft);
-  color: var(--nv-text); padding: 8px 10px; border-radius: 6px; cursor: pointer; text-align: left;
+  background: var(--nv-panel) !important; border: 1px solid var(--nv-border-soft) !important;
+  color: var(--nv-text) !important; padding: 8px 10px; border-radius: 6px; cursor: pointer; text-align: left;
   box-shadow: none;
 }
-.nv-mission:hover:not(.is-locked) { border-color: var(--nv-accent); }
+.nv-mission:hover:not(.is-locked) { border-color: var(--nv-accent) !important; }
 .nv-mission.is-locked { opacity: 0.58; cursor: not-allowed; }
-.nv-mission.is-done .nv-mission-xp { color: var(--nv-accent); }
-.nv-mission-id { color: var(--nv-accent); font-weight: 600; }
+.nv-mission.is-done .nv-mission-xp { color: var(--nv-accent) !important; }
+.nv-mission-id { color: var(--nv-accent) !important; font-weight: 600; }
 /* Explicit (not inherited) — Obsidian's button color rule outranks .nv-mission,
    so the inherited title text would otherwise stay the theme's color. */
-.nv-mission .nv-mission-title { color: var(--nv-text); white-space: normal; overflow-wrap: anywhere; }
+.nv-mission .nv-mission-title { color: var(--nv-text) !important; white-space: normal; overflow-wrap: anywhere; }
 .nv-mission-xp { color: var(--nv-text-dim); }
 
 /* ── Mission-control HUD (shared by floating box + sidebar block) ───── */
@@ -68,15 +68,17 @@
 /* In the wide pane, push the buttons to the right; in the narrow box, keep them
    snug against the metrics so the box stays as narrow as its content. */
 .nv-nexus .nv-hud .nv-hud-actions { margin-left: auto; }
-/* Buttons scoped under .nv-hud so our color outranks Obsidian's button rule
-   (which has higher specificity than a bare .nv-btn and would win otherwise). */
+/* Buttons scoped under .nv-hud so our color outranks Obsidian's button rule.
+   !important on top: descendant-class specificity alone has been beaten before
+   (theme CSS re-injected on a live light/dark toggle can win equal-specificity
+   ties by source order) — the scheme's colors must never lose that fight. */
 .nv-hud .nv-btn {
   padding: 3px 8px; font-size: 0.75em; letter-spacing: 0.05em; border-radius: 4px; cursor: pointer;
   white-space: nowrap;
-  background: var(--nv-btn-bg); border: 1px solid var(--nv-border-soft); color: var(--nv-text);
+  background: var(--nv-btn-bg) !important; border: 1px solid var(--nv-border-soft) !important; color: var(--nv-text) !important;
 }
-.nv-hud .nv-btn-submit { background: var(--nv-submit-bg); border-color: var(--nv-accent); color: var(--nv-submit-fg); }
-.nv-hud .nv-btn-abort:hover { border-color: var(--nv-danger); color: var(--nv-danger); }
+.nv-hud .nv-btn-submit { background: var(--nv-submit-bg) !important; border-color: var(--nv-accent) !important; color: var(--nv-submit-fg) !important; }
+.nv-hud .nv-btn-abort:hover { border-color: var(--nv-danger) !important; color: var(--nv-danger) !important; }
 .nv-hud .nv-hud-close {
   padding: 0 2px; background: transparent; border: none;
   color: var(--nv-text-dim); font-size: 1.1em; line-height: 1; cursor: pointer;
@@ -146,12 +148,13 @@
   font-size: 0.68em; letter-spacing: 0.08em; padding: 1px 6px; border-radius: 4px;
 }
 .nv-result .nv-result-actions { margin-top: 6px; }
-/* Button scoped under .nv-result so our color outranks Obsidian's button rule. */
+/* Button scoped under .nv-result so our color outranks Obsidian's button rule
+   (hardened with !important — see .nv-hud .nv-btn for why). */
 .nv-result .nv-btn {
   padding: 6px 14px; font-size: 0.8em; letter-spacing: 0.06em; border-radius: 4px; cursor: pointer;
-  background: var(--nv-btn-bg); border: 1px solid var(--nv-border-soft); color: var(--nv-text);
+  background: var(--nv-btn-bg) !important; border: 1px solid var(--nv-border-soft) !important; color: var(--nv-text) !important;
 }
-.nv-result .nv-btn:hover { border-color: var(--nv-accent); color: var(--nv-accent); }
+.nv-result .nv-btn:hover { border-color: var(--nv-accent) !important; color: var(--nv-accent) !important; }
 
 /* ── Briefing modal (shown before a mission's transmission opens) ── */
 /* Dark CRT frame (CRT scheme only); native scheme keeps Obsidian's themed modal. */
@@ -224,10 +227,11 @@
   background: var(--nv-panel);
 }
 .nv-briefing .nv-briefing-actions { display: flex; justify-content: center; margin-top: 12px; }
-/* Button scoped under .nv-briefing so our color outranks Obsidian's button rule. */
+/* Button scoped under .nv-briefing so our color outranks Obsidian's button rule
+   (hardened with !important — see .nv-hud .nv-btn for why). */
 .nv-briefing .nv-btn {
   padding: 6px 16px; font-size: 0.85em; letter-spacing: 0.06em; border-radius: 4px; cursor: pointer;
-  background: var(--nv-submit-bg); border: 1px solid var(--nv-accent); color: var(--nv-submit-fg);
+  background: var(--nv-submit-bg) !important; border: 1px solid var(--nv-accent) !important; color: var(--nv-submit-fg) !important;
 }
 .nv-briefing .nv-btn:hover { box-shadow: 0 0 10px var(--nv-accent); }
 /* Obsidian auto-adds a copy button to the ASCII code-block that opens every
@@ -246,17 +250,24 @@
 .nv-uplink-cursor { animation: nv-uplink-blink 1s steps(1) infinite; }
 @keyframes nv-uplink-blink { 50% { opacity: 0; } }
 .nv-uplink-input-row { display: flex; gap: 0.4em; margin-top: 0.6em; }
-.nv-uplink-input { flex: 1; min-width: 0; background: transparent; border: 1px solid currentColor; color: inherit; font-family: inherit; padding: 0.3em 0.5em; }
+/* background/color used to be transparent/currentColor, proxying through to
+   Obsidian's own <input> styling — under a light theme that painted a light
+   field with barely-readable phosphor-green text. Hard-set the scheme's own
+   panel/text colors instead (theme-agnostic really means theme-agnostic). */
+.nv-uplink-input {
+  flex: 1; min-width: 0; font-family: inherit; padding: 0.3em 0.5em;
+  background: var(--nv-panel) !important; border: 1px solid var(--nv-border-soft) !important; color: var(--nv-text) !important;
+}
 /* Buttons scoped under .nv-uplink so our color outranks Obsidian's button rule
-   (same reasoning as .nv-hud .nv-btn above — CipherChat mounts under .nv-nexus,
-   which doesn't itself carry the scheme's panel background). */
+   (hardened with !important — see .nv-hud .nv-btn for why; CipherChat mounts
+   under .nv-nexus, which doesn't itself carry the scheme's panel background). */
 .nv-uplink .nv-btn {
   padding: 3px 8px; font-size: 0.75em; letter-spacing: 0.05em; border-radius: 4px; cursor: pointer;
   white-space: nowrap;
-  background: var(--nv-btn-bg); border: 1px solid var(--nv-border-soft); color: var(--nv-text);
+  background: var(--nv-btn-bg) !important; border: 1px solid var(--nv-border-soft) !important; color: var(--nv-text) !important;
 }
-.nv-uplink .nv-btn-submit { background: var(--nv-submit-bg); border-color: var(--nv-accent); color: var(--nv-submit-fg); }
-.nv-uplink .nv-btn-abort:hover { border-color: var(--nv-danger); color: var(--nv-danger); }
+.nv-uplink .nv-btn-submit { background: var(--nv-submit-bg) !important; border-color: var(--nv-accent) !important; color: var(--nv-submit-fg) !important; }
+.nv-uplink .nv-btn-abort:hover { border-color: var(--nv-danger) !important; color: var(--nv-danger) !important; }
 .nv-crt .nv-uplink-error .nv-uplink-text { color: var(--nv-danger); }
 .nv-native .nv-uplink-error .nv-uplink-text { color: var(--text-error); }
 
@@ -269,13 +280,16 @@
 
 /* ── Hub tabs ─────────────────────────────────────────────────── */
 .nv-tabs { display: flex; gap: 4px; margin: 0.5em 0 1em; border-bottom: 1px solid var(--nv-border-soft); }
+/* !important throughout: even `background: transparent` lost to Obsidian's own
+   <button> background under a light theme (it painted a visible light pill) —
+   plain `transparent` is not immune to the cascade fight either. */
 .nv-tab {
-  background: transparent; border: none; border-bottom: 2px solid transparent;
-  color: var(--nv-text-dim); font-family: inherit; font-size: 0.8em; letter-spacing: 0.12em;
+  background: transparent !important; border: none !important; border-bottom: 2px solid transparent !important;
+  color: var(--nv-text-dim) !important; font-family: inherit; font-size: 0.8em; letter-spacing: 0.12em;
   padding: 4px 8px; cursor: pointer; box-shadow: none;
 }
-.nv-tab:hover { color: var(--nv-text); }
-.nv-tab.is-active { color: var(--nv-accent); border-bottom-color: var(--nv-accent); }
+.nv-tab:hover { color: var(--nv-text) !important; }
+.nv-tab.is-active { color: var(--nv-accent) !important; border-bottom-color: var(--nv-accent) !important; }
 
 /* ── NEXUS home ──────────────────────────────────────────────── */
 .nv-nexus-home { display: flex; flex-direction: column; gap: 0.9em; }
@@ -288,11 +302,12 @@
 
 /* ── GUIDE (searchable cheatsheet) ───────────────────────────── */
 .nv-guide { display: flex; flex-direction: column; gap: 0.5em; }
+/* Hard panel bg instead of transparent — same leak as .nv-uplink-input. */
 .nv-guide-search {
-  background: transparent; border: 1px solid var(--nv-border-soft); color: var(--nv-text);
+  background: var(--nv-panel) !important; border: 1px solid var(--nv-border-soft) !important; color: var(--nv-text) !important;
   font-family: inherit; padding: 0.35em 0.6em; width: 100%;
 }
-.nv-guide-search:focus { border-color: var(--nv-accent); outline: none; }
+.nv-guide-search:focus { border-color: var(--nv-accent) !important; outline: none; }
 .nv-guide-empty { color: var(--nv-text-dim); font-style: italic; }
 .nv-guide-cat-title { color: var(--nv-accent); letter-spacing: 0.1em; font-size: 0.9em; margin: 0.8em 0 0.2em; }
 .nv-guide-group { color: var(--nv-text-dim); font-size: 0.75em; letter-spacing: 0.12em; margin-top: 0.4em; }
