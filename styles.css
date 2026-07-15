@@ -266,3 +266,40 @@
 .nv-setting-probe { margin: 0 0 0.75em; font-size: 0.9em; }
 .nv-setting-probe.is-ok { color: var(--text-success, #2e7d32); }
 .nv-setting-probe.is-bad { color: var(--text-error, #c62828); }
+
+/* ── Hub tabs ─────────────────────────────────────────────────── */
+.nv-tabs { display: flex; gap: 4px; margin: 0.5em 0 1em; border-bottom: 1px solid var(--nv-border-soft); }
+.nv-tab {
+  background: transparent; border: none; border-bottom: 2px solid transparent;
+  color: var(--nv-text-dim); font-family: inherit; font-size: 0.8em; letter-spacing: 0.12em;
+  padding: 4px 8px; cursor: pointer; box-shadow: none;
+}
+.nv-tab:hover { color: var(--nv-text); }
+.nv-tab.is-active { color: var(--nv-accent); border-bottom-color: var(--nv-accent); }
+
+/* ── NEXUS home ──────────────────────────────────────────────── */
+.nv-nexus-home { display: flex; flex-direction: column; gap: 0.9em; }
+.nv-welcome-quote {
+  border-left: 2px solid var(--nv-accent); padding: 0.4em 0.8em;
+  color: var(--nv-text); font-style: italic; background: var(--nv-panel);
+}
+.nv-welcome-para { color: var(--nv-text); margin: 0; }
+.nv-next-mission { text-align: left; }
+
+/* ── GUIDE (searchable cheatsheet) ───────────────────────────── */
+.nv-guide { display: flex; flex-direction: column; gap: 0.5em; }
+.nv-guide-search {
+  background: transparent; border: 1px solid var(--nv-border-soft); color: var(--nv-text);
+  font-family: inherit; padding: 0.35em 0.6em; width: 100%;
+}
+.nv-guide-search:focus { border-color: var(--nv-accent); outline: none; }
+.nv-guide-empty { color: var(--nv-text-dim); font-style: italic; }
+.nv-guide-cat-title { color: var(--nv-accent); letter-spacing: 0.1em; font-size: 0.9em; margin: 0.8em 0 0.2em; }
+.nv-guide-group { color: var(--nv-text-dim); font-size: 0.75em; letter-spacing: 0.12em; margin-top: 0.4em; }
+.nv-guide-row { display: grid; grid-template-columns: minmax(72px, auto) 1fr; gap: 10px; align-items: baseline; }
+.nv-guide-key {
+  color: var(--nv-accent); font-weight: 600; background: var(--nv-panel);
+  border: 1px solid var(--nv-border-soft); border-radius: 4px; padding: 0 6px;
+  justify-self: start; white-space: nowrap;
+}
+.nv-guide-desc { color: var(--nv-text); }

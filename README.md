@@ -10,6 +10,16 @@ NeuroVim originally started life as an Obsidian plugin, then grew into a multi-t
 game ([`neurovim-standalone`](https://codeberg.org/jkaindl/NeuroVIM): web + desktop +
 Obsidian). **vim-dojo** brings it back home as a first-class, standalone Obsidian plugin.
 
+## Hub pane
+
+The NeuroVim pane is organized in tabs:
+
+- **NEXUS** — your status (level/XP), the welcome transmission, and a one-click
+  "next mission" button.
+- **MISSIONS** — the full mission list.
+- **GUIDE** — a searchable Vim cheatsheet (filter by key or description).
+- **UPLINK** — the CIPHER chat (appears once an endpoint is configured).
+
 ## CIPHER uplink (experimental, optional)
 
 Ask CIPHER for Vim advice — in character, powered by any OpenAI-compatible endpoint
