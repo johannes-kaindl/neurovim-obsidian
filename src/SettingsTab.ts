@@ -58,15 +58,23 @@ export class NeuroVimSettingTab extends PluginSettingTab {
     // result we're about to get back describes an endpoint/model pairing that's already
     // gone. commitEndpoints() already cleared contextLength and re-rendered, so in that
     // case we discard the late result instead of writing stale data back over it.
+    // The model is captured alongside it for the same reason: endpointGeneration only
+    // bumps on endpoint-list edits, not on a plain model-dropdown switch, so a second
+    // refreshContext() for a different model wouldn't move it. Without also comparing
+    // the model, a slow first probe (e.g. an LM Studio timeout followed by an Ollama
+    // fallback) could resolve after a faster second probe for a different model and
+    // overwrite that model's correct result with a value that belongs to neither the
+    // dropdown's current selection nor llmModel.
     const generation = this.endpointGeneration;
+    const model = this.plugin.settings.llmModel;
     const endpoints = this.plugin.settings.llmEndpoints;
     const statusList = endpoints.map((ep) => this.statuses.get(ep) ?? null);
     const active = activeIndexFromStatuses(statusList);
     const endpoint = active >= 0 ? endpoints[active] : undefined;
-    const contextLength = endpoint && this.plugin.settings.llmModel
-      ? await probeModelContext(endpoint, this.plugin.settings.llmApiKey, this.plugin.settings.llmModel)
+    const contextLength = endpoint && model
+      ? await probeModelContext(endpoint, this.plugin.settings.llmApiKey, model)
       : null;
-    if (generation !== this.endpointGeneration) return;
+    if (generation !== this.endpointGeneration || this.plugin.settings.llmModel !== model) return;
     this.contextLength = contextLength;
     this.display();
   }
