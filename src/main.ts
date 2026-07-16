@@ -19,7 +19,7 @@ import { ChatSession } from './llm/chatSession';
 import { CipherClient } from './llm/CipherClient';
 import { XhrSseTransport } from './llm/XhrSseTransport';
 import { buildKnowledge, buildChatMessages, type CipherKnowledge } from './llm/cipherPrompt';
-import { DEFAULT_SETTINGS, isLlmConfigured, type VimDojoSettings } from './settings';
+import { DEFAULT_SETTINGS, isLlmConfigured, migrateEndpointList, type VimDojoSettings } from './settings';
 import type { HubTab } from './hubTabs';
 import type { PluginData, MissionSummary } from '@neurovim/core';
 
@@ -48,7 +48,14 @@ export default class NeuroVimPlugin extends Plugin {
   async onload(): Promise<void> {
     this.storage = new ObsidianStorage(this);
     const blob = (await this.loadData()) as StoredBlob | null;
-    this.settings = { ...DEFAULT_SETTINGS, ...(blob?.__settings ?? {}) };
+    // Migrate before merging defaults: 0.4.x stored a single `llmEndpoint`, 0.5.0 keeps an
+    // ordered fallback list. The legacy field is neither read nor written after this point.
+    const raw = (blob?.__settings ?? {}) as Partial<VimDojoSettings> & { llmEndpoint?: string };
+    this.settings = {
+      ...DEFAULT_SETTINGS,
+      ...raw,
+      llmEndpoints: migrateEndpointList(raw.llmEndpoint, raw.llmEndpoints),
+    };
     this.data = await loadPluginData(this.storage);
     this.missions = await this.content.listMissions();
 
@@ -250,7 +257,7 @@ export default class NeuroVimPlugin extends Plugin {
       question,
     });
     const cfg = {
-      endpoint: this.settings.llmEndpoint,
+      endpoint: this.settings.llmEndpoints[0] ?? '',
       apiKey: this.settings.llmApiKey,
       model: this.settings.llmModel,
     };

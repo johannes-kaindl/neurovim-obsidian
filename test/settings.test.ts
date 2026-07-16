@@ -1,17 +1,45 @@
 import { describe, it, expect } from 'vitest';
-import { DEFAULT_SETTINGS, isLlmConfigured } from '../src/settings';
+import { DEFAULT_SETTINGS, isLlmConfigured, migrateEndpointList } from '../src/settings';
 
 describe('LLM settings', () => {
   it('defaults to unconfigured (feature off)', () => {
-    expect(DEFAULT_SETTINGS.llmEndpoint).toBe('');
+    expect(DEFAULT_SETTINGS.llmEndpoints).toEqual([]);
     expect(DEFAULT_SETTINGS.llmApiKey).toBe('');
     expect(DEFAULT_SETTINGS.llmModel).toBe('');
     expect(isLlmConfigured(DEFAULT_SETTINGS)).toBe(false);
   });
 
-  it('requires both endpoint and model (whitespace does not count)', () => {
-    expect(isLlmConfigured({ llmEndpoint: 'http://localhost:1234', llmModel: '' })).toBe(false);
-    expect(isLlmConfigured({ llmEndpoint: '   ', llmModel: 'qwen3' })).toBe(false);
-    expect(isLlmConfigured({ llmEndpoint: 'http://localhost:1234', llmModel: 'qwen3' })).toBe(true);
+  it('suppresses thinking by default (short vim tips, faster answers)', () => {
+    expect(DEFAULT_SETTINGS.llmSuppressThinking).toBe(true);
+  });
+
+  it('starts with no persisted section states', () => {
+    expect(DEFAULT_SETTINGS.uiCollapsed).toEqual({});
+  });
+
+  it('requires at least one endpoint and a model', () => {
+    expect(isLlmConfigured({ llmEndpoints: ['http://localhost:1234'], llmModel: '' })).toBe(false);
+    expect(isLlmConfigured({ llmEndpoints: [], llmModel: 'qwen3' })).toBe(false);
+    expect(isLlmConfigured({ llmEndpoints: ['http://localhost:1234'], llmModel: 'qwen3' })).toBe(true);
+  });
+});
+
+describe('migrateEndpointList', () => {
+  it('keeps an existing list and drops blank entries', () => {
+    expect(migrateEndpointList(undefined, ['http://a:1', '  ', 'http://b:2'])).toEqual(['http://a:1', 'http://b:2']);
+  });
+
+  it('lifts a single 0.4.x endpoint into a one-entry list', () => {
+    expect(migrateEndpointList('http://localhost:1234', undefined)).toEqual(['http://localhost:1234']);
+    expect(migrateEndpointList('  http://localhost:1234  ', undefined)).toEqual(['http://localhost:1234']);
+  });
+
+  it('prefers the list when both are present (list is the newer field)', () => {
+    expect(migrateEndpointList('http://old:1', ['http://new:2'])).toEqual(['http://new:2']);
+  });
+
+  it('yields an empty list when nothing is configured', () => {
+    expect(migrateEndpointList(undefined, undefined)).toEqual([]);
+    expect(migrateEndpointList('   ', [])).toEqual([]);
   });
 });

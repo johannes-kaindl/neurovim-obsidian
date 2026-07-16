@@ -92,7 +92,7 @@ export class NeuroVimSettingTab extends PluginSettingTab {
     let warningsEl: HTMLElement;
     const renderWarnings = (): void => {
       warningsEl.empty();
-      for (const w of validateEndpointInput(this.plugin.settings.llmEndpoint)) {
+      for (const w of validateEndpointInput(this.plugin.settings.llmEndpoints[0] ?? '')) {
         warningsEl.createEl('div', { text: `⚠ ${endpointWarningEn(w.rule)}`, cls: 'nv-setting-warning' });
       }
     };
@@ -102,9 +102,10 @@ export class NeuroVimSettingTab extends PluginSettingTab {
       .setDesc('Base URL, e.g. http://localhost:1234 — a trailing /v1 is handled either way.')
       .addText((t) =>
         t.setPlaceholder('http://localhost:1234')
-          .setValue(this.plugin.settings.llmEndpoint)
+          .setValue(this.plugin.settings.llmEndpoints[0] ?? '')
           .onChange(async (v) => {
-            this.plugin.settings.llmEndpoint = v.trim();
+            const url = v.trim();
+            this.plugin.settings.llmEndpoints = url ? [url] : [];
             renderWarnings();
             await this.plugin.saveSettings();
           }),
@@ -114,7 +115,7 @@ export class NeuroVimSettingTab extends PluginSettingTab {
         b.setButtonText(preset.label)
           .setTooltip(`Use ${preset.url}`)
           .onClick(async () => {
-            this.plugin.settings.llmEndpoint = preset.url;
+            this.plugin.settings.llmEndpoints = [preset.url];
             await this.plugin.saveSettings();
             this.display();
           }),
@@ -130,7 +131,7 @@ export class NeuroVimSettingTab extends PluginSettingTab {
         b.setButtonText('Test connection').onClick(async () => {
           b.setButtonText('Testing…');
           b.setDisabled(true);
-          const r = await probeEndpoint(this.plugin.settings.llmEndpoint, this.plugin.settings.llmApiKey);
+          const r = await probeEndpoint(this.plugin.settings.llmEndpoints[0] ?? '', this.plugin.settings.llmApiKey);
           this.probeOk = r.status.reachable;
           this.probeText = endpointStatusEn(r.status.kind, r.status.raw)
             + (r.models.length ? ` ${r.models.length} models found.` : '');

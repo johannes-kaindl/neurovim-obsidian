@@ -11,12 +11,18 @@ export interface VimDojoSettings {
   autoVim: boolean;
   /** Open the NeuroVim pane automatically when Obsidian starts. Off by default. */
   openPaneOnStartup: boolean;
-  /** OpenAI-compatible endpoint for the optional CIPHER uplink. Empty = feature off. */
-  llmEndpoint: string;
+  /** Ordered fallback list of OpenAI-compatible endpoints — the first reachable one
+   *  wins. A local endpoint moves with the network (localhost at the host vs. LAN IP
+   *  on the road); one synced list covers every network. Empty = feature off. */
+  llmEndpoints: string[];
   /** Optional bearer token for cloud proxies (LM Studio/Ollama need none). */
   llmApiKey: string;
   /** Model id to request, e.g. "qwen3-8b". Empty = feature off. */
   llmModel: string;
+  /** Ask the model not to think. On by default: vim tips are short, thinking is slow. */
+  llmSuppressThinking: boolean;
+  /** Collapsed state per settings section, keyed by section id. */
+  uiCollapsed: Record<string, boolean>;
 }
 
 export const DEFAULT_SETTINGS: VimDojoSettings = {
@@ -25,12 +31,25 @@ export const DEFAULT_SETTINGS: VimDojoSettings = {
   colorScheme: 'crt',
   autoVim: false,
   openPaneOnStartup: false,
-  llmEndpoint: '',
+  llmEndpoints: [],
   llmApiKey: '',
   llmModel: '',
+  llmSuppressThinking: true,
+  uiCollapsed: {},
 };
 
-/** The CIPHER uplink is live only when both an endpoint and a model are set. */
-export function isLlmConfigured(s: Pick<VimDojoSettings, 'llmEndpoint' | 'llmModel'>): boolean {
-  return s.llmEndpoint.trim() !== '' && s.llmModel.trim() !== '';
+/** Lifts the 0.4.x single `llmEndpoint` into the 0.5.0 `llmEndpoints` list. The list wins
+ *  when present (it is the newer field); a lone legacy endpoint becomes a one-entry list.
+ *  Pure — the caller applies it to raw `data.json` before defaults are merged. */
+export function migrateEndpointList(single: string | undefined, list: string[] | undefined): string[] {
+  if (list && list.length) return list.filter((e) => e && e.trim() !== '');
+  if (single && single.trim() !== '') return [single.trim()];
+  return [];
+}
+
+/** The CIPHER uplink is live only when at least one endpoint and a model are set.
+ *  Configuration only — reachability is deliberately not checked here, or the chat would
+ *  vanish on a dead endpoint instead of reporting the error. */
+export function isLlmConfigured(s: Pick<VimDojoSettings, 'llmEndpoints' | 'llmModel'>): boolean {
+  return s.llmEndpoints.length > 0 && s.llmModel.trim() !== '';
 }
