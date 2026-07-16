@@ -5,6 +5,8 @@ All notable changes to this project are documented here. Format loosely follows
 
 ## [Unreleased]
 
+## [0.5.0] — 2026-07-16
+
 ### Added
 - Settings are grouped into collapsible sections (Missions / Appearance / CIPHER uplink);
   the open/closed state is remembered.
