@@ -24,9 +24,10 @@ export class ObsidianHudDom implements HudDom {
 
   create(editorEl: unknown): HudHandle {
     const host = editorEl as HTMLElement;
-    const container = activeDocument.createElement('div');
-    container.className = 'nv-float-hud-container';
-    host.appendChild(container);
+    // Parent-bound helper: creates, classes and appends in one call, and inherits the host's
+    // document — so a HUD in a pop-out window lands in that window, not in whichever one
+    // happens to be active.
+    const container = host.createDiv({ cls: 'nv-float-hud-container' });
     return {
       render: (props: HudRenderProps) => render(h(MissionHud, props), container),
       destroy: () => { render(null, container); container.remove(); },

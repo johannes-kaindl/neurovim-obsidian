@@ -231,7 +231,7 @@ export class NeuroVimSettingTab extends PluginSettingTab {
           }),
         );
         for (const w of validateEndpointInput(value)) {
-          row.descEl.createEl('div', { text: `⚠ ${endpointWarningEn(w.rule)}`, cls: 'nv-setting-warning' });
+          row.descEl.createDiv({ text: `⚠ ${endpointWarningEn(w.rule)}`, cls: 'nv-setting-warning' });
         }
       } else {
         ENDPOINT_PRESETS.forEach((preset) => {
@@ -318,7 +318,7 @@ export class NeuroVimSettingTab extends PluginSettingTab {
     }
 
     if (this.contextLength !== null) {
-      cipherEl.createEl('div', {
+      cipherEl.createDiv({
         text: `Context: ${this.contextLength.toLocaleString('en-US')} tokens`,
         cls: 'setting-item-description',
       });

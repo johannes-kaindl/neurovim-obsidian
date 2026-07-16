@@ -5,6 +5,14 @@ All notable changes to this project are documented here. Format loosely follows
 
 ## [Unreleased]
 
+## [0.5.1] — 2026-07-16
+
+### Fixed
+- Use Obsidian's DOM helpers throughout (`createDiv` instead of `createEl('div')` and of
+  `activeDocument.createElement`), per the store review's `prefer-create-el` rule. The floating
+  HUD now builds its container from the host element, so a HUD in a pop-out window lands in that
+  window rather than in whichever one happens to be active.
+
 ## [0.5.0] — 2026-07-16
 
 ### Added
