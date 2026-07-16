@@ -688,7 +688,20 @@ Die alte `renderWarnings`-Closure und `warningsEl` entfallen — Warnungen häng
 
 - [ ] **Step 3: „Test all" statt „Test connection"**
 
-Den Connection-Block ersetzen:
+Zuerst den alten Probe-Ergebnis-Block ersatzlos löschen — er liest die in Step 1 entfernten
+Felder `probeText`/`probeOk` und würde den Typecheck brechen. Der Status steht jetzt an der
+jeweiligen Zeile:
+
+```typescript
+    if (this.probeText !== null) {
+      containerEl.createEl('div', {
+        text: `${this.probeOk ? '✓' : '✗'} ${this.probeText}`,
+        cls: `nv-setting-probe ${this.probeOk ? 'is-ok' : 'is-bad'}`,
+      });
+    }
+```
+
+Dann den Connection-Block ersetzen:
 
 ```typescript
     new Setting(cipherEl)
