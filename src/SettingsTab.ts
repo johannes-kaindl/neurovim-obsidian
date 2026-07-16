@@ -323,7 +323,10 @@ export class NeuroVimSettingTab extends PluginSettingTab {
       .setDesc(think.desc)
       .addToggle((t) =>
         t
-          .setValue(!this.plugin.settings.llmSuppressThinking)
+          // When disabled, the model always thinks regardless of llmSuppressThinking (see
+          // effectiveSuppress) — force the switch to ON so its position matches actual
+          // request behaviour instead of echoing a suppress flag the request ignores.
+          .setValue(think.disabled || !this.plugin.settings.llmSuppressThinking)
           .setDisabled(think.disabled)
           .onChange(async (v) => {
             this.plugin.settings.llmSuppressThinking = !v;
