@@ -273,11 +273,7 @@
 .nv-native .nv-uplink-error .nv-uplink-text { color: var(--text-error); }
 
 /* ── Settings: CIPHER uplink diagnostics ─────────────────────── */
-.nv-setting-warnings { margin: 0 0 0.75em; }
 .nv-setting-warning { color: var(--text-warning, #b58900); font-size: 0.85em; }
-.nv-setting-probe { margin: 0 0 0.75em; font-size: 0.9em; }
-.nv-setting-probe.is-ok { color: var(--text-success, #2e7d32); }
-.nv-setting-probe.is-bad { color: var(--text-error, #c62828); }
 
 /* ── Hub tabs ─────────────────────────────────────────────────── */
 .nv-tabs { display: flex; gap: 4px; margin: 0.5em 0 1em; border-bottom: 1px solid var(--nv-border-soft); }

@@ -16,6 +16,17 @@ export class NeuroVimSettingTab extends PluginSettingTab {
 
   constructor(app: App, private readonly plugin: NeuroVimPlugin) { super(app, plugin); }
 
+  /** Commits a new endpoint list. Any add/remove/replace can shift every later index, so
+   *  trying to remap `this.statuses` (probe results, index-parallel to llmEndpoints) across
+   *  the change would risk sticking a stale status onto the wrong row. Simplest correct
+   *  option: the edit already invalidated those probe results anyway, so reset to
+   *  "not probed" rather than guess at a remap. */
+  private commitEndpoints(next: string[]): void {
+    this.plugin.settings.llmEndpoints = next;
+    this.statuses = [];
+    void this.plugin.saveSettings().then(() => this.display());
+  }
+
   /** Wires the kit's storage-agnostic collapsible state to our own settings blob. */
   private collapsibleStorage(): CollapsibleStorage {
     return {
@@ -126,28 +137,26 @@ export class NeuroVimSettingTab extends PluginSettingTab {
 
       const row = new Setting(cipherEl)
         .setName(isAdder ? 'Add endpoint' : `Endpoint ${index + 1}${active ? ' — active' : ''}`)
-        .addText((t) =>
-          t.setPlaceholder('http://localhost:1234')
-            .setValue(value)
-            .onChange(async (v) => {
-              this.plugin.settings.llmEndpoints = applyEndpointEdit(
-                this.plugin.settings.llmEndpoints, index, v, isAdder,
-              );
-              await this.plugin.saveSettings();
-            }),
-        );
+        .addText((t) => {
+          t.setPlaceholder('http://localhost:1234').setValue(value);
+          // Commit on blur, NOT onChange — onChange fires per keystroke, so the adder
+          // would append every intermediate value ("h", "ht", "htt", …) and clearing a
+          // row mid-edit would splice it away and shift every later index. Same wiring
+          // as vault-crews' editor, for the same reason.
+          t.inputEl.addEventListener('blur', () => {
+            const next = applyEndpointEdit(this.plugin.settings.llmEndpoints, index, t.getValue(), isAdder);
+            const list = this.plugin.settings.llmEndpoints;
+            if (next.length === list.length && next.every((e, k) => e === list[k])) return;
+            this.commitEndpoints(next);
+          });
+        });
 
       if (!isAdder) {
         row.setDesc(status ? endpointStatusEn(status, undefined) : 'Not tested yet.');
         row.descEl.addClass(active ? 'nv-endpoint-active' : 'nv-endpoint-row');
         row.addExtraButton((b) =>
-          b.setIcon('trash-2').setTooltip('Remove').onClick(async () => {
-            this.plugin.settings.llmEndpoints = applyEndpointEdit(
-              this.plugin.settings.llmEndpoints, index, '', false,
-            );
-            this.statuses.splice(index, 1);
-            await this.plugin.saveSettings();
-            this.display();
+          b.setIcon('trash-2').setTooltip('Remove').onClick(() => {
+            this.commitEndpoints(applyEndpointEdit(this.plugin.settings.llmEndpoints, index, '', false));
           }),
         );
         for (const w of validateEndpointInput(value)) {
@@ -156,12 +165,8 @@ export class NeuroVimSettingTab extends PluginSettingTab {
       } else {
         ENDPOINT_PRESETS.forEach((preset) => {
           row.addButton((b) =>
-            b.setButtonText(preset.label).setTooltip(`Add ${preset.url}`).onClick(async () => {
-              this.plugin.settings.llmEndpoints = applyEndpointEdit(
-                this.plugin.settings.llmEndpoints, index, preset.url, true,
-              );
-              await this.plugin.saveSettings();
-              this.display();
+            b.setButtonText(preset.label).setTooltip(`Add ${preset.url}`).onClick(() => {
+              this.commitEndpoints(applyEndpointEdit(this.plugin.settings.llmEndpoints, index, preset.url, true));
             }),
           );
         });
