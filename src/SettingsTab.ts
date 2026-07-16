@@ -28,9 +28,17 @@ export class NeuroVimSettingTab extends PluginSettingTab {
 
   /** Commits a new endpoint list. No explicit status reset needed: `statuses` is keyed
    *  by endpoint value, so a removed or replaced entry simply stops resolving to a
-   *  status once the index-parallel view is re-derived on the next render. */
+   *  status once the index-parallel view is re-derived on the next render.
+   *  `models` and `contextLength`, however, are stale the moment the list changes:
+   *  both were probed against whichever endpoint used to be active, and any edit here
+   *  (blur commit, trash, preset) can change which endpoint that is or remove it
+   *  outright. Since neither is keyed by endpoint value, they must be cleared rather
+   *  than carried over — otherwise the UI would keep showing a model list and a context
+   *  token count for a configuration that no longer exists. */
   private commitEndpoints(next: string[]): void {
     this.plugin.settings.llmEndpoints = next;
+    this.models = [];
+    this.contextLength = null;
     void this.plugin.saveSettings().then(() => this.display());
   }
 
