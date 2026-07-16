@@ -7,6 +7,7 @@ import { probeEndpoint } from './llm/endpointProbe';
 import { collapsibleSection, type CollapsibleStorage } from './vendor/kit/collapsible';
 import { applyEndpointEdit, activeIndexFromStatuses } from './llm/endpointEditor';
 import { thinkToggleState } from './llm/thinkToggle';
+import { probeModelContext } from './llm/modelContext';
 
 export class NeuroVimSettingTab extends PluginSettingTab {
   /** Probe status per endpoint, keyed by endpoint *value* (its URL) rather than list
@@ -20,6 +21,8 @@ export class NeuroVimSettingTab extends PluginSettingTab {
   private statuses: Map<string, EndpointStatusKind> = new Map();
   /** Models reported by the active (first reachable) endpoint. */
   private models: string[] = [];
+  /** Context length of the selected model in tokens, null = endpoint doesn't report it. */
+  private contextLength: number | null = null;
 
   constructor(app: App, private readonly plugin: NeuroVimPlugin) { super(app, plugin); }
 
@@ -29,6 +32,21 @@ export class NeuroVimSettingTab extends PluginSettingTab {
   private commitEndpoints(next: string[]): void {
     this.plugin.settings.llmEndpoints = next;
     void this.plugin.saveSettings().then(() => this.display());
+  }
+
+  /** Refreshes the context length for the active endpoint + selected model, then
+   *  re-renders. The active endpoint is derived the same way `display()` derives it:
+   *  `statuses` is keyed by endpoint value, so it's projected to an index-parallel list
+   *  before handing it to `activeIndexFromStatuses`' index-based contract. */
+  private async refreshContext(): Promise<void> {
+    const endpoints = this.plugin.settings.llmEndpoints;
+    const statusList = endpoints.map((ep) => this.statuses.get(ep) ?? null);
+    const active = activeIndexFromStatuses(statusList);
+    const endpoint = active >= 0 ? endpoints[active] : undefined;
+    this.contextLength = endpoint && this.plugin.settings.llmModel
+      ? await probeModelContext(endpoint, this.plugin.settings.llmApiKey, this.plugin.settings.llmModel)
+      : null;
+    this.display();
   }
 
   /** Wires the kit's storage-agnostic collapsible state to our own settings blob. */
@@ -215,7 +233,7 @@ export class NeuroVimSettingTab extends PluginSettingTab {
           const statusList = endpoints.map((ep) => nextStatuses.get(ep) ?? null);
           const active = activeIndexFromStatuses(statusList);
           this.models = active >= 0 ? results[active].models : [];
-          this.display();
+          await this.refreshContext();
         }),
       );
 
@@ -237,6 +255,7 @@ export class NeuroVimSettingTab extends PluginSettingTab {
           d.onChange(async (v) => {
             this.plugin.settings.llmModel = v;
             await this.plugin.saveSettings();
+            await this.refreshContext();
           });
         });
     } else {
@@ -250,6 +269,13 @@ export class NeuroVimSettingTab extends PluginSettingTab {
               await this.plugin.saveSettings();
             }),
         );
+    }
+
+    if (this.contextLength !== null) {
+      cipherEl.createEl('div', {
+        text: `Context: ${this.contextLength.toLocaleString('en-US')} tokens`,
+        cls: 'setting-item-description',
+      });
     }
 
     const think = thinkToggleState(this.plugin.settings.llmModel, this.plugin.settings.llmSuppressThinking);
