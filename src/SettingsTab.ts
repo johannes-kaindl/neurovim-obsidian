@@ -4,6 +4,7 @@ import type { HudPlacement } from './hudPlacement';
 import { ENDPOINT_PRESETS, validateEndpointInput } from './vendor/kit/endpoint_diagnostics';
 import { endpointStatusEn, endpointWarningEn } from './llm/endpointText';
 import { probeEndpoint } from './llm/endpointProbe';
+import { collapsibleSection, type CollapsibleStorage } from './vendor/kit/collapsible';
 
 export class NeuroVimSettingTab extends PluginSettingTab {
   /** Result of the last "Test connection" run — survives display() re-renders. */
@@ -13,10 +14,31 @@ export class NeuroVimSettingTab extends PluginSettingTab {
 
   constructor(app: App, private readonly plugin: NeuroVimPlugin) { super(app, plugin); }
 
+  /** Wires the kit's storage-agnostic collapsible state to our own settings blob. */
+  private collapsibleStorage(): CollapsibleStorage {
+    return {
+      getCollapsed: (key) => this.plugin.settings.uiCollapsed[key],
+      setCollapsed: (key, collapsed) => {
+        this.plugin.settings.uiCollapsed[key] = collapsed;
+        void this.plugin.saveSettings();
+      },
+    };
+  }
+
   display(): void {
     const { containerEl } = this;
     containerEl.empty();
-    new Setting(containerEl)
+
+    const storage = this.collapsibleStorage();
+    const missionsEl = collapsibleSection(containerEl, {
+      title: 'Missions', key: 'missions', storage, defaultCollapsed: false,
+    });
+    const appearanceEl = collapsibleSection(containerEl, { title: 'Appearance', key: 'appearance', storage });
+    const cipherEl = collapsibleSection(containerEl, {
+      title: 'CIPHER uplink (experimental)', key: 'cipher', storage,
+    });
+
+    new Setting(missionsEl)
       .setName('Mission folder')
       .setDesc('Where throwaway mission notes are materialized. Safe to delete anytime — deleting a note or the whole folder loses no progress (XP/best times live in the plugin).')
       .addText((t) =>
@@ -28,7 +50,7 @@ export class NeuroVimSettingTab extends PluginSettingTab {
           }),
       );
 
-    new Setting(containerEl)
+    new Setting(appearanceEl)
       .setName('HUD placement')
       .setDesc('Where mission-control (timer, submit/reset/abort) appears during a mission. The floating box can also be dismissed per mission with its × button.')
       .addDropdown((d) =>
@@ -43,7 +65,7 @@ export class NeuroVimSettingTab extends PluginSettingTab {
           }),
       );
 
-    new Setting(containerEl)
+    new Setting(appearanceEl)
       .setName('CRT color scheme')
       .setDesc('On: fixed cyberpunk look (dark background, phosphor green) — theme-independent, always legible. Off: adaptive Obsidian-theme colors that blend into your light/dark theme.')
       .addToggle((t) =>
@@ -55,7 +77,7 @@ export class NeuroVimSettingTab extends PluginSettingTab {
           }),
       );
 
-    new Setting(containerEl)
+    new Setting(missionsEl)
       .setName('Auto Vim mode')
       .setDesc("Turn Obsidian's Vim mode on while a mission is active and restore your previous setting when it ends. Changes your global editor Vim setting for the duration.")
       .addToggle((t) =>
@@ -67,7 +89,7 @@ export class NeuroVimSettingTab extends PluginSettingTab {
           }),
       );
 
-    new Setting(containerEl)
+    new Setting(missionsEl)
       .setName('Open pane on startup')
       .setDesc('Open the NeuroVim pane automatically when Obsidian starts. Off by default — open it anytime via the ribbon icon or the "Open NeuroVim" command.')
       .addToggle((t) =>
@@ -79,8 +101,7 @@ export class NeuroVimSettingTab extends PluginSettingTab {
           }),
       );
 
-    new Setting(containerEl).setName('CIPHER uplink (experimental)').setHeading();
-    containerEl.createEl('p', {
+    cipherEl.createEl('p', {
       text:
         'Ask CIPHER for Vim advice via any OpenAI-compatible endpoint (LM Studio, Ollama, ' +
         'OpenRouter, …). Privacy: your questions plus the active mission\'s metadata ' +
@@ -97,7 +118,7 @@ export class NeuroVimSettingTab extends PluginSettingTab {
       }
     };
 
-    const endpointSetting = new Setting(containerEl)
+    const endpointSetting = new Setting(cipherEl)
       .setName('LLM endpoint')
       .setDesc('Base URL, e.g. http://localhost:1234 — a trailing /v1 is handled either way.')
       .addText((t) =>
@@ -121,10 +142,10 @@ export class NeuroVimSettingTab extends PluginSettingTab {
           }),
       );
     });
-    warningsEl = containerEl.createEl('div', { cls: 'nv-setting-warnings' });
+    warningsEl = cipherEl.createEl('div', { cls: 'nv-setting-warnings' });
     renderWarnings();
 
-    new Setting(containerEl)
+    new Setting(cipherEl)
       .setName('Connection')
       .setDesc('Check the endpoint and load its model list.')
       .addButton((b) =>
@@ -140,13 +161,13 @@ export class NeuroVimSettingTab extends PluginSettingTab {
         }),
       );
     if (this.probeText !== null) {
-      containerEl.createEl('div', {
+      cipherEl.createEl('div', {
         text: `${this.probeOk ? '✓' : '✗'} ${this.probeText}`,
         cls: `nv-setting-probe ${this.probeOk ? 'is-ok' : 'is-bad'}`,
       });
     }
 
-    const modelSetting = new Setting(containerEl).setName('Model');
+    const modelSetting = new Setting(cipherEl).setName('Model');
     if (this.models.length > 0) {
       modelSetting
         .setDesc('Pick one of the models the endpoint reports.')
@@ -179,7 +200,7 @@ export class NeuroVimSettingTab extends PluginSettingTab {
         );
     }
 
-    new Setting(containerEl)
+    new Setting(cipherEl)
       .setName('API key (optional)')
       .setDesc('Bearer token for endpoints that need one. Local servers usually don\'t.')
       .addText((t) => {
