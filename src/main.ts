@@ -260,7 +260,7 @@ export default class NeuroVimPlugin extends Plugin {
     });
     const runStream = async (endpoint: string): Promise<StreamOutcome> =>
       this.cipherClient.stream(
-        { endpoint, apiKey: this.settings.llmApiKey, model: this.settings.llmModel },
+        { endpoint, apiKey: this.settings.llmApiKey, model: this.settings.llmModel, suppressThinking: this.settings.llmSuppressThinking },
         messages,
         (t) => {
           // Stale stream from a reset/superseded turn — don't write into the new turn's state.

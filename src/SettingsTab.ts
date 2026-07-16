@@ -6,6 +6,7 @@ import { endpointStatusEn, endpointWarningEn } from './llm/endpointText';
 import { probeEndpoint } from './llm/endpointProbe';
 import { collapsibleSection, type CollapsibleStorage } from './vendor/kit/collapsible';
 import { applyEndpointEdit, activeIndexFromStatuses } from './llm/endpointEditor';
+import { thinkToggleState } from './llm/thinkToggle';
 
 export class NeuroVimSettingTab extends PluginSettingTab {
   /** Probe status per endpoint, keyed by endpoint *value* (its URL) rather than list
@@ -250,6 +251,21 @@ export class NeuroVimSettingTab extends PluginSettingTab {
             }),
         );
     }
+
+    const think = thinkToggleState(this.plugin.settings.llmModel, this.plugin.settings.llmSuppressThinking);
+    new Setting(cipherEl)
+      .setName('Model thinking')
+      .setDesc(think.desc)
+      .addToggle((t) =>
+        t
+          .setValue(!this.plugin.settings.llmSuppressThinking)
+          .setDisabled(think.disabled)
+          .onChange(async (v) => {
+            this.plugin.settings.llmSuppressThinking = !v;
+            await this.plugin.saveSettings();
+            this.display();
+          }),
+      );
 
     new Setting(cipherEl)
       .setName('API key (optional)')
