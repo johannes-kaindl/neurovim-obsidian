@@ -321,12 +321,14 @@ In `src/main.ts` das Laden (Zeile 50-51) ersetzen — die Migration greift auf d
 ```typescript
     const blob = (await this.loadData()) as StoredBlob | null;
     // Migrate before merging defaults: 0.4.x stored a single `llmEndpoint`, 0.5.0 keeps an
-    // ordered fallback list. The legacy field is neither read nor written after this point.
-    const raw = (blob?.__settings ?? {}) as Partial<VimDojoSettings> & { llmEndpoint?: string };
+    // ordered fallback list. Destructure the legacy field out of the rest — spreading `raw`
+    // wholesale would carry it onto `this.settings`, and persist() writes that object back
+    // verbatim, re-seeding a dead field into data.json on every save.
+    const { llmEndpoint, ...raw } = (blob?.__settings ?? {}) as Partial<VimDojoSettings> & { llmEndpoint?: string };
     this.settings = {
       ...DEFAULT_SETTINGS,
       ...raw,
-      llmEndpoints: migrateEndpointList(raw.llmEndpoint, raw.llmEndpoints),
+      llmEndpoints: migrateEndpointList(llmEndpoint, raw.llmEndpoints),
     };
 ```
 
