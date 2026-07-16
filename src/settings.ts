@@ -42,7 +42,11 @@ export const DEFAULT_SETTINGS: VimDojoSettings = {
  *  when present (it is the newer field); a lone legacy endpoint becomes a one-entry list.
  *  Pure — the caller applies it to raw `data.json` before defaults are merged. */
 export function migrateEndpointList(single: string | undefined, list: string[] | undefined): string[] {
-  if (list && list.length) return list.filter((e) => e && e.trim() !== '');
+  // Array.isArray, not just truthy: a hand-edited or corrupted data.json can put any JSON
+  // value under llmEndpoints. A non-empty string is truthy and has a numeric .length too,
+  // so a plain `list && list.length` check let a string through to list.filter, which
+  // doesn't exist there and threw — taking the whole plugin down with it on load.
+  if (Array.isArray(list) && list.length) return list.filter((e) => e && e.trim() !== '');
   if (single && single.trim() !== '') return [single.trim()];
   return [];
 }

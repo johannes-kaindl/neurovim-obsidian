@@ -42,6 +42,17 @@ describe('migrateEndpointList', () => {
     expect(migrateEndpointList(undefined, undefined)).toEqual([]);
     expect(migrateEndpointList('   ', [])).toEqual([]);
   });
+
+  it('falls back to the single/empty path instead of throwing on a non-array list', () => {
+    // Regression: a hand-edited or corrupted data.json can have llmEndpoints be any JSON
+    // value. A non-empty string is truthy and has a numeric .length, so the old
+    // `list && list.length` guard let it through to `list.filter`, which doesn't exist on
+    // a string — that throw propagated out of mergeStoredSettings on onload, and Obsidian
+    // reported "failed to load plugin".
+    expect(migrateEndpointList(undefined, 'http://x:1' as unknown as string[])).toEqual([]);
+    expect(migrateEndpointList('http://legacy:1', 'http://x:1' as unknown as string[]))
+      .toEqual(['http://legacy:1']);
+  });
 });
 
 describe('mergeStoredSettings', () => {
