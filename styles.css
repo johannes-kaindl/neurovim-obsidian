@@ -324,3 +324,22 @@
   justify-self: start; white-space: nowrap;
 }
 .nv-guide-desc { color: var(--nv-text); }
+
+/* --- Kit: collapsible settings sections (obsidian-kit 0.14.0, COLLAPSIBLE_CSS) --------
+   The kit ships CSS as a string and injects nothing itself; consumers paste it.
+   Settings stay theme-native — the CRT scheme applies to the plugin pane only. */
+.okit-collapsible-header {
+  display: flex; align-items: center; gap: var(--size-4-2);
+  cursor: pointer; padding: var(--size-4-2) 0;
+  font-weight: var(--font-semibold); color: var(--text-normal);
+  border-bottom: 1px solid var(--background-modifier-border);
+}
+.okit-collapsible-header:hover { color: var(--text-accent); }
+.okit-collapsible-header:focus-visible {
+  outline: 2px solid var(--interactive-accent);
+  outline-offset: 2px;
+  border-radius: var(--radius-s);
+}
+.okit-collapsible-chevron { display: inline-flex; color: var(--text-muted); }
+.okit-collapsible-body { padding-top: var(--size-4-2); }
+.okit-collapsible-body.is-collapsed { display: none; }
