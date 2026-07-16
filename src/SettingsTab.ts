@@ -286,10 +286,17 @@ export class NeuroVimSettingTab extends PluginSettingTab {
           for (const id of this.models) d.addOption(id, id);
           d.setValue(current || this.models[0]);
           // A dropdown has no empty state: adopt the shown value so the visible
-          // selection and the saved setting can't drift apart.
+          // selection and the saved setting can't drift apart. Also (re-)probe context
+          // length for the adopted model: on a fresh config, "Test all" ran refreshContext()
+          // before llmModel was set, so it probed with an empty model and left
+          // contextLength null. Without this, the context line would never appear until a
+          // second "Test all" or a manual dropdown change. Safe from a render loop:
+          // refreshContext() ends in display(), but by then `current` is the just-adopted
+          // model, so this branch doesn't fire again on that re-render.
           if (!current) {
             this.plugin.settings.llmModel = this.models[0];
             void this.plugin.saveSettings();
+            void this.refreshContext();
           }
           d.onChange(async (v) => {
             this.plugin.settings.llmModel = v;
