@@ -16,9 +16,11 @@ import { buildResultView } from './result/resultView';
 import { ResultModal } from './result/ResultModal';
 import { BriefingModal } from './briefing/BriefingModal';
 import { ChatSession } from './llm/chatSession';
-import { CipherClient } from './llm/CipherClient';
+import { CipherClient, type StreamOutcome } from './llm/CipherClient';
 import { XhrSseTransport } from './llm/XhrSseTransport';
 import { buildKnowledge, buildChatMessages, type CipherKnowledge } from './llm/cipherPrompt';
+import { EndpointResolver } from './llm/endpointResolver';
+import { probeEndpoint } from './llm/endpointProbe';
 import { DEFAULT_SETTINGS, isLlmConfigured, mergeStoredSettings, type VimDojoSettings } from './settings';
 import type { HubTab } from './hubTabs';
 import type { PluginData, MissionSummary } from '@neurovim/core';
@@ -40,6 +42,10 @@ export default class NeuroVimPlugin extends Plugin {
   private cipherSession = new ChatSession();
   private cipherClient = new CipherClient(new XhrSseTransport());
   private cipherAbort: AbortController | null = null;
+  private endpointResolver = new EndpointResolver(
+    () => this.settings.llmEndpoints,
+    async (ep) => (await probeEndpoint(ep, this.settings.llmApiKey)).status.reachable,
+  );
   private cipherKnowledge: CipherKnowledge | null = null;
   /** Active hub tab + guide search query — session-local UI state, not persisted. */
   private hubTab: HubTab = 'nexus';
@@ -252,17 +258,31 @@ export default class NeuroVimPlugin extends Plugin {
       history,
       question,
     });
-    const cfg = {
-      endpoint: this.settings.llmEndpoints[0] ?? '',
-      apiKey: this.settings.llmApiKey,
-      model: this.settings.llmModel,
-    };
-    const outcome = await this.cipherClient.stream(cfg, messages, (t) => {
-      // Stale stream from a reset/superseded turn — don't write into the new turn's state.
-      if (this.cipherAbort !== myAbort) return;
-      // The 500ms repaint tick picks this up — no extra render plumbing.
-      this.cipherSession.streaming = (this.cipherSession.streaming ?? '') + t;
-    }, myAbort.signal);
+    const runStream = async (endpoint: string): Promise<StreamOutcome> =>
+      this.cipherClient.stream(
+        { endpoint, apiKey: this.settings.llmApiKey, model: this.settings.llmModel },
+        messages,
+        (t) => {
+          // Stale stream from a reset/superseded turn — don't write into the new turn's state.
+          if (this.cipherAbort !== myAbort) return;
+          // The 500ms repaint tick picks this up — no extra render plumbing.
+          this.cipherSession.streaming = (this.cipherSession.streaming ?? '') + t;
+        },
+        myAbort.signal,
+      );
+
+    const endpoint = await this.endpointResolver.resolve();
+    let outcome: StreamOutcome = endpoint === null
+      ? { ok: false, kind: 'network', detail: 'no endpoint reachable', partial: '' }
+      : await runStream(endpoint);
+
+    // A network failure may just mean the cached endpoint moved (host slept, network
+    // changed). Re-resolve once and retry — never twice, or a dead uplink stalls the turn.
+    if (!outcome.ok && outcome.kind === 'network' && this.cipherAbort === myAbort) {
+      this.endpointResolver.invalidate();
+      const fresh = await this.endpointResolver.resolve();
+      if (fresh !== null && fresh !== endpoint) outcome = await runStream(fresh);
+    }
 
     // Only the current turn may mutate session state after its await — a reset or a
     // newer ask already owns `cipherSession`/`cipherAbort` if the identity check fails.
