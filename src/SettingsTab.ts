@@ -23,6 +23,11 @@ export class NeuroVimSettingTab extends PluginSettingTab {
   private models: string[] = [];
   /** Context length of the selected model in tokens, null = endpoint doesn't report it. */
   private contextLength: number | null = null;
+  /** Bumped by every commitEndpoints() call. Async probes (refreshContext, "Test all")
+   *  capture this before their await and compare it after: if it moved, the endpoint
+   *  list was edited while the probe was in flight, so the result is for a configuration
+   *  that no longer exists and must be discarded rather than written back. */
+  private endpointGeneration = 0;
 
   constructor(app: App, private readonly plugin: NeuroVimPlugin) { super(app, plugin); }
 
@@ -39,6 +44,7 @@ export class NeuroVimSettingTab extends PluginSettingTab {
     this.plugin.settings.llmEndpoints = next;
     this.models = [];
     this.contextLength = null;
+    this.endpointGeneration++;
     void this.plugin.saveSettings().then(() => this.display());
   }
 
@@ -47,13 +53,21 @@ export class NeuroVimSettingTab extends PluginSettingTab {
    *  `statuses` is keyed by endpoint value, so it's projected to an index-parallel list
    *  before handing it to `activeIndexFromStatuses`' index-based contract. */
   private async refreshContext(): Promise<void> {
+    // Captured before the await below: if commitEndpoints() runs while probeModelContext
+    // is in flight (a row edited or removed mid-probe), the generation moves and the
+    // result we're about to get back describes an endpoint/model pairing that's already
+    // gone. commitEndpoints() already cleared contextLength and re-rendered, so in that
+    // case we discard the late result instead of writing stale data back over it.
+    const generation = this.endpointGeneration;
     const endpoints = this.plugin.settings.llmEndpoints;
     const statusList = endpoints.map((ep) => this.statuses.get(ep) ?? null);
     const active = activeIndexFromStatuses(statusList);
     const endpoint = active >= 0 ? endpoints[active] : undefined;
-    this.contextLength = endpoint && this.plugin.settings.llmModel
+    const contextLength = endpoint && this.plugin.settings.llmModel
       ? await probeModelContext(endpoint, this.plugin.settings.llmApiKey, this.plugin.settings.llmModel)
       : null;
+    if (generation !== this.endpointGeneration) return;
+    this.contextLength = contextLength;
     this.display();
   }
 
@@ -229,10 +243,17 @@ export class NeuroVimSettingTab extends PluginSettingTab {
         b.setButtonText('Test all').onClick(async () => {
           b.setButtonText('Testing…');
           b.setDisabled(true);
+          // Captured before the await below, same reasoning as refreshContext(): if the
+          // endpoint list is edited while these probes (up to 5s each, 10s for an Ollama
+          // fallback) are in flight, commitEndpoints() has already cleared/re-rendered
+          // state for the new list, and writing these results in on top would resurrect
+          // stale data for endpoints that no longer apply.
+          const generation = this.endpointGeneration;
           const endpoints = this.plugin.settings.llmEndpoints;
           const results = await Promise.all(
             endpoints.map((ep) => probeEndpoint(ep, this.plugin.settings.llmApiKey)),
           );
+          if (generation !== this.endpointGeneration) return;
           // Rebuild from scratch, keyed by value — "Test all" freshly probes every
           // current endpoint, so there's nothing to carry over from the old map.
           const nextStatuses = new Map<string, EndpointStatusKind>();
@@ -241,6 +262,8 @@ export class NeuroVimSettingTab extends PluginSettingTab {
           const statusList = endpoints.map((ep) => nextStatuses.get(ep) ?? null);
           const active = activeIndexFromStatuses(statusList);
           this.models = active >= 0 ? results[active].models : [];
+          // refreshContext() re-captures the generation itself at this point, so its own
+          // guard checks against edits made during *its* await, not this one.
           await this.refreshContext();
         }),
       );
