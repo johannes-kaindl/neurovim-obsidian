@@ -278,10 +278,14 @@ export default class NeuroVimPlugin extends Plugin {
 
     // A network failure may just mean the cached endpoint moved (host slept, network
     // changed). Re-resolve once and retry — never twice, or a dead uplink stalls the turn.
+    // Retry on any freshly resolved endpoint, including the same one: the fresh ping just
+    // proved it answers, so the failure was transient. (Guarding on `fresh !== endpoint`
+    // would disable the retry entirely for a single-endpoint list — the common case.)
+    // If nothing resolves, `fresh` is null and the original failure stands.
     if (!outcome.ok && outcome.kind === 'network' && this.cipherAbort === myAbort) {
       this.endpointResolver.invalidate();
       const fresh = await this.endpointResolver.resolve();
-      if (fresh !== null && fresh !== endpoint) outcome = await runStream(fresh);
+      if (fresh !== null) outcome = await runStream(fresh);
     }
 
     // Only the current turn may mutate session state after its await — a reset or a
