@@ -207,7 +207,7 @@ export class NeuroVimSettingTab extends PluginSettingTab {
         });
     } else {
       modelSetting
-        .setDesc('Model id to request from the endpoint, e.g. qwen3-8b — or run "Test connection" to pick from a list.')
+        .setDesc('Model id to request from the endpoint, e.g. qwen3-8b — or run "Test all" to pick from a list.')
         .addText((t) =>
           t.setPlaceholder('qwen3-8b')
             .setValue(this.plugin.settings.llmModel)
