@@ -8,22 +8,25 @@ import { collapsibleSection, type CollapsibleStorage } from './vendor/kit/collap
 import { applyEndpointEdit, activeIndexFromStatuses } from './llm/endpointEditor';
 
 export class NeuroVimSettingTab extends PluginSettingTab {
-  /** Probe status per endpoint row — index-parallel to settings.llmEndpoints.
-   *  `null` = not probed yet. Survives display() re-renders. */
-  private statuses: (EndpointStatusKind | null)[] = [];
+  /** Probe status per endpoint, keyed by endpoint *value* (its URL) rather than list
+   *  position. Add/remove/replace anywhere in the list can shift every later index, but
+   *  a value-keyed map means unrelated rows keep their status across such a reshape —
+   *  only the row whose value actually changed loses its status (correctly: it's an
+   *  unprobed value now). Two identical URLs in the list intentionally share one status
+   *  entry — they're the same server. Rendered via a derived index-parallel list (see
+   *  `display()`) to match `activeIndexFromStatuses`' index-based contract.
+   *  Survives display() re-renders. */
+  private statuses: Map<string, EndpointStatusKind> = new Map();
   /** Models reported by the active (first reachable) endpoint. */
   private models: string[] = [];
 
   constructor(app: App, private readonly plugin: NeuroVimPlugin) { super(app, plugin); }
 
-  /** Commits a new endpoint list. Any add/remove/replace can shift every later index, so
-   *  trying to remap `this.statuses` (probe results, index-parallel to llmEndpoints) across
-   *  the change would risk sticking a stale status onto the wrong row. Simplest correct
-   *  option: the edit already invalidated those probe results anyway, so reset to
-   *  "not probed" rather than guess at a remap. */
+  /** Commits a new endpoint list. No explicit status reset needed: `statuses` is keyed
+   *  by endpoint value, so a removed or replaced entry simply stops resolving to a
+   *  status once the index-parallel view is re-derived on the next render. */
   private commitEndpoints(next: string[]): void {
     this.plugin.settings.llmEndpoints = next;
-    this.statuses = [];
     void this.plugin.saveSettings().then(() => this.display());
   }
 
@@ -129,11 +132,15 @@ export class NeuroVimSettingTab extends PluginSettingTab {
       cls: 'setting-item-description',
     });
 
+    // Derived index-parallel view of the value-keyed status map, for
+    // activeIndexFromStatuses' index-based contract and per-row status lookup below.
+    const statusList = this.plugin.settings.llmEndpoints.map((ep) => this.statuses.get(ep) ?? null);
+
     const rows = [...this.plugin.settings.llmEndpoints, ''];
     rows.forEach((value, index) => {
       const isAdder = index === rows.length - 1;
-      const status = isAdder ? null : (this.statuses[index] ?? null);
-      const active = activeIndexFromStatuses(this.statuses) === index;
+      const status = isAdder ? null : (statusList[index] ?? null);
+      const active = activeIndexFromStatuses(statusList) === index;
 
       const row = new Setting(cipherEl)
         .setName(isAdder ? 'Add endpoint' : `Endpoint ${index + 1}${active ? ' — active' : ''}`)
@@ -144,8 +151,17 @@ export class NeuroVimSettingTab extends PluginSettingTab {
           // row mid-edit would splice it away and shift every later index. Same wiring
           // as vault-crews' editor, for the same reason.
           t.inputEl.addEventListener('blur', () => {
-            const next = applyEndpointEdit(this.plugin.settings.llmEndpoints, index, t.getValue(), isAdder);
+            // Never reuse the render-time index: commitEndpoints mutates
+            // settings.llmEndpoints synchronously but re-renders only after the async
+            // save resolves, so another row's blur (e.g. tabbing through fields) can
+            // reshape the list before this blur fires. Resolve this row by its
+            // render-time value instead; if it's no longer in the list, another commit
+            // already dealt with it — just re-render. The adder row is exempt:
+            // applyEndpointEdit ignores the index entirely when isAdder is true.
             const list = this.plugin.settings.llmEndpoints;
+            const i = isAdder ? list.length : list.indexOf(value);
+            if (!isAdder && i === -1) { this.display(); return; }
+            const next = applyEndpointEdit(list, i, t.getValue(), isAdder);
             if (next.length === list.length && next.every((e, k) => e === list[k])) return;
             this.commitEndpoints(next);
           });
@@ -156,7 +172,13 @@ export class NeuroVimSettingTab extends PluginSettingTab {
         row.descEl.addClass(active ? 'nv-endpoint-active' : 'nv-endpoint-row');
         row.addExtraButton((b) =>
           b.setIcon('trash-2').setTooltip('Remove').onClick(() => {
-            this.commitEndpoints(applyEndpointEdit(this.plugin.settings.llmEndpoints, index, '', false));
+            // Never reuse the render-time index: a blur commit from another row may have
+            // reshaped the list between this row's render and this click. Find the row by
+            // value instead; if it's already gone, just re-render.
+            const list = this.plugin.settings.llmEndpoints;
+            const i = list.indexOf(value);
+            if (i === -1) { this.display(); return; }
+            this.commitEndpoints(applyEndpointEdit(list, i, '', false));
           }),
         );
         for (const w of validateEndpointInput(value)) {
@@ -180,11 +202,17 @@ export class NeuroVimSettingTab extends PluginSettingTab {
         b.setButtonText('Test all').onClick(async () => {
           b.setButtonText('Testing…');
           b.setDisabled(true);
+          const endpoints = this.plugin.settings.llmEndpoints;
           const results = await Promise.all(
-            this.plugin.settings.llmEndpoints.map((ep) => probeEndpoint(ep, this.plugin.settings.llmApiKey)),
+            endpoints.map((ep) => probeEndpoint(ep, this.plugin.settings.llmApiKey)),
           );
-          this.statuses = results.map((r) => r.status.kind);
-          const active = activeIndexFromStatuses(this.statuses);
+          // Rebuild from scratch, keyed by value — "Test all" freshly probes every
+          // current endpoint, so there's nothing to carry over from the old map.
+          const nextStatuses = new Map<string, EndpointStatusKind>();
+          results.forEach((r, i) => nextStatuses.set(endpoints[i], r.status.kind));
+          this.statuses = nextStatuses;
+          const statusList = endpoints.map((ep) => nextStatuses.get(ep) ?? null);
+          const active = activeIndexFromStatuses(statusList);
           this.models = active >= 0 ? results[active].models : [];
           this.display();
         }),
