@@ -53,3 +53,18 @@ export function migrateEndpointList(single: string | undefined, list: string[] |
 export function isLlmConfigured(s: Pick<VimDojoSettings, 'llmEndpoints' | 'llmModel'>): boolean {
   return s.llmEndpoints.length > 0 && s.llmModel.trim() !== '';
 }
+
+/** Merge a raw `data.json` `__settings` blob onto the defaults, migrating the 0.4.x
+ *  `llmEndpoint` field on the way in. Destructure the legacy field out of the rest —
+ *  spreading the source wholesale would carry it onto the merged settings, and persist()
+ *  writes that object back to data.json verbatim, re-seeding a dead field on every save.
+ *  Pure — no Obsidian dependency — so main.ts's onload can stay a thin wrapper around it
+ *  and the migration is testable without a plugin mock. */
+export function mergeStoredSettings(raw: unknown): VimDojoSettings {
+  const { llmEndpoint, ...rest } = (raw ?? {}) as Partial<VimDojoSettings> & { llmEndpoint?: string };
+  return {
+    ...DEFAULT_SETTINGS,
+    ...rest,
+    llmEndpoints: migrateEndpointList(llmEndpoint, rest.llmEndpoints),
+  };
+}

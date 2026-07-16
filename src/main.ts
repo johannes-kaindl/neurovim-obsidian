@@ -19,7 +19,7 @@ import { ChatSession } from './llm/chatSession';
 import { CipherClient } from './llm/CipherClient';
 import { XhrSseTransport } from './llm/XhrSseTransport';
 import { buildKnowledge, buildChatMessages, type CipherKnowledge } from './llm/cipherPrompt';
-import { DEFAULT_SETTINGS, isLlmConfigured, migrateEndpointList, type VimDojoSettings } from './settings';
+import { DEFAULT_SETTINGS, isLlmConfigured, mergeStoredSettings, type VimDojoSettings } from './settings';
 import type { HubTab } from './hubTabs';
 import type { PluginData, MissionSummary } from '@neurovim/core';
 
@@ -48,14 +48,10 @@ export default class NeuroVimPlugin extends Plugin {
   async onload(): Promise<void> {
     this.storage = new ObsidianStorage(this);
     const blob = (await this.loadData()) as StoredBlob | null;
-    // Migrate before merging defaults: 0.4.x stored a single `llmEndpoint`, 0.5.0 keeps an
-    // ordered fallback list. The legacy field is neither read nor written after this point.
-    const raw = (blob?.__settings ?? {}) as Partial<VimDojoSettings> & { llmEndpoint?: string };
-    this.settings = {
-      ...DEFAULT_SETTINGS,
-      ...raw,
-      llmEndpoints: migrateEndpointList(raw.llmEndpoint, raw.llmEndpoints),
-    };
+    // mergeStoredSettings migrates the 0.4.x `llmEndpoint` field into `llmEndpoints` and
+    // drops it — the legacy field is neither read nor written after this point. See
+    // src/settings.ts for why a plain spread of the raw blob would resurrect it.
+    this.settings = mergeStoredSettings(blob?.__settings);
     this.data = await loadPluginData(this.storage);
     this.missions = await this.content.listMissions();
 
