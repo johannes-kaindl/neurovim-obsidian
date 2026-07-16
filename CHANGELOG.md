@@ -5,6 +5,19 @@ All notable changes to this project are documented here. Format loosely follows
 
 ## [Unreleased]
 
+### Added
+- Settings are grouped into collapsible sections (Missions / Appearance / CIPHER uplink);
+  the open/closed state is remembered.
+- The CIPHER endpoint is now an ordered fallback list instead of a single URL — the first
+  reachable one is used. One synced list covers the same local LLM server showing up as
+  `localhost` at your desk and as a LAN IP on the road. Existing single-endpoint settings
+  from 0.4.x migrate automatically.
+- New "Model thinking" toggle (off by default): CIPHER answers straight away instead of
+  deliberating. Models that always think (gpt-oss/harmony) are detected and the toggle
+  disables itself instead of promising something the request can't deliver.
+- The selected model's context length is shown when the endpoint reports it (LM Studio,
+  Ollama).
+
 ## [0.4.3] — 2026-07-15
 
 ## [0.4.2] — 2026-07-15
