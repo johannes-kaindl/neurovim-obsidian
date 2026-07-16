@@ -66,5 +66,11 @@ export function mergeStoredSettings(raw: unknown): VimDojoSettings {
     ...DEFAULT_SETTINGS,
     ...rest,
     llmEndpoints: migrateEndpointList(llmEndpoint, rest.llmEndpoints),
+    // {...DEFAULT_SETTINGS} above is a shallow copy: without this, a raw blob with no
+    // uiCollapsed field would carry DEFAULT_SETTINGS.uiCollapsed through by reference, and
+    // collapsibleStorage().setCollapsed would then mutate that module-wide constant in
+    // place — every settings instance merged afterwards would inherit the stray value.
+    // Spreading it fresh here gives every call its own object.
+    uiCollapsed: { ...DEFAULT_SETTINGS.uiCollapsed, ...rest.uiCollapsed },
   };
 }

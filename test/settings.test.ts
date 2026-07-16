@@ -65,4 +65,17 @@ describe('mergeStoredSettings', () => {
     expect(mergeStoredSettings(undefined)).toEqual(DEFAULT_SETTINGS);
     expect(mergeStoredSettings(null)).toEqual(DEFAULT_SETTINGS);
   });
+
+  it('gives each merge its own uiCollapsed object, not a shared reference to the default', () => {
+    // Regression: {...DEFAULT_SETTINGS} only shallow-copies, so when data.json has no
+    // uiCollapsed, `rest.uiCollapsed` is undefined and the merge used to fall through to
+    // DEFAULT_SETTINGS.uiCollapsed itself (the same object, by reference) for every call.
+    // A section toggle then wrote straight into the module-wide DEFAULT_SETTINGS constant,
+    // and every other settings instance loaded afterwards inherited that stray value.
+    const a = mergeStoredSettings({});
+    const b = mergeStoredSettings({});
+    a.uiCollapsed.cipher = true;
+    expect(b.uiCollapsed).toEqual({});
+    expect(DEFAULT_SETTINGS.uiCollapsed).toEqual({});
+  });
 });
