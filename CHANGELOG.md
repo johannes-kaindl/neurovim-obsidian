@@ -7,6 +7,8 @@ All notable changes to this project are documented here. Format loosely follows
 
 ## [0.5.1] — 2026-07-16
 
+## [0.5.1] — 2026-07-16
+
 ### Fixed
 - Use Obsidian's DOM helpers throughout (`createDiv` instead of `createEl('div')` and of
   `activeDocument.createElement`), per the store review's `prefer-create-el` rule. The floating
