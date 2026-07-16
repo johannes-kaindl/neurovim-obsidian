@@ -343,3 +343,6 @@
 .okit-collapsible-chevron { display: inline-flex; color: var(--text-muted); }
 .okit-collapsible-body { padding-top: var(--size-4-2); }
 .okit-collapsible-body.is-collapsed { display: none; }
+
+.nv-endpoint-active { color: var(--text-success); font-weight: var(--font-semibold); }
+.nv-endpoint-row { color: var(--text-muted); }

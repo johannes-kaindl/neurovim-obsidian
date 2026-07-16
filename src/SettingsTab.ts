@@ -1,15 +1,17 @@
 import { App, PluginSettingTab, Setting } from 'obsidian';
 import type NeuroVimPlugin from './main';
 import type { HudPlacement } from './hudPlacement';
-import { ENDPOINT_PRESETS, validateEndpointInput } from './vendor/kit/endpoint_diagnostics';
+import { ENDPOINT_PRESETS, validateEndpointInput, type EndpointStatusKind } from './vendor/kit/endpoint_diagnostics';
 import { endpointStatusEn, endpointWarningEn } from './llm/endpointText';
 import { probeEndpoint } from './llm/endpointProbe';
 import { collapsibleSection, type CollapsibleStorage } from './vendor/kit/collapsible';
+import { applyEndpointEdit, activeIndexFromStatuses } from './llm/endpointEditor';
 
 export class NeuroVimSettingTab extends PluginSettingTab {
-  /** Result of the last "Test connection" run — survives display() re-renders. */
-  private probeText: string | null = null;
-  private probeOk = false;
+  /** Probe status per endpoint row — index-parallel to settings.llmEndpoints.
+   *  `null` = not probed yet. Survives display() re-renders. */
+  private statuses: (EndpointStatusKind | null)[] = [];
+  /** Models reported by the active (first reachable) endpoint. */
   private models: string[] = [];
 
   constructor(app: App, private readonly plugin: NeuroVimPlugin) { super(app, plugin); }
@@ -110,62 +112,78 @@ export class NeuroVimSettingTab extends PluginSettingTab {
       cls: 'setting-item-description',
     });
 
-    let warningsEl: HTMLElement;
-    const renderWarnings = (): void => {
-      warningsEl.empty();
-      for (const w of validateEndpointInput(this.plugin.settings.llmEndpoints[0] ?? '')) {
-        warningsEl.createEl('div', { text: `⚠ ${endpointWarningEn(w.rule)}`, cls: 'nv-setting-warning' });
-      }
-    };
+    cipherEl.createEl('p', {
+      text: 'Endpoints are tried in order — the first reachable one is used. Handy when the '
+        + 'same server is localhost at your desk and a LAN IP on the road.',
+      cls: 'setting-item-description',
+    });
 
-    const endpointSetting = new Setting(cipherEl)
-      .setName('LLM endpoint')
-      .setDesc('Base URL, e.g. http://localhost:1234 — a trailing /v1 is handled either way.')
-      .addText((t) =>
-        t.setPlaceholder('http://localhost:1234')
-          .setValue(this.plugin.settings.llmEndpoints[0] ?? '')
-          .onChange(async (v) => {
-            const url = v.trim();
-            this.plugin.settings.llmEndpoints = url ? [url] : [];
-            renderWarnings();
-            await this.plugin.saveSettings();
-          }),
-      );
-    ENDPOINT_PRESETS.forEach((preset) => {
-      endpointSetting.addButton((b) =>
-        b.setButtonText(preset.label)
-          .setTooltip(`Use ${preset.url}`)
-          .onClick(async () => {
-            this.plugin.settings.llmEndpoints = [preset.url];
+    const rows = [...this.plugin.settings.llmEndpoints, ''];
+    rows.forEach((value, index) => {
+      const isAdder = index === rows.length - 1;
+      const status = isAdder ? null : (this.statuses[index] ?? null);
+      const active = activeIndexFromStatuses(this.statuses) === index;
+
+      const row = new Setting(cipherEl)
+        .setName(isAdder ? 'Add endpoint' : `Endpoint ${index + 1}${active ? ' — active' : ''}`)
+        .addText((t) =>
+          t.setPlaceholder('http://localhost:1234')
+            .setValue(value)
+            .onChange(async (v) => {
+              this.plugin.settings.llmEndpoints = applyEndpointEdit(
+                this.plugin.settings.llmEndpoints, index, v, isAdder,
+              );
+              await this.plugin.saveSettings();
+            }),
+        );
+
+      if (!isAdder) {
+        row.setDesc(status ? endpointStatusEn(status, undefined) : 'Not tested yet.');
+        row.descEl.addClass(active ? 'nv-endpoint-active' : 'nv-endpoint-row');
+        row.addExtraButton((b) =>
+          b.setIcon('trash-2').setTooltip('Remove').onClick(async () => {
+            this.plugin.settings.llmEndpoints = applyEndpointEdit(
+              this.plugin.settings.llmEndpoints, index, '', false,
+            );
+            this.statuses.splice(index, 1);
             await this.plugin.saveSettings();
             this.display();
           }),
-      );
+        );
+        for (const w of validateEndpointInput(value)) {
+          row.descEl.createEl('div', { text: `⚠ ${endpointWarningEn(w.rule)}`, cls: 'nv-setting-warning' });
+        }
+      } else {
+        ENDPOINT_PRESETS.forEach((preset) => {
+          row.addButton((b) =>
+            b.setButtonText(preset.label).setTooltip(`Add ${preset.url}`).onClick(async () => {
+              this.plugin.settings.llmEndpoints = applyEndpointEdit(
+                this.plugin.settings.llmEndpoints, index, preset.url, true,
+              );
+              await this.plugin.saveSettings();
+              this.display();
+            }),
+          );
+        });
+      }
     });
-    warningsEl = cipherEl.createEl('div', { cls: 'nv-setting-warnings' });
-    renderWarnings();
 
     new Setting(cipherEl)
       .setName('Connection')
-      .setDesc('Check the endpoint and load its model list.')
+      .setDesc('Test every endpoint and load the model list from the first reachable one.')
       .addButton((b) =>
-        b.setButtonText('Test connection').onClick(async () => {
+        b.setButtonText('Test all').onClick(async () => {
           b.setButtonText('Testing…');
           b.setDisabled(true);
-          const r = await probeEndpoint(this.plugin.settings.llmEndpoints[0] ?? '', this.plugin.settings.llmApiKey);
-          this.probeOk = r.status.reachable;
-          this.probeText = endpointStatusEn(r.status.kind, r.status.raw)
-            + (r.models.length ? ` ${r.models.length} models found.` : '');
-          this.models = r.models;
+          const results = await Promise.all(
+            this.plugin.settings.llmEndpoints.map((ep) => probeEndpoint(ep, this.plugin.settings.llmApiKey)),
+          );
+          this.statuses = results.map((r) => r.status.kind);
+          const active = activeIndexFromStatuses(this.statuses);
+          this.models = active >= 0 ? results[active].models : [];
           this.display();
         }),
       );
-    if (this.probeText !== null) {
-      cipherEl.createEl('div', {
-        text: `${this.probeOk ? '✓' : '✗'} ${this.probeText}`,
-        cls: `nv-setting-probe ${this.probeOk ? 'is-ok' : 'is-bad'}`,
-      });
-    }
 
     const modelSetting = new Setting(cipherEl).setName('Model');
     if (this.models.length > 0) {
