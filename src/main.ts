@@ -282,7 +282,13 @@ export default class NeuroVimPlugin extends Plugin {
     // proved it answers, so the failure was transient. (Guarding on `fresh !== endpoint`
     // would disable the retry entirely for a single-endpoint list — the common case.)
     // If nothing resolves, `fresh` is null and the original failure stands.
-    if (!outcome.ok && outcome.kind === 'network' && this.cipherAbort === myAbort) {
+    // `endpoint !== null` excludes the case where the *first* resolve already came back
+    // null (nothing in the list was reachable at all — resolve() deliberately doesn't cache
+    // that). Retrying there would re-ping every endpoint a second time for a failure that
+    // was never transient, doubling the wait (up to ~5s per endpoint) before "Signal lost".
+    // The retry is for a resolved endpoint that broke mid-request, not for a list that was
+    // already unreachable.
+    if (endpoint !== null && !outcome.ok && outcome.kind === 'network' && this.cipherAbort === myAbort) {
       this.endpointResolver.invalidate();
       const fresh = await this.endpointResolver.resolve();
       if (fresh !== null) outcome = await runStream(fresh);
