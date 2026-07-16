@@ -2,6 +2,6 @@
   "source": "obsidian-kit",
   "version": "0.14.0",
   "sha": "644603c",
-  "vendored": "pure/sse.ts, pure/think-splitter.ts (als think.ts), pure/endpoint.ts, pure/endpoint_diagnostics.ts, obsidian/clock.ts",
+  "vendored": "pure/sse.ts, pure/think-splitter.ts (als think.ts), pure/endpoint.ts, pure/endpoint_diagnostics.ts, pure/reasoning.ts, pure/model-context.ts, obsidian/clock.ts, obsidian/collapsible.ts",
   "note": "Verbatim snapshot. Never hand-edit. Re-copy from obsidian-kit to update."
 }

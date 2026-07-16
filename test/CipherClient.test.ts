@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { CipherClient, type SseTransport } from '../src/llm/CipherClient';
 import type { ClockPort } from '../src/llm/clock';
 
-const CFG = { endpoint: 'http://localhost:1234/v1/', apiKey: '', model: 'test-model' };
+const CFG = { endpoint: 'http://localhost:1234/v1/', apiKey: '', model: 'test-model', suppressThinking: false };
 const MSGS = [{ role: 'user' as const, content: 'q' }];
 
 /** Node's own timers — CipherClient's default clock uses `window`, which
@@ -182,5 +182,44 @@ describe('CipherClient.stream', () => {
       expect(r.kind).toBe('aborted');
       expect(r.partial).toBe('par');
     }
+  });
+});
+
+describe('CipherClient thinking suppression', () => {
+  it('sends suppress params when asked', async () => {
+    const t = fakeTransport(['data: [DONE]\n']);
+    await new CipherClient(t, undefined, fakeClock).stream(
+      { ...CFG, model: 'qwen3-8b', suppressThinking: true },
+      MSGS,
+      () => undefined,
+      new AbortController().signal,
+    );
+    const sent = t.calls[0].body as Record<string, unknown>;
+    expect(sent.reasoning_effort).toBe('none');
+    expect(sent.chat_template_kwargs).toEqual({ enable_thinking: false });
+  });
+
+  it('sends no suppress params when thinking is allowed', async () => {
+    const t = fakeTransport(['data: [DONE]\n']);
+    await new CipherClient(t, undefined, fakeClock).stream(
+      { ...CFG, model: 'qwen3-8b', suppressThinking: false },
+      MSGS,
+      () => undefined,
+      new AbortController().signal,
+    );
+    const sent = t.calls[0].body as Record<string, unknown>;
+    expect(sent.reasoning_effort).toBeUndefined();
+  });
+
+  it('never suppresses an always-on thinker even when asked', async () => {
+    const t = fakeTransport(['data: [DONE]\n']);
+    await new CipherClient(t, undefined, fakeClock).stream(
+      { ...CFG, model: 'gpt-oss-20b', suppressThinking: true },
+      MSGS,
+      () => undefined,
+      new AbortController().signal,
+    );
+    const sent = t.calls[0].body as Record<string, unknown>;
+    expect(sent.reasoning_effort).toBeUndefined();
   });
 });

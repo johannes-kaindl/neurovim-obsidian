@@ -16,10 +16,12 @@ import { buildResultView } from './result/resultView';
 import { ResultModal } from './result/ResultModal';
 import { BriefingModal } from './briefing/BriefingModal';
 import { ChatSession } from './llm/chatSession';
-import { CipherClient } from './llm/CipherClient';
+import { CipherClient, type StreamOutcome } from './llm/CipherClient';
 import { XhrSseTransport } from './llm/XhrSseTransport';
 import { buildKnowledge, buildChatMessages, type CipherKnowledge } from './llm/cipherPrompt';
-import { DEFAULT_SETTINGS, isLlmConfigured, type VimDojoSettings } from './settings';
+import { EndpointResolver } from './llm/endpointResolver';
+import { probeEndpoint } from './llm/endpointProbe';
+import { DEFAULT_SETTINGS, isLlmConfigured, mergeStoredSettings, type VimDojoSettings } from './settings';
 import type { HubTab } from './hubTabs';
 import type { PluginData, MissionSummary } from '@neurovim/core';
 
@@ -40,6 +42,10 @@ export default class NeuroVimPlugin extends Plugin {
   private cipherSession = new ChatSession();
   private cipherClient = new CipherClient(new XhrSseTransport());
   private cipherAbort: AbortController | null = null;
+  private endpointResolver = new EndpointResolver(
+    () => this.settings.llmEndpoints,
+    async (ep) => (await probeEndpoint(ep, this.settings.llmApiKey)).status.reachable,
+  );
   private cipherKnowledge: CipherKnowledge | null = null;
   /** Active hub tab + guide search query — session-local UI state, not persisted. */
   private hubTab: HubTab = 'nexus';
@@ -48,7 +54,10 @@ export default class NeuroVimPlugin extends Plugin {
   async onload(): Promise<void> {
     this.storage = new ObsidianStorage(this);
     const blob = (await this.loadData()) as StoredBlob | null;
-    this.settings = { ...DEFAULT_SETTINGS, ...(blob?.__settings ?? {}) };
+    // mergeStoredSettings migrates the 0.4.x `llmEndpoint` field into `llmEndpoints` and
+    // drops it — the legacy field is neither read nor written after this point. See
+    // src/settings.ts for why a plain spread of the raw blob would resurrect it.
+    this.settings = mergeStoredSettings(blob?.__settings);
     this.data = await loadPluginData(this.storage);
     this.missions = await this.content.listMissions();
 
@@ -249,17 +258,41 @@ export default class NeuroVimPlugin extends Plugin {
       history,
       question,
     });
-    const cfg = {
-      endpoint: this.settings.llmEndpoint,
-      apiKey: this.settings.llmApiKey,
-      model: this.settings.llmModel,
-    };
-    const outcome = await this.cipherClient.stream(cfg, messages, (t) => {
-      // Stale stream from a reset/superseded turn — don't write into the new turn's state.
-      if (this.cipherAbort !== myAbort) return;
-      // The 500ms repaint tick picks this up — no extra render plumbing.
-      this.cipherSession.streaming = (this.cipherSession.streaming ?? '') + t;
-    }, myAbort.signal);
+    const runStream = async (endpoint: string): Promise<StreamOutcome> =>
+      this.cipherClient.stream(
+        { endpoint, apiKey: this.settings.llmApiKey, model: this.settings.llmModel, suppressThinking: this.settings.llmSuppressThinking },
+        messages,
+        (t) => {
+          // Stale stream from a reset/superseded turn — don't write into the new turn's state.
+          if (this.cipherAbort !== myAbort) return;
+          // The 500ms repaint tick picks this up — no extra render plumbing.
+          this.cipherSession.streaming = (this.cipherSession.streaming ?? '') + t;
+        },
+        myAbort.signal,
+      );
+
+    const endpoint = await this.endpointResolver.resolve();
+    let outcome: StreamOutcome = endpoint === null
+      ? { ok: false, kind: 'network', detail: 'no endpoint reachable', partial: '' }
+      : await runStream(endpoint);
+
+    // A network failure may just mean the cached endpoint moved (host slept, network
+    // changed). Re-resolve once and retry — never twice, or a dead uplink stalls the turn.
+    // Retry on any freshly resolved endpoint, including the same one: the fresh ping just
+    // proved it answers, so the failure was transient. (Guarding on `fresh !== endpoint`
+    // would disable the retry entirely for a single-endpoint list — the common case.)
+    // If nothing resolves, `fresh` is null and the original failure stands.
+    // `endpoint !== null` excludes the case where the *first* resolve already came back
+    // null (nothing in the list was reachable at all — resolve() deliberately doesn't cache
+    // that). Retrying there would re-ping every endpoint a second time for a failure that
+    // was never transient, doubling the wait (up to ~5s per endpoint) before "Signal lost".
+    // The retry is for a resolved endpoint that broke mid-request, not for a list that was
+    // already unreachable.
+    if (endpoint !== null && !outcome.ok && outcome.kind === 'network' && this.cipherAbort === myAbort) {
+      this.endpointResolver.invalidate();
+      const fresh = await this.endpointResolver.resolve();
+      if (fresh !== null) outcome = await runStream(fresh);
+    }
 
     // Only the current turn may mutate session state after its await — a reset or a
     // newer ask already owns `cipherSession`/`cipherAbort` if the identity check fails.

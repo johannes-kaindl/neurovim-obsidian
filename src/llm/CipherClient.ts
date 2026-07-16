@@ -8,6 +8,8 @@ import { ThinkSplitter } from '../vendor/kit/think';
 import { normalizeEndpoint } from '../vendor/kit/endpoint';
 import type { LlmMessage } from './cipherPrompt';
 import { realClock, type ClockPort } from '../vendor/kit/clock';
+import { suppressParams } from '../vendor/kit/reasoning';
+import { effectiveSuppress } from './thinkToggle';
 
 export interface SseTransport {
   postStream(
@@ -19,7 +21,7 @@ export interface SseTransport {
   ): Promise<number>;
 }
 
-export interface CipherConfig { endpoint: string; apiKey: string; model: string }
+export interface CipherConfig { endpoint: string; apiKey: string; model: string; suppressThinking: boolean }
 
 export type StreamOutcome =
   | { ok: true; content: string }
@@ -50,7 +52,14 @@ export class CipherClient {
     const url = `${normalizeEndpoint(cfg.endpoint)}/v1/chat/completions`;
     const headers: Record<string, string> = {};
     if (cfg.apiKey) headers.Authorization = `Bearer ${cfg.apiKey}`;
-    const body = { model: cfg.model, messages, stream: true, temperature: 0.7, max_tokens: 1024 };
+    const body = {
+      model: cfg.model,
+      messages,
+      stream: true,
+      temperature: 0.7,
+      max_tokens: 1024,
+      ...suppressParams(effectiveSuppress(cfg.model, cfg.suppressThinking)),
+    };
 
     // Inner controller: fired by caller abort OR the hard timeout.
     const ctrl = new AbortController();

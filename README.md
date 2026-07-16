@@ -24,12 +24,30 @@ The NeuroVim pane is organized in tabs:
 
 Ask CIPHER for Vim advice — in character, powered by any OpenAI-compatible endpoint
 (LM Studio, Ollama, OpenRouter, …). Configure endpoint + model under
-Settings → NeuroVim → CIPHER uplink; leave them empty and the feature stays fully off.
-During a mission, the HUD gains a CIPHER button that opens the uplink with the
+Settings → NeuroVim → CIPHER uplink; leave the endpoint list empty and the feature stays
+fully off. During a mission, the HUD gains a CIPHER button that opens the uplink with the
 mission's context attached.
 
 Privacy: your questions plus the active mission's metadata (title, category, goal)
 are sent to the endpoint you configure — never any other vault content.
+
+### Settings
+
+Settings → NeuroVim is grouped into three collapsible sections — **Missions**,
+**Appearance**, and **CIPHER uplink**; each remembers whether you left it open or closed.
+
+- **Endpoints** — an ordered list rather than a single URL. The first reachable endpoint
+  wins, so one synced list covers the same local LLM server showing up as `localhost` at
+  your desk and as a LAN IP on the road. Add endpoints via presets or by typing a URL;
+  "Test all" probes every entry and marks the active one. Existing single-endpoint configs
+  from 0.4.x migrate automatically — nothing to do on upgrade.
+- **Model** — picked from a dropdown populated by the active endpoint's `/v1/models`, with
+  a free-text fallback if the list is empty or the endpoint is unreachable. When the
+  endpoint reports it (LM Studio, Ollama), the model's context length is shown alongside.
+- **Model thinking** — off by default, which is the faster path: CIPHER answers straight
+  away instead of deliberating. Turn it on if you want the model to reason before
+  answering. Models that always think (gpt-oss/harmony) are detected and the toggle
+  disables itself with an explanation, since it can't turn those off anyway.
 
 ## How it works (the hybrid model)
 

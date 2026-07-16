@@ -273,11 +273,7 @@
 .nv-native .nv-uplink-error .nv-uplink-text { color: var(--text-error); }
 
 /* ── Settings: CIPHER uplink diagnostics ─────────────────────── */
-.nv-setting-warnings { margin: 0 0 0.75em; }
 .nv-setting-warning { color: var(--text-warning, #b58900); font-size: 0.85em; }
-.nv-setting-probe { margin: 0 0 0.75em; font-size: 0.9em; }
-.nv-setting-probe.is-ok { color: var(--text-success, #2e7d32); }
-.nv-setting-probe.is-bad { color: var(--text-error, #c62828); }
 
 /* ── Hub tabs ─────────────────────────────────────────────────── */
 .nv-tabs { display: flex; gap: 4px; margin: 0.5em 0 1em; border-bottom: 1px solid var(--nv-border-soft); }
@@ -324,3 +320,25 @@
   justify-self: start; white-space: nowrap;
 }
 .nv-guide-desc { color: var(--nv-text); }
+
+/* --- Kit: collapsible settings sections (obsidian-kit 0.14.0, COLLAPSIBLE_CSS) --------
+   The kit ships CSS as a string and injects nothing itself; consumers paste it.
+   Settings stay theme-native — the CRT scheme applies to the plugin pane only. */
+.okit-collapsible-header {
+  display: flex; align-items: center; gap: var(--size-4-2);
+  cursor: pointer; padding: var(--size-4-2) 0;
+  font-weight: var(--font-semibold); color: var(--text-normal);
+  border-bottom: 1px solid var(--background-modifier-border);
+}
+.okit-collapsible-header:hover { color: var(--text-accent); }
+.okit-collapsible-header:focus-visible {
+  outline: 2px solid var(--interactive-accent);
+  outline-offset: 2px;
+  border-radius: var(--radius-s);
+}
+.okit-collapsible-chevron { display: inline-flex; color: var(--text-muted); }
+.okit-collapsible-body { padding-top: var(--size-4-2); }
+.okit-collapsible-body.is-collapsed { display: none; }
+
+.nv-endpoint-active { color: var(--text-success); font-weight: var(--font-semibold); }
+.nv-endpoint-row { color: var(--text-muted); }

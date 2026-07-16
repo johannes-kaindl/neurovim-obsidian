@@ -321,12 +321,14 @@ In `src/main.ts` das Laden (Zeile 50-51) ersetzen — die Migration greift auf d
 ```typescript
     const blob = (await this.loadData()) as StoredBlob | null;
     // Migrate before merging defaults: 0.4.x stored a single `llmEndpoint`, 0.5.0 keeps an
-    // ordered fallback list. The legacy field is neither read nor written after this point.
-    const raw = (blob?.__settings ?? {}) as Partial<VimDojoSettings> & { llmEndpoint?: string };
+    // ordered fallback list. Destructure the legacy field out of the rest — spreading `raw`
+    // wholesale would carry it onto `this.settings`, and persist() writes that object back
+    // verbatim, re-seeding a dead field into data.json on every save.
+    const { llmEndpoint, ...raw } = (blob?.__settings ?? {}) as Partial<VimDojoSettings> & { llmEndpoint?: string };
     this.settings = {
       ...DEFAULT_SETTINGS,
       ...raw,
-      llmEndpoints: migrateEndpointList(raw.llmEndpoint, raw.llmEndpoints),
+      llmEndpoints: migrateEndpointList(llmEndpoint, raw.llmEndpoints),
     };
 ```
 
@@ -641,16 +643,20 @@ Im CIPHER-Block den alten `endpointSetting`-Block (Textfeld + Presets + Warnunge
 
       const row = new Setting(cipherEl)
         .setName(isAdder ? 'Add endpoint' : `Endpoint ${index + 1}${active ? ' — active' : ''}`)
-        .addText((t) =>
-          t.setPlaceholder('http://localhost:1234')
-            .setValue(value)
-            .onChange(async (v) => {
-              this.plugin.settings.llmEndpoints = applyEndpointEdit(
-                this.plugin.settings.llmEndpoints, index, v, isAdder,
-              );
-              await this.plugin.saveSettings();
-            }),
-        );
+        .addText((t) => {
+          t.setPlaceholder('http://localhost:1234').setValue(value);
+          // Commit on blur, NOT onChange — onChange fires per keystroke, so the adder
+          // would append every intermediate value ("h", "ht", "htt", …) and clearing a
+          // row mid-edit would splice it away and shift every later index. Same wiring
+          // as vault-crews' editor, for the same reason.
+          t.inputEl.addEventListener('blur', () => {
+            const next = applyEndpointEdit(this.plugin.settings.llmEndpoints, index, t.getValue(), isAdder);
+            const list = this.plugin.settings.llmEndpoints;
+            if (next.length === list.length && next.every((e, k) => e === list[k])) return;
+            this.plugin.settings.llmEndpoints = next;
+            void this.plugin.saveSettings().then(() => { this.display(); });
+          });
+        });
 
       if (!isAdder) {
         row.setDesc(status ? endpointStatusEn(status, undefined) : 'Not tested yet.');
@@ -688,7 +694,20 @@ Die alte `renderWarnings`-Closure und `warningsEl` entfallen — Warnungen häng
 
 - [ ] **Step 3: „Test all" statt „Test connection"**
 
-Den Connection-Block ersetzen:
+Zuerst den alten Probe-Ergebnis-Block ersatzlos löschen — er liest die in Step 1 entfernten
+Felder `probeText`/`probeOk` und würde den Typecheck brechen. Der Status steht jetzt an der
+jeweiligen Zeile:
+
+```typescript
+    if (this.probeText !== null) {
+      containerEl.createEl('div', {
+        text: `${this.probeOk ? '✓' : '✗'} ${this.probeText}`,
+        cls: `nv-setting-probe ${this.probeOk ? 'is-ok' : 'is-bad'}`,
+      });
+    }
+```
+
+Dann den Connection-Block ersetzen:
 
 ```typescript
     new Setting(cipherEl)
@@ -892,10 +911,14 @@ In `handleCipherAsk` den provisorischen `cfg`-Block aus Task 2 ersetzen. Der Str
 
     // A network failure may just mean the cached endpoint moved (host slept, network
     // changed). Re-resolve once and retry — never twice, or a dead uplink stalls the turn.
+    // Retry on any freshly resolved endpoint, including the same one: the fresh ping just
+    // proved it answers, so the failure was transient. (Guarding on `fresh !== endpoint`
+    // would disable the retry entirely for a single-endpoint list — the common case.)
+    // If nothing resolves, `fresh` is null and the original failure stands.
     if (!outcome.ok && outcome.kind === 'network' && this.cipherAbort === myAbort) {
       this.endpointResolver.invalidate();
       const fresh = await this.endpointResolver.resolve();
-      if (fresh !== null && fresh !== endpoint) outcome = await runStream(fresh);
+      if (fresh !== null) outcome = await runStream(fresh);
     }
 ```
 
