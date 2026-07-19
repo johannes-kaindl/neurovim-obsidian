@@ -15,6 +15,10 @@ export interface HudRenderProps {
   onCipher?: () => void;
   /** Present only for the floating box — renders a dismiss (×) button. */
   onDismiss?: () => void;
+  /** Hint text (set after a failed submit). When present, renders the HINT button. */
+  hint: string | null;
+  /** Show the hint in a Notice. */
+  onHint: () => void;
 }
 
 /** A live, mounted HUD instance. */

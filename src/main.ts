@@ -37,6 +37,8 @@ export default class NeuroVimPlugin extends Plugin {
   private session!: MissionSession;
   private hud!: HudMount;
   private boxDismissed = false;
+  /** Hint text for the first divergent line — set on failed submit, cleared on success/reset. */
+  private hint: string | null = null;
   private vimRestore: boolean | null = null;
   private tick: number | null = null;
   private cipherSession = new ChatSession();
@@ -190,6 +192,7 @@ export default class NeuroVimPlugin extends Plugin {
     try {
       await this.session.start(id);
       this.boxDismissed = false;
+      this.hint = null;
       this.enterAutoVim();
       const m = this.missions.find((x) => x.mission_id === id);
       this.cipherSession.setMission(m
@@ -207,6 +210,7 @@ export default class NeuroVimPlugin extends Plugin {
     const cm = this.missionEditorView();
     if (res.ok) {
       if (cm) clearHighlight(cm);
+      this.hint = null;
       this.session.end();
       this.restoreVim();
       this.cipherSession.setMission(null);
@@ -215,6 +219,7 @@ export default class NeuroVimPlugin extends Plugin {
       if (cm) showDivergentLine(cm, res.diff.first_divergent_line);
       const off = res.diff.lines_off;
       new Notice(`>_ ${off} line${off !== 1 ? 's' : ''} differ — keep going`);
+      void this.session.requestHint().then((h) => { if (h) { this.hint = h; this.repaint(); } });
     }
     this.repaint();
   }
@@ -223,6 +228,7 @@ export default class NeuroVimPlugin extends Plugin {
     if (!this.session.activeMissionId) return;
     await this.session.reset();
     this.boxDismissed = false;
+    this.hint = null;
     const cm = this.missionEditorView();
     if (cm) clearHighlight(cm);
     new Notice('>_ Transmission reset. Timer restarted.');
@@ -232,6 +238,7 @@ export default class NeuroVimPlugin extends Plugin {
   private handleAbandon(): void {
     const cm = this.missionEditorView();
     if (cm) clearHighlight(cm);
+    this.hint = null;
     this.session.end();
     this.restoreVim();
     this.cipherSession.setMission(null);
@@ -338,6 +345,8 @@ export default class NeuroVimPlugin extends Plugin {
           onSubmit: () => void this.handleSubmit(),
           onReset: () => void this.handleReset(),
           onAbandon: () => this.handleAbandon(),
+          hint: this.hint,
+          onHint: () => { if (this.hint) { new Notice(this.hint); this.hint = null; this.repaint(); } },
           onCipher: isLlmConfigured(this.settings)
             ? () => { this.hubTab = 'uplink'; void this.activateView(); }
             : undefined,

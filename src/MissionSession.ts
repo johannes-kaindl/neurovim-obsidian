@@ -104,6 +104,34 @@ export class MissionSession {
     return { ok: true, result };
   }
 
+  /**
+   * Compute a hint for the first divergent line. Re-reads the current note so the hint
+   * reflects the player's latest edits (they may have fixed the first error and need the next).
+   * Returns null when no active mission or the note cannot be read.
+   */
+  async requestHint(): Promise<string | null> {
+    if (!this._id || !this._notePath) return null;
+    let body: string;
+    try {
+      body = await this.deps.app.readNote(this._notePath);
+    } catch { return null; }
+    const current = body.trim();
+    const solution = this._solution.trim();
+    if (current === solution) return null;
+    const curLines = current.split('\n');
+    const solLines = solution.split('\n');
+    const maxLen = Math.max(curLines.length, solLines.length);
+    for (let i = 0; i < maxLen; i++) {
+      const cur = curLines[i] ?? '';
+      const sol = solLines[i] ?? '';
+      if (cur !== sol) {
+        const lineNum = i + 1;
+        return formatHint(lineNum, cur, sol);
+      }
+    }
+    return null;
+  }
+
   end(): void {
     this._id = null;
     this._notePath = null;
@@ -111,4 +139,13 @@ export class MissionSession {
     this._solution = '';
     this.metrics.reset();
   }
+}
+
+function truncate(text: string, max: number): string {
+  if (text.length <= max) return text;
+  return text.slice(0, max) + '…';
+}
+
+function formatHint(lineNum: number, current: string, solution: string): string {
+  return `>_ Line ${lineNum} differs\n\nHas: ${truncate(current, 60)}\n\nShould be:\n${truncate(solution, 60)}`;
 }

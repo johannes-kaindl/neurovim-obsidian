@@ -80,6 +80,8 @@
 }
 .nv-hud .nv-hud-actions .nv-btn-submit { background: var(--nv-submit-bg); border-color: var(--nv-accent); color: var(--nv-submit-fg); }
 .nv-hud .nv-hud-actions .nv-btn-abort:hover { border-color: var(--nv-danger); color: var(--nv-danger); }
+.nv-hud .nv-hud-actions .nv-btn-hint { border-color: var(--nv-accent-dim); color: var(--nv-accent-dim); }
+.nv-hud .nv-hud-actions .nv-btn-hint:hover { border-color: var(--nv-accent); color: var(--nv-accent); }
 .nv-hud .nv-hud-close {
   padding: 0 2px; background: transparent; border: none;
   color: var(--nv-text-dim); font-size: 1.1em; line-height: 1; cursor: pointer;
