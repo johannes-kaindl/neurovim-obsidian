@@ -9,7 +9,7 @@ import { HubView, VIEW_TYPE_NEUROVIM } from './HubView';
 import { HudMount, type HudActive, type HudRenderProps } from './HudMount';
 import { ObsidianHudDom } from './ObsidianHudDom';
 import { resolveHudTarget } from './hudPlacement';
-import { diffHighlightField, showDivergentLine, clearHighlight } from './diffHighlight';
+import { diffHighlightField, showDivergentLines, clearHighlight } from './diffHighlight';
 import { isMissionEditorKeystroke } from './keystrokeCounter';
 import { NeuroVimSettingTab } from './SettingsTab';
 import { buildResultView } from './result/resultView';
@@ -259,7 +259,7 @@ export default class NeuroVimPlugin extends Plugin {
 
       new ResultModal(this.app, buildResultView(res.result, res.unverified), this.settings.colorScheme, runDebrief).open();
     } else {
-      if (cm) showDivergentLine(cm, res.diff.first_divergent_line);
+      if (cm) showDivergentLines(cm, [res.diff.first_divergent_line]);
       const off = res.diff.lines_off;
       new Notice(`>_ ${off} line${off !== 1 ? 's' : ''} differ — keep going`);
       void this.session.requestHint().then((h) => { if (h) { this.hint = h; this.repaint(); } });
