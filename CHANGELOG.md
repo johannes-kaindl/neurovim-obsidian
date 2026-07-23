@@ -5,6 +5,8 @@ All notable changes to this project are documented here. Format loosely follows
 
 ## [Unreleased]
 
+## [0.6.0] — 2026-07-23
+
 ### Added
 - CIPHER debrief: after a successful mission, request an on-demand, sequence-based
   debriefing in the Result screen — CIPHER names wasted motion and gives the idiomatic fix.

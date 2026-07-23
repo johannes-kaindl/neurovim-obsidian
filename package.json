@@ -1,6 +1,6 @@
 {
   "name": "vim-dojo",
-  "version": "0.5.1",
+  "version": "0.6.0",
   "description": "NeuroVim — learn Vim by playing a cyberpunk spy-thriller, inside real notes.",
   "license": "AGPL-3.0-only",
   "type": "module",
