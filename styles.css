@@ -159,6 +159,21 @@
 }
 .nv-result .nv-result-actions .nv-btn:hover { border-color: var(--nv-accent); color: var(--nv-accent); }
 
+/* ── CIPHER debrief (on-demand, inside the result modal) ── */
+.nv-result .nv-result-debrief { margin-top: 12px; }
+/* 3-class chain to match .nv-result-actions .nv-btn specificity (see note above). */
+.nv-result .nv-result-debrief .nv-btn {
+  padding: 6px 14px; font-size: 0.8em; letter-spacing: 0.06em; border-radius: 4px; cursor: pointer;
+  background: var(--nv-btn-bg); border: 1px solid var(--nv-border-soft); color: var(--nv-text);
+}
+.nv-result .nv-result-debrief .nv-btn:hover { border-color: var(--nv-accent); color: var(--nv-accent); }
+.nv-result .nv-result-debrief .nv-debrief-stream {
+  white-space: pre-wrap; font-size: 0.85em; line-height: 1.5; color: var(--nv-text);
+  border-left: 2px solid var(--nv-accent); padding-left: 8px; text-align: left;
+}
+.nv-result .nv-result-debrief .nv-debrief-error { font-size: 0.85em; color: var(--nv-danger); text-align: left; }
+.nv-result .nv-result-debrief .nv-debrief-detail { display: block; opacity: 0.6; font-size: 0.9em; margin: 4px 0; }
+
 /* ── Briefing modal (shown before a mission's transmission opens) ── */
 /* Dark CRT frame (CRT scheme only); native scheme keeps Obsidian's themed modal. */
 .modal.nv-briefing-modal.nv-crt {
