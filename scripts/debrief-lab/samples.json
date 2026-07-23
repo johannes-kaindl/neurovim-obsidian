@@ -1,0 +1,30 @@
+{
+  "_comment": "Sample runs the lab feeds to the model. `sequence` = space-separated keys, exactly how debriefPrompt.serializeSequence emits them. Edit freely / add your own. `par` for m01 is a guess — put the mission's real par here.",
+
+  "m01_overpar": {
+    "mission_id": "M-01",
+    "keystrokes": 195,
+    "elapsed_s": 198.9,
+    "par": 20,
+    "is_new_best": false,
+    "sequence": "j j j l l x w w l l x 4 w h h h h h h h h x 2 w 2 l l l x j 6 b l l l x w w h h h h h h x 4 w l l l l x j 6 b l l l x 2 w l l l x 2 w l l x j j 5 b l l x 3 w l l l l l x 4 w l l l x j j 0 2 w h h h h h x l 3 w l l l l l x 4 w 4 l l l l x j h h x 3 b w l x 5 b b l l x j 3 l x 4 w 3 l l x 2 j 3 l x 5 b 3 l x 4 b 3 l x j 3 w 2 l x w w 4 l h x 2 j 0 4 l l l x 5 w 4 l h x j 3 h x 3 b 2 b l x"
+  },
+
+  "clean_newbest": {
+    "mission_id": "M-01",
+    "keystrokes": 12,
+    "elapsed_s": 6.2,
+    "par": 11,
+    "is_new_best": true,
+    "sequence": "d w j d w k 3 w c i w a b c Escape"
+  },
+
+  "slightly_over": {
+    "mission_id": "M-02",
+    "keystrokes": 24,
+    "elapsed_s": 14.0,
+    "par": 16,
+    "is_new_best": false,
+    "sequence": "l l l l w w d w j j x x d d k 0 c e n e w Escape : w"
+  }
+}
