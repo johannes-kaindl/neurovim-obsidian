@@ -94,6 +94,21 @@
 .nv-hud-vimhint { margin-top: 4px; color: var(--nv-text-dim); font-size: 0.72em; }
 
 /* Floating box: positioned over the editor, width follows content (stays narrow). */
+/* ── Paused reminder (floats over the workspace, not over the mission editor —
+      that note is precisely what is NOT visible while paused) ─────────────── */
+.nv-paused-banner {
+  position: fixed; right: 18px; bottom: 34px; z-index: 30;
+  display: flex; align-items: center; gap: 10px;
+  padding: 7px 11px; border-radius: 6px;
+  background: var(--nv-panel); border: 1px solid var(--nv-border);
+  box-shadow: 0 0 10px rgba(0, 0, 0, 0.35);
+  font-family: var(--font-monospace); color: var(--nv-text);
+}
+.nv-paused-label { color: var(--nv-accent); font-weight: 600; letter-spacing: 0.08em; font-size: 0.85em; }
+.nv-paused-actions { display: flex; gap: 5px; }
+.nv-statusbar { color: var(--nv-text-dim); font-variant-numeric: tabular-nums; }
+.nv-statusbar.is-hidden { display: none; }
+
 .nv-float-hud-container {
   position: absolute; top: 6px; right: 12px; z-index: 20; pointer-events: none;
 }

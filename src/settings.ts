@@ -25,6 +25,8 @@ export interface VimDojoSettings {
    *  (for the CIPHER debrief and offline balance analysis). Local only, never sent
    *  automatically. On by default. */
   recordTraces: boolean;
+  /** Minutes a mission may stay paused before the floating reminder appears. 0 disables it. */
+  pausedBannerMinutes: number;
   /** Collapsed state per settings section, keyed by section id. */
   uiCollapsed: Record<string, boolean>;
 }
@@ -40,6 +42,7 @@ export const DEFAULT_SETTINGS: VimDojoSettings = {
   llmModel: '',
   llmSuppressThinking: true,
   recordTraces: true,
+  pausedBannerMinutes: 5,
   uiCollapsed: {},
 };
 

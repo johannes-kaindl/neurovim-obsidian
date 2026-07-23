@@ -28,6 +28,18 @@ describe('SettingsTab declarative control layer', () => {
     expect(settings.colorScheme).toBe('native');
   });
 
+  it('coerces the paused-banner threshold from its text control to a sane number', async () => {
+    const { tab, settings } = makeTab({ pausedBannerMinutes: 5 });
+    await tab.setControlValue('pausedBannerMinutes', '10');
+    expect(settings.pausedBannerMinutes).toBe(10);
+    await tab.setControlValue('pausedBannerMinutes', '0');   // 0 disables the banner
+    expect(settings.pausedBannerMinutes).toBe(0);
+    await tab.setControlValue('pausedBannerMinutes', 'abc'); // never write NaN to data.json
+    expect(settings.pausedBannerMinutes).toBe(5);
+    await tab.setControlValue('pausedBannerMinutes', '-3');
+    expect(settings.pausedBannerMinutes).toBe(5);
+  });
+
   it('coerces an empty mission folder back to the default (never the vault root)', async () => {
     const { tab, settings } = makeTab({ missionFolder: 'Custom/' });
     await tab.setControlValue('missionFolder', '   ');

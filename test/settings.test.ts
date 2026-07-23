@@ -93,4 +93,13 @@ describe('mergeStoredSettings', () => {
     expect(b.uiCollapsed).toEqual({});
     expect(DEFAULT_SETTINGS.uiCollapsed).toEqual({});
   });
+
+  it('defaults the paused-banner threshold to five minutes', () => {
+    expect(DEFAULT_SETTINGS.pausedBannerMinutes).toBe(5);
+  });
+
+  it('keeps a stored paused-banner threshold, including 0 (disabled)', () => {
+    expect(mergeStoredSettings({ pausedBannerMinutes: 0 }).pausedBannerMinutes).toBe(0);
+    expect(mergeStoredSettings({ pausedBannerMinutes: 12 }).pausedBannerMinutes).toBe(12);
+  });
 });

@@ -54,6 +54,12 @@ export class NeuroVimSettingTab extends PluginSettingTab {
     // An empty mission folder falls back to the default rather than materializing notes at
     // the vault root — same coercion the old onChange did inline.
     else if (key === 'missionFolder') s.missionFolder = (value as string).trim() || '_neurovim/';
+    // A text control hands back a string; store a non-negative number and fall back to the
+    // default on anything unparseable rather than writing NaN into data.json.
+    else if (key === 'pausedBannerMinutes') {
+      const n = Number.parseInt(String(value), 10);
+      s.pausedBannerMinutes = Number.isFinite(n) && n >= 0 ? n : 5;
+    }
     else s[key] = value;
     await this.plugin.saveSettings();
   }
@@ -73,6 +79,9 @@ export class NeuroVimSettingTab extends PluginSettingTab {
       { name: 'Open pane on startup',
         desc: 'Open the NeuroVim pane automatically when Obsidian starts. Off by default — open it anytime via the ribbon icon or the "Open NeuroVim" command.',
         control: { type: 'toggle', key: 'openPaneOnStartup' } },
+      { name: 'Paused reminder after',
+        desc: 'Minutes a mission may stay paused before a floating reminder appears over the workspace. A paused mission always shows in the status bar; this is the extra nudge. Set to 0 to disable it.',
+        control: { type: 'text', key: 'pausedBannerMinutes', placeholder: '5' } },
       { name: 'Record run traces',
         desc: 'Save the keystroke sequence of each successful mission to a local file (traces.jsonl in the plugin folder). Powers CIPHER debriefs and offline balance analysis. Stored locally, never sent automatically. On by default.',
         control: { type: 'toggle', key: 'recordTraces' } },
