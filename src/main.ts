@@ -49,7 +49,7 @@ export default class NeuroVimPlugin extends Plugin {
   private cipherSession = new ChatSession();
   private cipherClient = new CipherClient(new XhrSseTransport());
   private recorder = new RunRecorder(realClock);
-  private traceStore!: TraceStore;
+  private traceStore: TraceStore | null = null;
   private cipherAbort: AbortController | null = null;
   private endpointResolver = new EndpointResolver(
     () => this.settings.llmEndpoints,
@@ -78,7 +78,12 @@ export default class NeuroVimPlugin extends Plugin {
       setData: async (d) => { this.data = d; await this.persist(); },
     });
 
-    this.traceStore = new TraceStore(this.app.vault.adapter, `${this.manifest.dir}/traces.jsonl`);
+    // Only wire the store when we have a plugin dir — never fall back to the vault root
+    // (a "undefined/traces.jsonl" folder there would break the never-touch-vault-content
+    // invariant). dir is populated for every loaded plugin in practice; this is a guard.
+    if (this.manifest.dir) {
+      this.traceStore = new TraceStore(this.app.vault.adapter, `${this.manifest.dir}/traces.jsonl`);
+    }
 
     this.hud = new HudMount(new ObsidianHudDom(this.app));
     this.registerEditorExtension([diffHighlightField]);
@@ -98,9 +103,15 @@ export default class NeuroVimPlugin extends Plugin {
       if (!this.session.activeMissionId) return;
       if (!isMissionEditorKeystroke(e.key, e.target)) return;
       this.session.metrics.addKeystroke();
+      // Record only keystrokes typed into the mission note's OWN editor — not another note
+      // open in a split during the run. The trace is persisted and can be sent to the LLM,
+      // so it must never capture a different note's content. (Counting keeps the wider
+      // any-editor scope; recording is deliberately the stricter subset.)
       // Vim mode is deferred (best-effort, CM internals): recorder supports `mode`, wiring
       // passes undefined for v1. CIPHER reads the raw key sequence fine without it.
-      if (this.settings.recordTraces) this.recorder.record(e.key);
+      if (this.settings.recordTraces && this.isMissionNoteKeydown(e.target)) {
+        this.recorder.record(e.key);
+      }
     }, { capture: true });
 
     this.addSettingTab(new NeuroVimSettingTab(this.app, this));
@@ -159,6 +170,14 @@ export default class NeuroVimPlugin extends Plugin {
   }
 
   /** CM6 EditorView of the active mission note, if it's open in a markdown leaf. */
+  /** True if a keydown target sits inside the mission note's own CM editor (not another
+   *  editor open in a split). Recording is confined to the mission editor because the
+   *  trace is persisted and LLM-shippable. */
+  private isMissionNoteKeydown(target: EventTarget | null): boolean {
+    const cm = this.missionEditorView();
+    return !!cm && target instanceof Node && cm.dom.contains(target);
+  }
+
   private missionEditorView(): EditorView | null {
     const path = this.session.notePath;
     if (!path) return null;
@@ -231,7 +250,7 @@ export default class NeuroVimPlugin extends Plugin {
       const m = this.missions.find((x) => x.mission_id === res.result.mission_id);
       const par = m?.par_keystrokes ?? null;
       const trace = buildRunTrace(res.result, events, par, new Date().toISOString());
-      if (this.settings.recordTraces) void this.traceStore.append(trace);
+      if (this.settings.recordTraces) void this.traceStore?.append(trace);
 
       const runDebrief = this.settings.recordTraces && isLlmConfigured(this.settings)
         ? (onToken: (t: string) => void, signal: AbortSignal) => this.runDebrief(trace, onToken, signal)

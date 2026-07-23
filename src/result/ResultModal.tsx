@@ -45,7 +45,11 @@ function DebriefSection({ runDebrief }: { runDebrief: DebriefRunner }) {
     const c = new AbortController();
     ctrl.current = c;
     let acc = '';
-    const outcome = await runDebrief((t) => { acc += t; setText(acc); }, c.signal);
+    const outcome = await runDebrief((t) => {
+      if (c.signal.aborted) return;   // modal closed mid-stream — don't setState after unmount
+      acc += t;
+      setText(acc);
+    }, c.signal);
     if (c.signal.aborted) return;
     if (outcome.ok) {
       setStatus('done');
