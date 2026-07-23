@@ -5,7 +5,17 @@ All notable changes to this project are documented here. Format loosely follows
 
 ## [Unreleased]
 
-## [0.6.0] — 2026-07-23
+### Changed
+- The default mission folder is now `_neurovim/` (was `NeuroVim/`), so it sorts with the
+  other underscore-prefixed utility folders. Existing installs keep their configured folder.
+- Settings now use Obsidian's declarative settings API (`getSettingDefinitions()`), so each
+  setting is findable in Obsidian's global settings search on 1.13+. The collapsible sections
+  are replaced by native setting groups (Missions / Appearance / CIPHER uplink). A `display()`
+  fallback keeps the exact same layout on Obsidian ≤1.12, so `minAppVersion` stays at 1.7.2.
+
+### Fixed
+- Result screen: the DEBRIEF/RETRY buttons no longer hand a promise-returning function to a
+  click handler that expects no return value (store-review `no-misused-promises` warning).
 
 ### Added
 - CIPHER debrief: after a successful mission, request an on-demand, sequence-based

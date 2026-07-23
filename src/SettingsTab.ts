@@ -1,10 +1,10 @@
 import { App, PluginSettingTab, Setting } from 'obsidian';
+import type { SettingControl, SettingDefinition, SettingDefinitionGroup, SettingDefinitionItem } from 'obsidian';
 import type NeuroVimPlugin from './main';
 import type { HudPlacement } from './hudPlacement';
 import { ENDPOINT_PRESETS, validateEndpointInput, type EndpointStatusKind } from './vendor/kit/endpoint_diagnostics';
 import { endpointStatusEn, endpointWarningEn } from './llm/endpointText';
 import { probeEndpoint } from './llm/endpointProbe';
-import { collapsibleSection, type CollapsibleStorage } from './vendor/kit/collapsible';
 import { applyEndpointEdit, activeIndexFromStatuses } from './llm/endpointEditor';
 import { thinkToggleState } from './llm/thinkToggle';
 import { probeModelContext } from './llm/modelContext';
@@ -16,8 +16,8 @@ export class NeuroVimSettingTab extends PluginSettingTab {
    *  only the row whose value actually changed loses its status (correctly: it's an
    *  unprobed value now). Two identical URLs in the list intentionally share one status
    *  entry — they're the same server. Rendered via a derived index-parallel list (see
-   *  `display()`) to match `activeIndexFromStatuses`' index-based contract.
-   *  Survives display() re-renders. */
+   *  `renderEndpoints()`) to match `activeIndexFromStatuses`' index-based contract.
+   *  Survives re-renders. */
   private statuses: Map<string, EndpointStatusKind> = new Map();
   /** Models reported by the active (first reachable) endpoint. */
   private models: string[] = [];
@@ -28,8 +28,87 @@ export class NeuroVimSettingTab extends PluginSettingTab {
    *  list was edited while the probe was in flight, so the result is for a configuration
    *  that no longer exists and must be discarded rather than written back. */
   private endpointGeneration = 0;
+  // Cleanup functions a render-hatch may return (the declarative render contract; on 1.13
+  // the framework runs them before tearing a row down). The imperative fallback must honor
+  // the same contract — runRowCleanups() runs them before each rebuild and on hide().
+  private rowCleanups: Array<() => void> = [];
 
   constructor(app: App, private readonly plugin: NeuroVimPlugin) { super(app, plugin); }
+
+  // ── Declarative settings API (Obsidian 1.13) ────────────────────────────
+  // One truth for both render paths: getSettingDefinitions() returns the structure; simple
+  // rows are `control` defs read/written via get/setControlValue (with coercion), the
+  // stateful CIPHER rows are `render` hatches that keep the original imperative logic.
+
+  getControlValue(key: string): unknown {
+    const s = this.plugin.settings as unknown as Record<string, unknown>;
+    // colorScheme is stored as 'crt' | 'native' but surfaced as a toggle (crt = on) — the
+    // rest of the plugin reads the string directly, only this control view is boolean.
+    if (key === 'colorScheme') return this.plugin.settings.colorScheme === 'crt';
+    return s[key];
+  }
+
+  async setControlValue(key: string, value: unknown): Promise<void> {
+    const s = this.plugin.settings as unknown as Record<string, unknown>;
+    if (key === 'colorScheme') s.colorScheme = (value as boolean) ? 'crt' : 'native';
+    // An empty mission folder falls back to the default rather than materializing notes at
+    // the vault root — same coercion the old onChange did inline.
+    else if (key === 'missionFolder') s.missionFolder = (value as string).trim() || '_neurovim/';
+    else s[key] = value;
+    await this.plugin.saveSettings();
+  }
+
+  getSettingDefinitions(): SettingDefinitionItem[] {
+    return [this.missionsGroup(), this.appearanceGroup(), this.cipherGroup()];
+  }
+
+  private missionsGroup(): SettingDefinitionGroup {
+    return { type: 'group', heading: 'Missions', items: [
+      { name: 'Mission folder',
+        desc: 'Where throwaway mission notes are materialized. Safe to delete anytime — deleting a note or the whole folder loses no progress (XP/best times live in the plugin).',
+        control: { type: 'text', key: 'missionFolder', placeholder: '_neurovim/' } },
+      { name: 'Auto Vim mode',
+        desc: "Turn Obsidian's Vim mode on while a mission is active and restore your previous setting when it ends. Changes your global editor Vim setting for the duration.",
+        control: { type: 'toggle', key: 'autoVim' } },
+      { name: 'Open pane on startup',
+        desc: 'Open the NeuroVim pane automatically when Obsidian starts. Off by default — open it anytime via the ribbon icon or the "Open NeuroVim" command.',
+        control: { type: 'toggle', key: 'openPaneOnStartup' } },
+      { name: 'Record run traces',
+        desc: 'Save the keystroke sequence of each successful mission to a local file (traces.jsonl in the plugin folder). Powers CIPHER debriefs and offline balance analysis. Stored locally, never sent automatically. On by default.',
+        control: { type: 'toggle', key: 'recordTraces' } },
+    ] };
+  }
+
+  private appearanceGroup(): SettingDefinitionGroup {
+    return { type: 'group', heading: 'Appearance', items: [
+      { name: 'HUD placement',
+        desc: 'Where mission-control (timer, submit/reset/abort) appears during a mission. The floating box can also be dismissed per mission with its × button.',
+        control: { type: 'dropdown', key: 'hudPlacement', options: {
+          auto: 'Auto — sidebar when open, else floating box',
+          sidebar: 'Sidebar only',
+          box: 'Floating box only',
+        } } },
+      { name: 'CRT color scheme',
+        desc: 'On: fixed cyberpunk look (dark background, phosphor green) — theme-independent, always legible. Off: adaptive Obsidian-theme colors that blend into your light/dark theme.',
+        control: { type: 'toggle', key: 'colorScheme' } },
+    ] };
+  }
+
+  /** The CIPHER uplink section is stateful throughout (async endpoint probing, dynamic
+   *  model dropdown, model-coupled context line, forced thinking toggle) — every row here
+   *  is a `render` hatch that keeps the original imperative logic intact. Their names/descs
+   *  still feed Obsidian's settings search. */
+  private cipherGroup(): SettingDefinitionGroup {
+    return { type: 'group', heading: 'CIPHER uplink (experimental)', items: [
+      { name: 'CIPHER uplink', desc: 'Ask CIPHER for Vim advice via any OpenAI-compatible endpoint.', render: this.renderCipherIntro },
+      { name: 'Endpoints', desc: 'Ordered fallback list — the first reachable one is used.', render: this.renderEndpoints },
+      { name: 'Connection', desc: 'Test every endpoint and load the model list from the first reachable one.', render: this.renderConnection },
+      { name: 'Model', desc: 'Pick or type the model id to request from the endpoint.', render: this.renderModel },
+      { name: 'Context', desc: 'Context window of the selected model.', render: this.renderContext },
+      { name: 'Model thinking', desc: 'Whether the model is asked not to think before answering.', render: this.renderThinking },
+      { name: 'API key (optional)', desc: 'Bearer token for endpoints that need one. Local servers usually don\'t.', render: this.renderApiKey },
+    ] };
+  }
 
   /** Commits a new endpoint list. No explicit status reset needed: `statuses` is keyed
    *  by endpoint value, so a removed or replaced entry simply stops resolving to a
@@ -45,11 +124,11 @@ export class NeuroVimSettingTab extends PluginSettingTab {
     this.models = [];
     this.contextLength = null;
     this.endpointGeneration++;
-    void this.plugin.saveSettings().then(() => this.display());
+    void this.plugin.saveSettings().then(() => this.refreshUi());
   }
 
   /** Refreshes the context length for the active endpoint + selected model, then
-   *  re-renders. The active endpoint is derived the same way `display()` derives it:
+   *  re-renders. The active endpoint is derived the same way `renderEndpoints()` derives it:
    *  `statuses` is keyed by endpoint value, so it's projected to an index-parallel list
    *  before handing it to `activeIndexFromStatuses`' index-based contract. */
   private async refreshContext(): Promise<void> {
@@ -76,109 +155,100 @@ export class NeuroVimSettingTab extends PluginSettingTab {
       : null;
     if (generation !== this.endpointGeneration || this.plugin.settings.llmModel !== model) return;
     this.contextLength = contextLength;
-    this.display();
+    this.refreshUi();
   }
 
-  /** Wires the kit's storage-agnostic collapsible state to our own settings blob. */
-  private collapsibleStorage(): CollapsibleStorage {
-    return {
-      getCollapsed: (key) => this.plugin.settings.uiCollapsed[key],
-      setCollapsed: (key, collapsed) => {
-        this.plugin.settings.uiCollapsed[key] = collapsed;
-        void this.plugin.saveSettings();
-      },
-    };
+  // ── Imperative fallback (Obsidian < 1.13) ───────────────────────────────
+  // On 1.13+ the host calls getSettingDefinitions() and display() is never called; on
+  // ≤1.12 getSettingDefinitions is not a render path, so the host calls display() instead.
+  // renderImperative() reads the SAME structure and draws it with the classic Setting API —
+  // one truth, no second definition tree.
+  display(): void { this.renderImperative(); }
+
+  private renderImperative(): void {
+    // Run last pass's cleanups before tearing the rows down (mirrors the 1.13 framework
+    // contract) — a hatch that returned a cleanup must have it invoked before its DOM goes.
+    this.runRowCleanups();
+    this.containerEl.empty();
+    for (const item of this.getSettingDefinitions()) this.renderDefinitionItem(this.containerEl, item);
   }
 
-  display(): void {
-    const { containerEl } = this;
-    containerEl.empty();
+  /** Runs and clears all collected row cleanups, guarded so one throwing cleanup can't
+   *  abort the rest (which would leave later rows leaking or the old UI duplicated). */
+  private runRowCleanups(): void {
+    for (const c of this.rowCleanups) {
+      try { c(); } catch { /* cleanup is best-effort — one failure must not block the rest */ }
+    }
+    this.rowCleanups = [];
+  }
 
-    const storage = this.collapsibleStorage();
-    const missionsEl = collapsibleSection(containerEl, {
-      title: 'Missions', key: 'missions', storage, defaultCollapsed: false,
-    });
-    const appearanceEl = collapsibleSection(containerEl, { title: 'Appearance', key: 'appearance', storage });
-    const cipherEl = collapsibleSection(containerEl, {
-      title: 'CIPHER uplink (experimental)', key: 'cipher', storage,
-    });
+  /** Re-render the tab. On 1.13 the declarative framework exposes update(); on the <1.13
+   *  fallback that method doesn't exist → run renderImperative() again. The cast to an
+   *  anonymous type keeps `obsidianmd/no-unsupported-api` blind to SettingTab.update (1.13-only). */
+  private refreshUi(): void {
+    const self = this as unknown as { update?: () => void };
+    if (typeof self.update === 'function') self.update();
+    else this.renderImperative();
+  }
 
-    new Setting(missionsEl)
-      .setName('Mission folder')
-      .setDesc('Where throwaway mission notes are materialized. Safe to delete anytime — deleting a note or the whole folder loses no progress (XP/best times live in the plugin).')
-      .addText((t) =>
-        t.setPlaceholder('NeuroVim/')
-          .setValue(this.plugin.settings.missionFolder)
-          .onChange(async (v) => {
-            this.plugin.settings.missionFolder = v.trim() || 'NeuroVim/';
-            await this.plugin.saveSettings();
-          }),
-      );
+  private renderDefinitionItem(containerEl: HTMLElement, item: SettingDefinitionItem): void {
+    if ((item as SettingDefinitionGroup).type === 'group') {
+      const g = item as SettingDefinitionGroup;
+      if (g.heading) new Setting(containerEl).setName(g.heading).setHeading();
+      for (const sub of g.items ?? []) this.renderDefinitionItem(containerEl, sub);
+      return;
+    }
+    const def = item as SettingDefinition & { render?: unknown; action?: unknown; control?: SettingControl };
+    const s = new Setting(containerEl);
+    if (def.name) s.setName(def.name);
+    if (def.desc) s.setDesc(def.desc);
+    if (typeof def.render === 'function') {
+      const cleanup = (def.render as (s: Setting) => void | (() => void))(s);
+      if (typeof cleanup === 'function') this.rowCleanups.push(cleanup);
+      return;
+    }
+    if (typeof def.action === 'function') {
+      const action = def.action as (el: HTMLElement, index: number) => void;
+      s.addButton((b) => b.setButtonText(def.name).onClick(() => action(s.settingEl, 0)));
+      return;
+    }
+    if (def.control) this.renderControl(s, def.name, def.control);
+    // empty: name/desc only (already set)
+  }
 
-    new Setting(appearanceEl)
-      .setName('HUD placement')
-      .setDesc('Where mission-control (timer, submit/reset/abort) appears during a mission. The floating box can also be dismissed per mission with its × button.')
-      .addDropdown((d) =>
-        d
-          .addOption('auto', 'Auto — sidebar when open, else floating box')
-          .addOption('sidebar', 'Sidebar only')
-          .addOption('box', 'Floating box only')
-          .setValue(this.plugin.settings.hudPlacement)
-          .onChange(async (v) => {
-            this.plugin.settings.hudPlacement = v as HudPlacement;
-            await this.plugin.saveSettings();
-          }),
-      );
+  /** Draws a single declarative control with the classic Setting API (fallback path). */
+  private renderControl(s: Setting, name: string, c: SettingControl): void {
+    const key = c.key;
+    const cur = this.getControlValue(key);
+    const save = (v: unknown): void => { void this.setControlValue(key, v); };
+    switch (c.type) {
+      case 'toggle':
+        s.addToggle((t) => t.setValue(cur as boolean).onChange(save));
+        break;
+      case 'dropdown':
+        s.addDropdown((d) => { for (const [k, v] of Object.entries(c.options)) d.addOption(k, v); d.setValue(cur as string).onChange(save); });
+        break;
+      case 'text':
+      default:
+        s.addText((t) => t.setPlaceholder((c as { placeholder?: string }).placeholder ?? '').setValue(cur as string).onChange(save));
+        break;
+    }
+  }
 
-    new Setting(appearanceEl)
-      .setName('CRT color scheme')
-      .setDesc('On: fixed cyberpunk look (dark background, phosphor green) — theme-independent, always legible. Off: adaptive Obsidian-theme colors that blend into your light/dark theme.')
-      .addToggle((t) =>
-        t
-          .setValue(this.plugin.settings.colorScheme === 'crt')
-          .onChange(async (v) => {
-            this.plugin.settings.colorScheme = v ? 'crt' : 'native';
-            await this.plugin.saveSettings();
-          }),
-      );
+  /** Turns the Setting row the API hands us into a neutral block container: render hatches
+   *  that draw several rows must not sit inside the two-column .setting-item. Empties
+   *  settingEl → the hatch redraws any name/desc it needs. */
+  private hostFor(setting: Setting): HTMLElement {
+    setting.settingEl.empty();
+    setting.settingEl.removeClass('setting-item');
+    return setting.settingEl;
+  }
 
-    new Setting(missionsEl)
-      .setName('Auto Vim mode')
-      .setDesc("Turn Obsidian's Vim mode on while a mission is active and restore your previous setting when it ends. Changes your global editor Vim setting for the duration.")
-      .addToggle((t) =>
-        t
-          .setValue(this.plugin.settings.autoVim)
-          .onChange(async (v) => {
-            this.plugin.settings.autoVim = v;
-            await this.plugin.saveSettings();
-          }),
-      );
+  // ── CIPHER render hatches (stateful rows) ────────────────────────────────
 
-    new Setting(missionsEl)
-      .setName('Open pane on startup')
-      .setDesc('Open the NeuroVim pane automatically when Obsidian starts. Off by default — open it anytime via the ribbon icon or the "Open NeuroVim" command.')
-      .addToggle((t) =>
-        t
-          .setValue(this.plugin.settings.openPaneOnStartup)
-          .onChange(async (v) => {
-            this.plugin.settings.openPaneOnStartup = v;
-            await this.plugin.saveSettings();
-          }),
-      );
-
-    new Setting(missionsEl)
-      .setName('Record run traces')
-      .setDesc('Save the keystroke sequence of each successful mission to a local file (traces.jsonl in the plugin folder). Powers CIPHER debriefs and offline balance analysis. Stored locally, never sent automatically. On by default.')
-      .addToggle((t) =>
-        t
-          .setValue(this.plugin.settings.recordTraces)
-          .onChange(async (v) => {
-            this.plugin.settings.recordTraces = v;
-            await this.plugin.saveSettings();
-          }),
-      );
-
-    cipherEl.createEl('p', {
+  private renderCipherIntro = (setting: Setting): void => {
+    const host = this.hostFor(setting);
+    host.createEl('p', {
       text:
         'Ask CIPHER for Vim advice via any OpenAI-compatible endpoint (LM Studio, Ollama, ' +
         'OpenRouter, …). Privacy: your questions plus the active mission\'s metadata ' +
@@ -186,12 +256,15 @@ export class NeuroVimSettingTab extends PluginSettingTab {
         'other vault content. Leave endpoint or model empty to disable the feature.',
       cls: 'setting-item-description',
     });
-
-    cipherEl.createEl('p', {
+    host.createEl('p', {
       text: 'Endpoints are tried in order — the first reachable one is used. Handy when the '
         + 'same server is localhost at your desk and a LAN IP on the road.',
       cls: 'setting-item-description',
     });
+  };
+
+  private renderEndpoints = (setting: Setting): void => {
+    const cipherEl = this.hostFor(setting);
 
     // Derived index-parallel view of the value-keyed status map, for
     // activeIndexFromStatuses' index-based contract and per-row status lookup below.
@@ -221,7 +294,7 @@ export class NeuroVimSettingTab extends PluginSettingTab {
             // applyEndpointEdit ignores the index entirely when isAdder is true.
             const list = this.plugin.settings.llmEndpoints;
             const i = isAdder ? list.length : list.indexOf(value);
-            if (!isAdder && i === -1) { this.display(); return; }
+            if (!isAdder && i === -1) { this.refreshUi(); return; }
             const next = applyEndpointEdit(list, i, t.getValue(), isAdder);
             if (next.length === list.length && next.every((e, k) => e === list[k])) return;
             this.commitEndpoints(next);
@@ -238,7 +311,7 @@ export class NeuroVimSettingTab extends PluginSettingTab {
             // value instead; if it's already gone, just re-render.
             const list = this.plugin.settings.llmEndpoints;
             const i = list.indexOf(value);
-            if (i === -1) { this.display(); return; }
+            if (i === -1) { this.refreshUi(); return; }
             this.commitEndpoints(applyEndpointEdit(list, i, '', false));
           }),
         );
@@ -255,8 +328,11 @@ export class NeuroVimSettingTab extends PluginSettingTab {
         });
       }
     });
+  };
 
-    new Setting(cipherEl)
+  private renderConnection = (setting: Setting): void => {
+    const host = this.hostFor(setting);
+    new Setting(host)
       .setName('Connection')
       .setDesc('Test every endpoint and load the model list from the first reachable one.')
       .addButton((b) =>
@@ -287,8 +363,11 @@ export class NeuroVimSettingTab extends PluginSettingTab {
           await this.refreshContext();
         }),
       );
+  };
 
-    const modelSetting = new Setting(cipherEl).setName('Model');
+  private renderModel = (setting: Setting): void => {
+    const host = this.hostFor(setting);
+    const modelSetting = new Setting(host).setName('Model');
     if (this.models.length > 0) {
       modelSetting
         .setDesc('Pick one of the models the endpoint reports.')
@@ -303,7 +382,7 @@ export class NeuroVimSettingTab extends PluginSettingTab {
           // before llmModel was set, so it probed with an empty model and left
           // contextLength null. Without this, the context line would never appear until a
           // second "Test all" or a manual dropdown change. Safe from a render loop:
-          // refreshContext() ends in display(), but by then `current` is the just-adopted
+          // refreshContext() ends in refreshUi(), but by then `current` is the just-adopted
           // model, so this branch doesn't fire again on that re-render.
           if (!current) {
             this.plugin.settings.llmModel = this.models[0];
@@ -328,16 +407,22 @@ export class NeuroVimSettingTab extends PluginSettingTab {
             }),
         );
     }
+  };
 
+  private renderContext = (setting: Setting): void => {
+    const host = this.hostFor(setting);
     if (this.contextLength !== null) {
-      cipherEl.createDiv({
+      host.createDiv({
         text: `Context: ${this.contextLength.toLocaleString('en-US')} tokens`,
         cls: 'setting-item-description',
       });
     }
+  };
 
+  private renderThinking = (setting: Setting): void => {
+    const host = this.hostFor(setting);
     const think = thinkToggleState(this.plugin.settings.llmModel, this.plugin.settings.llmSuppressThinking);
-    new Setting(cipherEl)
+    new Setting(host)
       .setName('Model thinking')
       .setDesc(think.desc)
       .addToggle((t) =>
@@ -350,11 +435,14 @@ export class NeuroVimSettingTab extends PluginSettingTab {
           .onChange(async (v) => {
             this.plugin.settings.llmSuppressThinking = !v;
             await this.plugin.saveSettings();
-            this.display();
+            this.refreshUi();
           }),
       );
+  };
 
-    new Setting(cipherEl)
+  private renderApiKey = (setting: Setting): void => {
+    const host = this.hostFor(setting);
+    new Setting(host)
       .setName('API key (optional)')
       .setDesc('Bearer token for endpoints that need one. Local servers usually don\'t.')
       .addText((t) => {
@@ -365,5 +453,10 @@ export class NeuroVimSettingTab extends PluginSettingTab {
             await this.plugin.saveSettings();
           });
       });
+  };
+
+  hide(): void {
+    this.runRowCleanups();
+    super.hide();
   }
 }

@@ -30,7 +30,7 @@ export interface VimDojoSettings {
 }
 
 export const DEFAULT_SETTINGS: VimDojoSettings = {
-  missionFolder: 'NeuroVim/',
+  missionFolder: '_neurovim/',
   hudPlacement: 'auto',
   colorScheme: 'crt',
   autoVim: false,
@@ -76,10 +76,12 @@ export function mergeStoredSettings(raw: unknown): VimDojoSettings {
     ...rest,
     llmEndpoints: migrateEndpointList(llmEndpoint, rest.llmEndpoints),
     // {...DEFAULT_SETTINGS} above is a shallow copy: without this, a raw blob with no
-    // uiCollapsed field would carry DEFAULT_SETTINGS.uiCollapsed through by reference, and
-    // collapsibleStorage().setCollapsed would then mutate that module-wide constant in
-    // place — every settings instance merged afterwards would inherit the stray value.
-    // Spreading it fresh here gives every call its own object.
+    // uiCollapsed field would carry DEFAULT_SETTINGS.uiCollapsed through by reference, so any
+    // later in-place mutation of it would leak into that module-wide constant and every
+    // settings instance merged afterwards. Spreading it fresh here gives every call its own
+    // object. (The field is vestigial since the declarative-settings migration — native
+    // settings groups replaced the collapsible sections that read it — but is kept for
+    // forward-compat with older data.json.)
     uiCollapsed: { ...DEFAULT_SETTINGS.uiCollapsed, ...rest.uiCollapsed },
   };
 }

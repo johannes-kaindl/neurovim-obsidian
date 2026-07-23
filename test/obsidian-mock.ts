@@ -7,7 +7,8 @@ export class Plugin {
 export class Notice { constructor(public message: string) {} }
 export class TFile { constructor(public path: string) {} }
 export class ItemView {}
-export class PluginSettingTab {}
+export class App {}
+export class PluginSettingTab { constructor(_app?: unknown, _plugin?: unknown) {} }
 export class Setting { constructor(_containerEl: unknown) {} }
 export function normalizePath(p: string): string {
   return p.replace(/\\/g, '/').replace(/\/+/g, '/');

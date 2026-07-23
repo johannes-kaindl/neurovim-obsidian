@@ -65,7 +65,7 @@ function DebriefSection({ runDebrief }: { runDebrief: DebriefRunner }) {
   return (
     <div class="nv-result-debrief">
       {status === 'idle' && (
-        <button class="nv-btn nv-btn-debrief" onClick={start}>&gt; DEBRIEF ANFORDERN</button>
+        <button class="nv-btn nv-btn-debrief" onClick={() => void start()}>&gt; DEBRIEF ANFORDERN</button>
       )}
       {status === 'streaming' && (
         <div class="nv-debrief-stream">{text || '> CIPHER analysiert…'}</div>
@@ -75,7 +75,7 @@ function DebriefSection({ runDebrief }: { runDebrief: DebriefRunner }) {
         <div class="nv-debrief-error">
           Signal lost. Check your uplink.
           {detail && <span class="nv-debrief-detail">{detail}</span>}
-          <button class="nv-btn nv-btn-debrief" onClick={start}>&gt; RETRY</button>
+          <button class="nv-btn nv-btn-debrief" onClick={() => void start()}>&gt; RETRY</button>
         </div>
       )}
     </div>
