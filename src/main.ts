@@ -53,6 +53,10 @@ export default class NeuroVimPlugin extends Plugin {
   private revealedLines: number[] = [];
   /** Last known line progress; kept when the note is closed so the HUD does not flicker. */
   private progress: LineProgress | null = null;
+  /** Line set currently dispatched to the editor, so the 500ms tick only sends a CM6
+   *  transaction when the highlight actually changed — the player is typing in that
+   *  editor, and a redundant dispatch twice a second is pure noise. */
+  private highlighted = '';
   private boxDismissed = false;
   /** Hint text for the first divergent line — set on failed submit, cleared on success/reset. */
   private hint: string | null = null;
@@ -202,6 +206,8 @@ export default class NeuroVimPlugin extends Plugin {
     } else if (presence === 'focused' && this.session.state === 'paused') {
       this.session.resume();
       this.enterAutoVim();
+    } else {
+      return; // nothing changed — the caller's own repaint covers the steady state
     }
     this.repaint();
   }
@@ -298,6 +304,7 @@ export default class NeuroVimPlugin extends Plugin {
       if (cm) clearHighlight(cm);
       this.hint = null;
       this.revealedLines = [];
+      this.highlighted = '';
       this.session.end();
       this.restoreVim();
       this.cipherSession.setMission(null);
@@ -314,10 +321,10 @@ export default class NeuroVimPlugin extends Plugin {
 
       new ResultModal(this.app, buildResultView(res.result, res.unverified), this.settings.colorScheme, runDebrief).open();
     } else {
-      // Reveal every line that is wrong right now; repaint() then clears them one by one
-      // as they get corrected.
+      // Reveal every line that is wrong right now. The repaint at the end of this method
+      // draws them and then clears them one by one as they get corrected — drawing here
+      // too would just dispatch the same decoration set twice.
       this.revealedLines = cm ? this.session.divergentLinesFor(cm.state.doc.toString()) : [];
-      if (cm) showDivergentLines(cm, this.revealedLines);
       const off = res.diff.lines_off;
       new Notice(`>_ ${off} line${off !== 1 ? 's' : ''} differ — keep going`);
       void this.session.requestHint().then((h) => { if (h) { this.hint = h; this.repaint(); } });
@@ -343,6 +350,7 @@ export default class NeuroVimPlugin extends Plugin {
     if (cm) clearHighlight(cm);
     this.hint = null;
     this.revealedLines = [];
+    this.highlighted = '';
     this.session.end();
     this.restoreVim();
     this.cipherSession.setMission(null);
@@ -489,9 +497,14 @@ export default class NeuroVimPlugin extends Plugin {
       // a line the player has not yet submitted against — the mission stays "find the
       // corruption", not "here is everything that is wrong".
       const divergent = new Set(this.session.divergentLinesFor(body));
-      showDivergentLines(liveCm, this.revealedLines.filter((l) => divergent.has(l)));
+      const stillWrong = this.revealedLines.filter((l) => divergent.has(l));
+      const key = stillWrong.join(',');
+      if (key !== this.highlighted) {
+        showDivergentLines(liveCm, stillWrong);
+        this.highlighted = key;
+      }
     }
-    if (!id) { this.progress = null; this.revealedLines = []; }
+    if (!id) { this.progress = null; this.revealedLines = []; this.highlighted = ''; }
 
     // Base mission-control props (shared by box and pane).
     const control: HudRenderProps | null = id && this.session.notePath
