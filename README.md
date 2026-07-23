@@ -70,7 +70,7 @@ word 3 with `l l l` — `3w` is one move") and lets you analyse mission balance 
 - **Menus, story, and progression live in a plugin pane** (NEXUS). XP and best times are
   stored by the plugin (`data.json`).
 - **Missions materialize as throwaway notes** in a folder you configure (default
-  `NeuroVim/`). You fix the transmission in a **real Obsidian note with real Vim mode**.
+  `_neurovim/`). You fix the transmission in a **real Obsidian note with real Vim mode**.
   Deleting a mission note — or the whole folder — loses no progress; the next mission
   re-creates it. (Fits the lore: transmissions are ephemeral.)
 
