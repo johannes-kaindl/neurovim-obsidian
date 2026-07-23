@@ -10,6 +10,10 @@ import { HudMount, type HudActive, type HudRenderProps } from './HudMount';
 import { ObsidianHudDom } from './ObsidianHudDom';
 import { resolveHudTarget } from './hudPlacement';
 import { diffHighlightField, showDivergentLines, clearHighlight } from './diffHighlight';
+import { resolvePresence } from './missionPresence';
+import { shouldShowPausedBanner, type LineProgress } from './missionProgress';
+import { StatusBarItem } from './StatusBarItem';
+import { PausedBanner } from './PausedBanner';
 import { isMissionEditorKeystroke } from './keystrokeCounter';
 import { NeuroVimSettingTab } from './SettingsTab';
 import { buildResultView } from './result/resultView';
@@ -41,6 +45,14 @@ export default class NeuroVimPlugin extends Plugin {
   private missions: MissionSummary[] = [];
   private session!: MissionSession;
   private hud!: HudMount;
+  private statusBar!: StatusBarItem;
+  private banner!: PausedBanner;
+  /** Lines reported divergent by the last failed submit. The live highlight is the
+   *  intersection of these with the currently divergent ones, so a corrected line clears
+   *  immediately while never revealing a line the player has not submitted against yet. */
+  private revealedLines: number[] = [];
+  /** Last known line progress; kept when the note is closed so the HUD does not flicker. */
+  private progress: LineProgress | null = null;
   private boxDismissed = false;
   /** Hint text for the first divergent line — set on failed submit, cleared on success/reset. */
   private hint: string | null = null;
@@ -87,8 +99,13 @@ export default class NeuroVimPlugin extends Plugin {
     }
 
     this.hud = new HudMount(new ObsidianHudDom(this.app));
+    this.statusBar = new StatusBarItem(this.addStatusBarItem());
+    this.banner = new PausedBanner(this.app.workspace.containerEl);
     this.registerEditorExtension([diffHighlightField]);
     this.registerEvent(this.app.workspace.on('layout-change', () => this.repaint()));
+    // The mission pauses the moment the player's cursor leaves the mission note —
+    // Obsidian's Vim mode is global, so staying "active" elsewhere is what broke typing.
+    this.registerEvent(this.app.workspace.on('active-leaf-change', () => this.syncPresence()));
 
     this.registerView(VIEW_TYPE_NEUROVIM, (leaf) => new HubView(leaf));
     this.addRibbonIcon('terminal', 'NeuroVim', () => void this.activateView());
@@ -101,7 +118,9 @@ export default class NeuroVimPlugin extends Plugin {
     // (h/j/k/l, motions, operators) are seen before CodeMirror/Vim consumes them — a bubble
     // or in-editor keydown handler never fires for those. Scoped to editor targets only.
     this.registerDomEvent(activeDocument, 'keydown', (e: KeyboardEvent) => {
-      if (!this.session.activeMissionId) return;
+      // 'active' rather than "a mission exists": a paused mission must not count keys
+      // typed in another note. This is the structural fix for the KEYSTROKES 0 run.
+      if (this.session.state !== 'active') return;
       if (!isMissionEditorKeystroke(e.key, e.target)) return;
       this.session.metrics.addKeystroke();
       // Record only keystrokes typed into the mission note's OWN editor — not another note
@@ -116,7 +135,7 @@ export default class NeuroVimPlugin extends Plugin {
     }, { capture: true });
 
     this.addSettingTab(new NeuroVimSettingTab(this.app, this));
-    this.tick = window.setInterval(() => this.repaint(), 500);
+    this.tick = window.setInterval(() => { this.syncPresence(); this.repaint(); }, 500);
     // Only auto-open the pane on startup if the user opted in (default off) — otherwise the
     // pane still opens on demand via the ribbon icon or the "Open NeuroVim" command.
     if (this.settings.openPaneOnStartup) {
@@ -127,6 +146,7 @@ export default class NeuroVimPlugin extends Plugin {
   onunload(): void {
     if (this.tick !== null) window.clearInterval(this.tick);
     this.hud.detach();
+    this.banner.hide();
     // Null after abort so a resumed continuation fails the identity check in handleCipherAsk
     // instead of calling repaint() and re-creating the HUD after teardown.
     this.cipherAbort?.abort();
@@ -160,6 +180,40 @@ export default class NeuroVimPlugin extends Plugin {
     const restore = this.vimRestore;
     this.vimRestore = null;
     if (!restore) this.setVim(false);
+  }
+
+  /** Path of the note the player is currently in, or null. */
+  private activeNotePath(): string | null {
+    return this.app.workspace.getActiveViewOfType(MarkdownView)?.file?.path ?? null;
+  }
+
+  /**
+   * Reconcile mission state against where the player actually is. Called from
+   * active-leaf-change and from the 500ms tick as a safety net for cases that fire no
+   * event. Both pause/resume and the Vim latch are idempotent, so repeated calls are free.
+   */
+  private syncPresence(): void {
+    if (this.session.state === 'idle') return;
+    const presence = resolvePresence(this.activeNotePath(), this.session.notePath);
+    if (presence === 'away' && this.session.state === 'active') {
+      this.session.pause();
+      this.restoreVim();
+      new Notice('>_ Mission paused — Vim restored.');
+    } else if (presence === 'focused' && this.session.state === 'paused') {
+      this.session.resume();
+      this.enterAutoVim();
+    }
+    this.repaint();
+  }
+
+  /** Open the mission note again; presence sync then resumes the run. */
+  private async returnToMission(): Promise<void> {
+    const path = this.session.notePath;
+    if (!path) return;
+    const file = this.app.vault.getFileByPath(path);
+    if (!file) return;
+    await this.app.workspace.getLeaf(false).openFile(file);
+    this.syncPresence();
   }
 
   /** True if a NeuroVim pane leaf is currently rendered (not in a collapsed sidebar). */
@@ -243,6 +297,7 @@ export default class NeuroVimPlugin extends Plugin {
     if (res.ok) {
       if (cm) clearHighlight(cm);
       this.hint = null;
+      this.revealedLines = [];
       this.session.end();
       this.restoreVim();
       this.cipherSession.setMission(null);
@@ -259,7 +314,10 @@ export default class NeuroVimPlugin extends Plugin {
 
       new ResultModal(this.app, buildResultView(res.result, res.unverified), this.settings.colorScheme, runDebrief).open();
     } else {
-      if (cm) showDivergentLines(cm, [res.diff.first_divergent_line]);
+      // Reveal every line that is wrong right now; repaint() then clears them one by one
+      // as they get corrected.
+      this.revealedLines = cm ? this.session.divergentLinesFor(cm.state.doc.toString()) : [];
+      if (cm) showDivergentLines(cm, this.revealedLines);
       const off = res.diff.lines_off;
       new Notice(`>_ ${off} line${off !== 1 ? 's' : ''} differ — keep going`);
       void this.session.requestHint().then((h) => { if (h) { this.hint = h; this.repaint(); } });
@@ -273,6 +331,7 @@ export default class NeuroVimPlugin extends Plugin {
     this.recorder.reset();
     this.boxDismissed = false;
     this.hint = null;
+    this.revealedLines = [];
     const cm = this.missionEditorView();
     if (cm) clearHighlight(cm);
     new Notice('>_ Transmission reset. Timer restarted.');
@@ -283,6 +342,7 @@ export default class NeuroVimPlugin extends Plugin {
     const cm = this.missionEditorView();
     if (cm) clearHighlight(cm);
     this.hint = null;
+    this.revealedLines = [];
     this.session.end();
     this.restoreVim();
     this.cipherSession.setMission(null);
@@ -417,6 +477,21 @@ export default class NeuroVimPlugin extends Plugin {
   private repaint(): void {
     const id = this.session.activeMissionId;
     const vimActive = this.vimEnabled();
+    const paused = this.session.state === 'paused';
+
+    // Read the body straight from CodeMirror — a vault read twice a second would be
+    // wasteful and async. While the note is closed the last known values simply stand.
+    const liveCm = this.missionEditorView();
+    if (id && liveCm) {
+      const body = liveCm.state.doc.toString();
+      this.progress = this.session.progressFor(body);
+      // Recompute the highlight live so a corrected line clears at once, but never mark
+      // a line the player has not yet submitted against — the mission stays "find the
+      // corruption", not "here is everything that is wrong".
+      const divergent = new Set(this.session.divergentLinesFor(body));
+      showDivergentLines(liveCm, this.revealedLines.filter((l) => divergent.has(l)));
+    }
+    if (!id) { this.progress = null; this.revealedLines = []; }
 
     // Base mission-control props (shared by box and pane).
     const control: HudRenderProps | null = id && this.session.notePath
@@ -426,8 +501,8 @@ export default class NeuroVimPlugin extends Plugin {
           elapsedMs: this.session.elapsedMs(),
           keystrokes: this.session.metrics.getKeystrokes(),
           vimActive,
-          paused: this.session.state === 'paused',
-          progress: null,
+          paused,
+          progress: this.progress,
           scheme: this.settings.colorScheme,
           onSubmit: () => void this.handleSubmit(),
           onReset: () => void this.handleReset(),
@@ -483,6 +558,29 @@ export default class NeuroVimPlugin extends Plugin {
         onGuideQuery: (q) => { this.guideQuery = q; this.repaint(); },
         scheme: this.settings.colorScheme,
       });
+    }
+
+    // Status bar: present whenever a mission exists, so a paused run can never go
+    // unnoticed no matter which note is open or whether the pane is closed.
+    if (id) {
+      const t = Math.floor(this.session.elapsedMs() / 1000);
+      const clock = `${String(Math.floor(t / 60)).padStart(2, '0')}:${String(t % 60).padStart(2, '0')}`;
+      this.statusBar.set(paused ? `▸ ${id} PAUSED ${clock}` : `▸ ${id} ${clock}`);
+    } else {
+      this.statusBar.set(null);
+    }
+
+    // Banner: only once a pause has outlasted the configured threshold.
+    if (id && paused
+      && shouldShowPausedBanner(this.session.pausedMs(), this.settings.pausedBannerMinutes)) {
+      this.banner.show({
+        missionId: id,
+        scheme: this.settings.colorScheme,
+        onReturn: () => void this.returnToMission(),
+        onAbort: () => this.handleAbandon(),
+      });
+    } else {
+      this.banner.hide();
     }
   }
 }

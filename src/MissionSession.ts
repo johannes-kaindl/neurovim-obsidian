@@ -5,7 +5,7 @@ import type { PluginData, RunResult, DiffResult, MissionRecord } from '@neurovim
 import type { BundledContent } from './content/BundledContent';
 import type { ClockPort } from './vendor/kit/clock';
 import { RunTimer } from './RunTimer';
-import { countMatchingLines, type LineProgress } from './missionProgress';
+import { countMatchingLines, markLineDelta, type LineProgress } from './missionProgress';
 import { missionNotePath } from './paths';
 
 /** Where a mission stands: no mission, being played, or waiting while you work elsewhere. */
@@ -228,5 +228,8 @@ function truncate(text: string, max: number): string {
 }
 
 function formatHint(lineNum: number, current: string, solution: string): string {
-  return `>_ Line ${lineNum} differs\n\nHas: ${truncate(current, 60)}\n\nShould be:\n${truncate(solution, 60)}`;
+  // Truncate before marking, not after — marking first would let the guillemets fall
+  // outside the visible window on a long line.
+  const { has, want } = markLineDelta(truncate(current, 60), truncate(solution, 60));
+  return `>_ Line ${lineNum} differs\n\nHas:  ${has}\n\nWant: ${want}`;
 }
