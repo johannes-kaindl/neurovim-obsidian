@@ -13,6 +13,10 @@ describe('LLM settings', () => {
     expect(DEFAULT_SETTINGS.llmSuppressThinking).toBe(true);
   });
 
+  it('records run traces by default (local, transparent telemetry)', () => {
+    expect(DEFAULT_SETTINGS.recordTraces).toBe(true);
+  });
+
   it('starts with no persisted section states', () => {
     expect(DEFAULT_SETTINGS.uiCollapsed).toEqual({});
   });

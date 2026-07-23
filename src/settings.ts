@@ -21,6 +21,10 @@ export interface VimDojoSettings {
   llmModel: string;
   /** Ask the model not to think. On by default: vim tips are short, thinking is slow. */
   llmSuppressThinking: boolean;
+  /** Record the keystroke sequence of each successful run to a local traces.jsonl
+   *  (for the CIPHER debrief and offline balance analysis). Local only, never sent
+   *  automatically. On by default. */
+  recordTraces: boolean;
   /** Collapsed state per settings section, keyed by section id. */
   uiCollapsed: Record<string, boolean>;
 }
@@ -35,6 +39,7 @@ export const DEFAULT_SETTINGS: VimDojoSettings = {
   llmApiKey: '',
   llmModel: '',
   llmSuppressThinking: true,
+  recordTraces: true,
   uiCollapsed: {},
 };
 

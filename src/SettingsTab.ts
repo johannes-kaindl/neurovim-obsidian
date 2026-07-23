@@ -166,6 +166,18 @@ export class NeuroVimSettingTab extends PluginSettingTab {
           }),
       );
 
+    new Setting(missionsEl)
+      .setName('Record run traces')
+      .setDesc('Save the keystroke sequence of each successful mission to a local file (traces.jsonl in the plugin folder). Powers CIPHER debriefs and offline balance analysis. Stored locally, never sent automatically. On by default.')
+      .addToggle((t) =>
+        t
+          .setValue(this.plugin.settings.recordTraces)
+          .onChange(async (v) => {
+            this.plugin.settings.recordTraces = v;
+            await this.plugin.saveSettings();
+          }),
+      );
+
     cipherEl.createEl('p', {
       text:
         'Ask CIPHER for Vim advice via any OpenAI-compatible endpoint (LM Studio, Ollama, ' +
