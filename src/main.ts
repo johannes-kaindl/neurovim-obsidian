@@ -10,7 +10,7 @@ import { HudMount, type HudActive, type HudRenderProps } from './HudMount';
 import { ObsidianHudDom } from './ObsidianHudDom';
 import { resolveHudTarget } from './hudPlacement';
 import { diffHighlightField, showDivergentLine, clearHighlight } from './diffHighlight';
-import { countsAsKeystroke, isEditorKeydownTarget } from './keystrokeCounter';
+import { isMissionEditorKeystroke } from './keystrokeCounter';
 import { NeuroVimSettingTab } from './SettingsTab';
 import { buildResultView } from './result/resultView';
 import { ResultModal } from './result/ResultModal';
@@ -22,6 +22,11 @@ import { buildKnowledge, buildChatMessages, type CipherKnowledge } from './llm/c
 import { EndpointResolver } from './llm/endpointResolver';
 import { probeEndpoint } from './llm/endpointProbe';
 import { DEFAULT_SETTINGS, isLlmConfigured, mergeStoredSettings, type VimDojoSettings } from './settings';
+import { RunRecorder } from './keystrokeRecorder';
+import { buildRunTrace, type RunTrace } from './trace';
+import { TraceStore } from './storage/traceStore';
+import { buildDebriefMessages } from './llm/debriefPrompt';
+import { realClock } from './vendor/kit/clock';
 import type { HubTab } from './hubTabs';
 import type { PluginData, MissionSummary } from '@neurovim/core';
 
@@ -43,6 +48,8 @@ export default class NeuroVimPlugin extends Plugin {
   private tick: number | null = null;
   private cipherSession = new ChatSession();
   private cipherClient = new CipherClient(new XhrSseTransport());
+  private recorder = new RunRecorder(realClock);
+  private traceStore!: TraceStore;
   private cipherAbort: AbortController | null = null;
   private endpointResolver = new EndpointResolver(
     () => this.settings.llmEndpoints,
@@ -71,6 +78,8 @@ export default class NeuroVimPlugin extends Plugin {
       setData: async (d) => { this.data = d; await this.persist(); },
     });
 
+    this.traceStore = new TraceStore(this.app.vault.adapter, `${this.manifest.dir}/traces.jsonl`);
+
     this.hud = new HudMount(new ObsidianHudDom(this.app));
     this.registerEditorExtension([diffHighlightField]);
     this.registerEvent(this.app.workspace.on('layout-change', () => this.repaint()));
@@ -87,9 +96,11 @@ export default class NeuroVimPlugin extends Plugin {
     // or in-editor keydown handler never fires for those. Scoped to editor targets only.
     this.registerDomEvent(activeDocument, 'keydown', (e: KeyboardEvent) => {
       if (!this.session.activeMissionId) return;
-      if (!countsAsKeystroke(e.key)) return;
-      if (!isEditorKeydownTarget(e.target)) return;
+      if (!isMissionEditorKeystroke(e.key, e.target)) return;
       this.session.metrics.addKeystroke();
+      // Vim mode is deferred (best-effort, CM internals): recorder supports `mode`, wiring
+      // passes undefined for v1. CIPHER reads the raw key sequence fine without it.
+      if (this.settings.recordTraces) this.recorder.record(e.key);
     }, { capture: true });
 
     this.addSettingTab(new NeuroVimSettingTab(this.app, this));
@@ -194,6 +205,7 @@ export default class NeuroVimPlugin extends Plugin {
       this.boxDismissed = false;
       this.hint = null;
       this.enterAutoVim();
+      this.recorder.reset();
       const m = this.missions.find((x) => x.mission_id === id);
       this.cipherSession.setMission(m
         ? { id: m.mission_id, title: m.title, category: m.category, why: m.why, parKeystrokes: m.par_keystrokes }
@@ -214,7 +226,18 @@ export default class NeuroVimPlugin extends Plugin {
       this.session.end();
       this.restoreVim();
       this.cipherSession.setMission(null);
-      new ResultModal(this.app, buildResultView(res.result), this.settings.colorScheme).open();
+
+      const events = this.recorder.snapshot();
+      const m = this.missions.find((x) => x.mission_id === res.result.mission_id);
+      const par = m?.par_keystrokes ?? null;
+      const trace = buildRunTrace(res.result, events, par, new Date().toISOString());
+      if (this.settings.recordTraces) void this.traceStore.append(trace);
+
+      const runDebrief = this.settings.recordTraces && isLlmConfigured(this.settings)
+        ? (onToken: (t: string) => void, signal: AbortSignal) => this.runDebrief(trace, onToken, signal)
+        : null;
+
+      new ResultModal(this.app, buildResultView(res.result), this.settings.colorScheme, runDebrief).open();
     } else {
       if (cm) showDivergentLine(cm, res.diff.first_divergent_line);
       const off = res.diff.lines_off;
@@ -227,6 +250,7 @@ export default class NeuroVimPlugin extends Plugin {
   private async handleReset(): Promise<void> {
     if (!this.session.activeMissionId) return;
     await this.session.reset();
+    this.recorder.reset();
     this.boxDismissed = false;
     this.hint = null;
     const cm = this.missionEditorView();
@@ -244,6 +268,47 @@ export default class NeuroVimPlugin extends Plugin {
     this.cipherSession.setMission(null);
     new Notice('>_ Mission aborted.');
     this.repaint();
+  }
+
+  /** One-shot CIPHER debrief stream for a completed run. Mirrors handleCipherAsk's
+   *  resolve+retry, but standalone (no chat session state). Returns the outcome; the
+   *  Result modal renders tokens via onToken and the final outcome. */
+  private async runDebrief(
+    trace: RunTrace,
+    onToken: (t: string) => void,
+    signal: AbortSignal,
+  ): Promise<StreamOutcome> {
+    if (!isLlmConfigured(this.settings)) {
+      return { ok: false, kind: 'network', detail: 'CIPHER uplink not configured', partial: '' };
+    }
+    this.cipherKnowledge ??= buildKnowledge();
+    const m = this.missions.find((x) => x.mission_id === trace.mission_id);
+    const messages = buildDebriefMessages({
+      knowledge: this.cipherKnowledge,
+      mission: m
+        ? { id: m.mission_id, title: m.title, category: m.category, why: m.why, parKeystrokes: m.par_keystrokes }
+        : null,
+      trace,
+    });
+    const cfg = {
+      apiKey: this.settings.llmApiKey,
+      model: this.settings.llmModel,
+      suppressThinking: this.settings.llmSuppressThinking,
+    };
+    const runStream = (endpoint: string): Promise<StreamOutcome> =>
+      this.cipherClient.stream({ endpoint, ...cfg }, messages, onToken, signal);
+
+    const endpoint = await this.endpointResolver.resolve();
+    let outcome: StreamOutcome = endpoint === null
+      ? { ok: false, kind: 'network', detail: 'no endpoint reachable', partial: '' }
+      : await runStream(endpoint);
+
+    if (endpoint !== null && !outcome.ok && outcome.kind === 'network') {
+      this.endpointResolver.invalidate();
+      const fresh = await this.endpointResolver.resolve();
+      if (fresh !== null) outcome = await runStream(fresh);
+    }
+    return outcome;
   }
 
   /** One CIPHER chat turn: append the question, stream the answer into the session. */
