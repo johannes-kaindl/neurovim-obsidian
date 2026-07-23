@@ -16,8 +16,25 @@ All notable changes to this project are documented here. Format loosely follows
 ### Fixed
 - Result screen: the DEBRIEF/RETRY buttons no longer hand a promise-returning function to a
   click handler that expects no return value (store-review `no-misused-promises` warning).
+- Leaving the mission note no longer leaves a mission silently running. Previously the timer
+  kept counting and Obsidian's global Vim mode stayed on, so `hjkl` hijacked typing in other
+  notes and only ABORT restored it.
+- Divergent-line highlighting is recomputed live: a line you fix clears its marker right away
+  instead of staying red until the next submit.
+- Hints mark the differing characters (`Emergency ex»it«` vs `ex»fil«`), so a slip of a few
+  characters is visible at a glance instead of hiding in two similar-looking lines.
+- A successful run without a single recorded keystroke is never stored as a best score. Such a
+  run still awards XP and completion, but is labelled `UNVERIFIED` in the result. Previously a
+  0 was read as "no value yet" and became an unbeatable best.
 
 ### Added
+- Missions pause when you leave the mission note: the timer stops, keystrokes stop counting,
+  and your previous Vim setting is restored. Returning to the note resumes the run. The status
+  bar shows the running or paused mission, and a floating reminder appears once a pause exceeds
+  the configured threshold (default 5 minutes, `0` disables it).
+- Live line progress in the HUD (`12/16 lines`) — see how far a restoration has come without
+  submitting. Counted against the solution's line count, so a note missing lines cannot look
+  complete.
 - CIPHER debrief: after a successful mission, request an on-demand, sequence-based
   debriefing in the Result screen — CIPHER names wasted motion and gives the idiomatic fix.
 - Run traces: the keystroke sequence of each successful run is recorded locally to

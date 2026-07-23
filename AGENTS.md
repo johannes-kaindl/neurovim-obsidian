@@ -71,6 +71,11 @@ scripts/                — vendor-neurovim.mjs, release.mjs
 
 ### Timeouts / clocks
 - Use `ClockPort` injection (never `window.setTimeout` directly) — makes timeout paths testable under Vitest
+- Mission run time lives in `RunTimer` (ClockPort-injected, pausable); the vendored `MetricsTracker` cannot pause and is keystroke-only
+
+### Mission lifecycle
+- `MissionSession.state` is `idle | active | paused` — guard on `state === 'active'`, not on "a mission exists", or a paused mission counts keys typed elsewhere
+- Presence comes from the **active** note (`resolvePresence`), not from "visible somewhere": Obsidian's Vim mode is global, so leaving the note must restore it
 
 ### Settings
 - `display()` re-renders the entire tab (e.g. after "Test all") — persist UI state (collapsed sections) in PluginData
@@ -91,7 +96,7 @@ scripts/                — vendor-neurovim.mjs, release.mjs
 
 1. **Plan reference code is untested** — bugs in plan examples propagate verbatim to implementation. Review gate catches what TDD misses.
 2. **`tsconfig` excludes `test/`** — type-only imports on non-existent paths in tests slip through silently
-3. **`getSettingDefinitions` / declarative Settings API** — deferred. `SettingDefinitionGroup` has no `collapsible` support; migration would destroy collapsible sections. Re-evaluate when Obsidian 1.13 hits public.
+3. **Settings are dual-path** — `getSettingDefinitions()` is the single truth (Obsidian 1.13+), `display()` → `renderImperative()` draws the same structure for ≤1.12. Add new rows to the definition groups, never to `display()` alone; text controls hand back strings, so coerce in `setControlValue`. Stateful CIPHER rows stay `render` hatches.
 4. **Endpoint probe / model context** still use `window.setTimeout` instead of ClockPort — timeout paths untested
 5. **CM6 packages are external** — never bundle `@codemirror/*`; Obsidian provides them at runtime
 
