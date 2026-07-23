@@ -76,6 +76,7 @@ export default class NeuroVimPlugin extends Plugin {
       getFolder: () => this.settings.missionFolder,
       getData: () => this.data,
       setData: async (d) => { this.data = d; await this.persist(); },
+      clock: realClock,
     });
 
     // Only wire the store when we have a plugin dir — never fall back to the vault root

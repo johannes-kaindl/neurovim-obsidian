@@ -1,9 +1,15 @@
 import {
-  MissionEngine, MetricsTracker, ProgressionEngine,
+  MissionEngine, MetricsTracker, ProgressionEngine, getDivergentLines,
 } from '@neurovim/core';
 import type { PluginData, RunResult, DiffResult, MissionRecord } from '@neurovim/core';
 import type { BundledContent } from './content/BundledContent';
+import type { ClockPort } from './vendor/kit/clock';
+import { RunTimer } from './RunTimer';
+import { countMatchingLines, type LineProgress } from './missionProgress';
 import { missionNotePath } from './paths';
+
+/** Where a mission stands: no mission, being played, or waiting while you work elsewhere. */
+export type MissionState = 'idle' | 'active' | 'paused';
 
 /** Minimal Obsidian surface MissionSession needs — real impl in main.ts, fake in tests. */
 export interface MissionApp {
@@ -20,6 +26,7 @@ export interface MissionSessionDeps {
   getFolder: () => string;
   getData: () => PluginData;
   setData: (d: PluginData) => Promise<void>;
+  clock: ClockPort;
 }
 
 type SubmitResult =
@@ -28,16 +35,59 @@ type SubmitResult =
 
 export class MissionSession {
   readonly metrics = new MetricsTracker();
+  private readonly timer: RunTimer;
+  private _state: MissionState = 'idle';
+  /** Wall time the current pause began, null while not paused. */
+  private _pausedAt: number | null = null;
   private _id: string | null = null;
   private _notePath: string | null = null;
   private _corrupted = '';
   private _solution = '';
   private _xpReward = 0;
 
-  constructor(private readonly deps: MissionSessionDeps) {}
+  constructor(private readonly deps: MissionSessionDeps) {
+    this.timer = new RunTimer(deps.clock);
+  }
 
   get activeMissionId(): string | null { return this._id; }
   get notePath(): string | null { return this._notePath; }
+  get state(): MissionState { return this._state; }
+
+  /** Run time so far, excluding every pause. */
+  elapsedMs(): number { return this.timer.elapsedMs(); }
+
+  /** How long the current pause has lasted; 0 when not paused. */
+  pausedMs(): number {
+    if (this._pausedAt === null) return 0;
+    return this.deps.clock.now() - this._pausedAt;
+  }
+
+  /** Suspend a running mission: the clock stops, keystrokes stop counting (guarded at
+   *  the call site by `state === 'active'`). No-op unless active. */
+  pause(): void {
+    if (this._state !== 'active') return;
+    this._state = 'paused';
+    this._pausedAt = this.deps.clock.now();
+    this.timer.pause();
+  }
+
+  /** Resume a paused mission. No-op unless paused — presence sync calls this repeatedly. */
+  resume(): void {
+    if (this._state !== 'paused') return;
+    this._state = 'active';
+    this._pausedAt = null;
+    this.timer.resume();
+  }
+
+  /** Live progress of an arbitrary body against this mission's solution. */
+  progressFor(body: string): LineProgress {
+    return countMatchingLines(body, this._solution);
+  }
+
+  /** 0-based indices of the lines in `body` that differ from the solution. */
+  divergentLinesFor(body: string): number[] {
+    return getDivergentLines(body, this._solution);
+  }
 
   async start(id: string): Promise<void> {
     const doc = await this.deps.content.getMission(id);
@@ -52,8 +102,11 @@ export class MissionSession {
     this._corrupted = doc.transmissionBody;
     this._solution = doc.solution;
     this._xpReward = doc.xp_reward;
+    this._state = 'active';
+    this._pausedAt = null;
     this.metrics.reset();
     this.metrics.start();
+    this.timer.start();
   }
 
   async reset(): Promise<void> {
@@ -61,6 +114,10 @@ export class MissionSession {
     await this.deps.app.writeNote(this._notePath, this._corrupted);
     this.metrics.reset();
     this.metrics.start();
+    this.timer.reset();
+    // Only run again if the player is actually in the note; a reset from the pane
+    // during a pause leaves a cleanly zeroed, stopped timer.
+    if (this._state === 'active') this.timer.resume();
   }
 
   async submit(): Promise<SubmitResult> {
@@ -71,7 +128,7 @@ export class MissionSession {
       await this.deps.app.openNote(this._notePath);
       return { ok: false, diff: { matches: false, first_divergent_line: 0, lines_off: 0 } };
     }
-    const elapsed = this.metrics.getElapsedMs();
+    const elapsed = this.timer.elapsedMs();
     const body = await this.deps.app.readNote(this._notePath);
     const diff: DiffResult = MissionEngine.verify(body, this._solution);
     if (!diff.matches) return { ok: false, diff };
@@ -133,11 +190,14 @@ export class MissionSession {
   }
 
   end(): void {
+    this._state = 'idle';
+    this._pausedAt = null;
     this._id = null;
     this._notePath = null;
     this._corrupted = '';
     this._solution = '';
     this.metrics.reset();
+    this.timer.reset();
   }
 }
 
