@@ -1,4 +1,5 @@
 import type { ColorScheme } from './settings';
+import type { LineProgress } from './missionProgress';
 
 /** Data the HUD renders — the contract HudMount passes through to the view. */
 export interface HudRenderProps {
@@ -7,6 +8,10 @@ export interface HudRenderProps {
   elapsedMs: number;
   keystrokes: number;
   vimActive: boolean;
+  /** Mission is suspended because the player left the note. */
+  paused: boolean;
+  /** Live line progress, or null when the mission note is not open. */
+  progress: LineProgress | null;
   scheme: ColorScheme;
   onSubmit: () => void;
   onReset: () => void;

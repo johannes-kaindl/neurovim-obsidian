@@ -12,11 +12,16 @@ function fmt(ms: number): string {
  */
 export function MissionHud(p: HudRenderProps) {
   return (
-    <div class={`nv-hud nv-${p.scheme}`}>
+    <div class={`nv-hud nv-${p.scheme}${p.paused ? ' is-paused' : ''}`}>
       <div class="nv-hud-row">
         <span class="nv-hud-mission">{p.id}</span>
-        <span class="nv-hud-timer">{fmt(p.elapsedMs)}</span>
+        <span class="nv-hud-timer">{p.paused ? `${fmt(p.elapsedMs)} ⏸` : fmt(p.elapsedMs)}</span>
         <span class="nv-hud-keystrokes">{p.keystrokes} keys</span>
+        {p.progress && (
+          <span class="nv-hud-progress" title="Lines matching the solution">
+            {p.progress.matched}/{p.progress.total} lines
+          </span>
+        )}
         <div class="nv-hud-actions">
           <button class="nv-btn nv-btn-submit" onClick={p.onSubmit}>SUBMIT</button>
           <button class="nv-btn nv-btn-reset" onClick={p.onReset}>RESET</button>

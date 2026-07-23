@@ -423,9 +423,11 @@ export default class NeuroVimPlugin extends Plugin {
       ? {
           id,
           title: this.missions.find((m) => m.mission_id === id)?.title ?? id,
-          elapsedMs: this.session.metrics.getElapsedMs(),
+          elapsedMs: this.session.elapsedMs(),
           keystrokes: this.session.metrics.getKeystrokes(),
           vimActive,
+          paused: this.session.state === 'paused',
+          progress: null,
           scheme: this.settings.colorScheme,
           onSubmit: () => void this.handleSubmit(),
           onReset: () => void this.handleReset(),

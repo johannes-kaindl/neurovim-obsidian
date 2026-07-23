@@ -66,6 +66,10 @@
 .nv-hud-mission { color: var(--nv-accent); font-weight: 600; letter-spacing: 0.06em; }
 .nv-hud-timer { color: var(--nv-accent); font-variant-numeric: tabular-nums; }
 .nv-hud-keystrokes { color: var(--nv-text-dim); font-size: 0.8em; }
+.nv-hud-progress { color: var(--nv-text-dim); font-size: 0.8em; font-variant-numeric: tabular-nums; }
+/* Paused: dimmed so a suspended mission reads as inactive at a glance. */
+.nv-hud.is-paused { opacity: 0.72; }
+.nv-hud.is-paused .nv-hud-timer { color: var(--nv-text-dim); }
 .nv-hud-actions { display: flex; gap: 5px; }
 /* In the wide pane, push the buttons to the right; in the narrow box, keep them
    snug against the metrics so the box stays as narrow as its content. */
