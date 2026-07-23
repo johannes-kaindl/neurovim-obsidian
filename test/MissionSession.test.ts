@@ -142,3 +142,45 @@ describe('MissionSession lifecycle', () => {
     expect(session.divergentLinesFor('nonsense').length).toBeGreaterThan(0);
   });
 });
+
+describe('MissionSession unverified runs', () => {
+  it('flags a zero-keystroke win and leaves best scores untouched', async () => {
+    const { session, app, getData } = makeSession();
+    const doc = await new BundledContent().getMission('M-01');
+
+    // First: an honest run with keystrokes, establishing a best.
+    await session.start('M-01');
+    session.metrics.addKeystroke();
+    session.metrics.addKeystroke();
+    app.store[session.notePath!] = doc.solution!;
+    const honest = await session.submit();
+    expect(honest.ok).toBe(true);
+    if (honest.ok) expect(honest.unverified).toBe(false);
+    expect(getData().missions['M-01'].best_keystrokes).toBe(2);
+
+    // Then: a run without a single keystroke must not overwrite it.
+    session.end();
+    await session.start('M-01');
+    app.store[session.notePath!] = doc.solution!;
+    const untyped = await session.submit();
+    expect(untyped.ok).toBe(true);
+    if (untyped.ok) {
+      expect(untyped.unverified).toBe(true);
+      expect(untyped.result.is_new_best_ks).toBe(false);
+      expect(untyped.result.is_new_best_time).toBe(false);
+    }
+    expect(getData().missions['M-01'].best_keystrokes).toBe(2);
+    expect(getData().missions['M-01'].runs).toBe(2);
+  });
+
+  it('still awards XP and completion for an unverified run', async () => {
+    const { session, app, getData } = makeSession();
+    const doc = await new BundledContent().getMission('M-01');
+    await session.start('M-01');
+    app.store[session.notePath!] = doc.solution!;
+    const res = await session.submit();
+    expect(res.ok).toBe(true);
+    if (res.ok) expect(res.result.xp_earned).toBe(doc.xp_reward);
+    expect(getData().completed_missions).toContain('M-01');
+  });
+});

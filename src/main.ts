@@ -257,7 +257,7 @@ export default class NeuroVimPlugin extends Plugin {
         ? (onToken: (t: string) => void, signal: AbortSignal) => this.runDebrief(trace, onToken, signal)
         : null;
 
-      new ResultModal(this.app, buildResultView(res.result), this.settings.colorScheme, runDebrief).open();
+      new ResultModal(this.app, buildResultView(res.result, res.unverified), this.settings.colorScheme, runDebrief).open();
     } else {
       if (cm) showDivergentLine(cm, res.diff.first_divergent_line);
       const off = res.diff.lines_off;

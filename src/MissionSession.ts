@@ -30,8 +30,23 @@ export interface MissionSessionDeps {
 }
 
 type SubmitResult =
-  | { ok: true; result: RunResult }
+  | { ok: true; result: RunResult; unverified: boolean }
   | { ok: false; diff: DiffResult };
+
+/**
+ * Bump run bookkeeping without touching best scores. Used for unverified runs, because
+ * `ProgressionEngine.recordMissionRun` reads a 0 as "no value yet" (`cur > 0 ? min : next`)
+ * and would adopt it as an unbeatable best — exactly the corruption seen on 2026-07-23.
+ */
+function bumpRunOnly(prev: MissionRecord | undefined, today: string): MissionRecord {
+  return {
+    best_time_ms: prev?.best_time_ms ?? 0,
+    best_keystrokes: prev?.best_keystrokes ?? 0,
+    best_ks_per_min: prev?.best_ks_per_min ?? 0,
+    runs: (prev?.runs ?? 0) + 1,
+    last_run: today,
+  };
+}
 
 export class MissionSession {
   readonly metrics = new MetricsTracker();
@@ -134,9 +149,15 @@ export class MissionSession {
     if (!diff.matches) return { ok: false, diff };
 
     const metrics = this.metrics.getResult(elapsed);
+    // No keystroke means the solution was not typed (paste, already-solved note, foreign
+    // sync). The win counts, the record does not.
+    const unverified = metrics.keystrokes === 0;
+    const today = new Date(this.deps.clock.now()).toISOString().slice(0, 10);
     const data = this.deps.getData();
     const old: MissionRecord | undefined = data.missions[this._id];
-    const record = ProgressionEngine.recordMissionRun(old, metrics);
+    const record = unverified
+      ? bumpRunOnly(old, today)
+      : ProgressionEngine.recordMissionRun(old, metrics, today);
     let next: PluginData = { ...data, missions: { ...data.missions, [this._id]: record } };
 
     const { new_data } = ProgressionEngine.addXp(next, this._xpReward);
@@ -152,13 +173,13 @@ export class MissionSession {
       keystrokes: metrics.keystrokes,
       ks_per_min: metrics.ks_per_min,
       xp_earned: this._xpReward,
-      is_new_best_time: !old || metrics.elapsed_ms < old.best_time_ms,
-      is_new_best_ks: !old || metrics.keystrokes < old.best_keystrokes,
+      is_new_best_time: !unverified && (!old || metrics.elapsed_ms < old.best_time_ms),
+      is_new_best_ks: !unverified && (!old || metrics.keystrokes < old.best_keystrokes),
       delta_time_ms: old ? metrics.elapsed_ms - old.best_time_ms : 0,
       delta_keystrokes: old ? metrics.keystrokes - old.best_keystrokes : 0,
       delta_ks_per_min: old ? metrics.ks_per_min - old.best_ks_per_min : 0,
     };
-    return { ok: true, result };
+    return { ok: true, result, unverified };
   }
 
   /**

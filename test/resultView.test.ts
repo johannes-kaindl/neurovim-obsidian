@@ -75,4 +75,14 @@ describe('buildResultView', () => {
       expect(row.newBest).toBe(false);
     }
   });
+
+  it('is verified by default', () => {
+    expect(buildResultView(makeResult()).unverified).toBe(false);
+  });
+
+  it('marks an unverified run and carries no new-best badges', () => {
+    const v = buildResultView(makeResult({ keystrokes: 0, ks_per_min: 0 }), true);
+    expect(v.unverified).toBe(true);
+    expect(v.rows.every((r) => !r.newBest)).toBe(true);
+  });
 });

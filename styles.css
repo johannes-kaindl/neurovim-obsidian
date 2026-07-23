@@ -150,6 +150,11 @@
   color: var(--nv-submit-fg); background: var(--nv-submit-bg); border: 1px solid var(--nv-accent);
   font-size: 0.68em; letter-spacing: 0.08em; padding: 1px 6px; border-radius: 4px;
 }
+.nv-result .nv-result-unverified {
+  color: var(--nv-danger); border: 1px solid var(--nv-danger); background: var(--nv-panel);
+  font-size: 0.72em; letter-spacing: 0.06em; padding: 5px 10px; border-radius: 4px;
+  width: 100%; text-align: center;
+}
 .nv-result .nv-result-actions { margin-top: 6px; }
 /* EXPERIMENT (2026-07-15): !important → maximum real-DOM-chain specificity
    (.nv-result .nv-result-actions .nv-btn = 3 classes). See .nv-mission above. */

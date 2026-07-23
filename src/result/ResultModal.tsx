@@ -93,6 +93,11 @@ function ResultApp({ view, runDebrief, onClose }: { view: ResultView; runDebrief
           <Row row={row} />
         ))}
       </div>
+      {view.unverified && (
+        <div class="nv-result-unverified">
+          UNVERIFIED — no keystrokes recorded, not saved as a best
+        </div>
+      )}
       {runDebrief && <DebriefSection runDebrief={runDebrief} />}
       <div class="nv-result-actions">
         <button class="nv-btn nv-btn-nexus" onClick={onClose}>← ZURÜCK ZUM NEXUS</button>

@@ -17,6 +17,8 @@ export interface ResultView {
   title: string;
   rows: MetricRow[];
   xp: number;
+  /** Run without a single keystroke — shown as such, never recorded as a best. */
+  unverified: boolean;
 }
 
 /** Sub-minute → "0.7s" (one decimal); >= 1 min → "M:SS". */
@@ -37,10 +39,11 @@ function delta(raw: number, betterWhenNegative: boolean, magnitude: string): Del
 }
 
 /** Pure: turn a RunResult into a presentation-ready view-model. No Obsidian/Preact/DOM. */
-export function buildResultView(r: RunResult): ResultView {
+export function buildResultView(r: RunResult, unverified = false): ResultView {
   return {
     title: r.mission_id,
     xp: r.xp_earned,
+    unverified,
     rows: [
       {
         label: 'TIME',
