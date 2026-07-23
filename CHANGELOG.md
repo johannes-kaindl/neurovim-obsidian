@@ -5,6 +5,12 @@ All notable changes to this project are documented here. Format loosely follows
 
 ## [Unreleased]
 
+### Added
+- CIPHER debrief: after a successful mission, request an on-demand, sequence-based
+  debriefing in the Result screen — CIPHER names wasted motion and gives the idiomatic fix.
+- Run traces: the keystroke sequence of each successful run is recorded locally to
+  `traces.jsonl` (toggle in Settings, on by default) for debriefs and offline balance analysis.
+
 ## [0.5.1] — 2026-07-16
 
 ### Fixed

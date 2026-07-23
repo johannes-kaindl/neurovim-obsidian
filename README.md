@@ -49,6 +49,20 @@ Settings → NeuroVim is grouped into three collapsible sections — **Missions*
   answering. Models that always think (gpt-oss/harmony) are detected and the toggle
   disables itself with an explanation, since it can't turn those off anyway.
 
+## Run traces & privacy
+
+NeuroVim can record the keystroke sequence of each successful mission to a local file
+(`traces.jsonl`, inside the plugin folder). This powers CIPHER's debrief ("you walked to
+word 3 with `l l l` — `3w` is one move") and lets you analyse mission balance offline.
+
+- **Local only.** Traces are written to your vault's plugin folder and never sent anywhere
+  automatically. Requesting a CIPHER debrief sends that run's sequence to the LLM endpoint
+  you configured (a local model via LM Studio/Ollama stays on your machine) — the same
+  connection the CIPHER chat already uses.
+- **Scoped.** Only keystrokes inside an active mission's editor are recorded. Nothing else
+  in your vault is ever touched.
+- **Optional.** Turn it off in Settings → "Record run traces". Delete `traces.jsonl` anytime.
+
 ## How it works (the hybrid model)
 
 - **Content is bundled in the plugin** — the story is *earned by playing*, never spoiled by
