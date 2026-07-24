@@ -108,7 +108,7 @@ export const ENTRIES: RawContentEntry[] = [
       "mission_type": "practice",
       "locked": false
     },
-    "body": "TRAINING TRANSMISSION — NAVIGATION DRILL\nClassification: RESISTANCE EYES ONLY\nStatus: CORRUPTED IN TRANSIT\n\nOperative rendezvous: Node 7 at 23:00\nApproach vector: North entarnce, third corridor\nFallback positiob: Sub-level 2, east stairwel\nEmergency exfil: Roof accesss point Charlie\n\nNotes: Training window opens at 22:45.\nWindow is fiften minutes. Do not be la\nComplete all restorations befoer the window closes.\n\nConfirm receipt by restoirng this file.\nIf you can read this corectly, you are in position.\n\n— Training Relay",
+    "body": "TRAINING TRANSMISSION — NAVIGATION DRILL\nClassification: RESISTANCE EYES ONLY\nStatus: CORRUPTED IN TRANSIT\n\nOperative rendezvous: Node 7 at 23:00\nApproach vector: North entarnce, third corridor\nFallback positiob: Sub-level 2, east stairwel\nEmergency exfil: Roof accesss point Charlie\n\nDrill coordiantes: 52.4N / 13.4W\nContact codewrod: THE DIFF DOES NOT LIE\nResponse codewor: TRUST THE DIFF\n\nNotes: Training window opens at 22:45.\nWindow is fiften minutes. Do not be la\nComplete all restorations befoer the window closes.\n\nConfirm receipt by restoirng this file.\nIf you can read this corectly, you are in position.\n\n— Training Relay",
     "path": "01 - Indoctrination/M-02-TRANSMISSION-Basic_Navigation.md"
   },
   {
@@ -276,7 +276,7 @@ export const ENTRIES: RawContentEntry[] = [
       "sticker": "lucide//code",
       "color": "#66cc66"
     },
-    "body": "```ascii\n╔══════════════════════════════════════════╗\n║  INCOMING — CIPHER                       ║\n║  BRIEFING: M-06 // TEXT OBJECTS          ║\n║  Clearance: GHOST OPERATOR              ║\n╚══════════════════════════════════════════╝\n```\n\n> [!quote] CIPHER\n> *\"GHOST extracted a structured data file from CORP's endpoint registry. Case numbers, sectors, access codes — exactly what we need for the next operation.*\n> *NEVERMORE hit it at the value level. Not whole lines this time — just the content inside brackets and quotes. Everything was placeholder-sanitized. The structure is intact. The brackets are still there. The quotes are still there. You just need to replace what's inside them.*\n> *Text objects. `ci\"` — change inside quotes. `ci(` — change inside parentheses. `ci{` — inside braces. `diw` — delete inner word. `daw` — delete around word, including spacing.*\n> *The structure tells you where to go. The objects tell you what to change.*\n> *The container is clean. Fix the contents.\"*\n\n\n> [!abstract] DIRECTIVE\n> > [!warning] OBJECTIVE\n> > Replace placeholder values inside brackets, quotes, and braces.\n>\n> > [!tip] SKILLS\n> > `ci\"` `ca\"` `ci(` `ci{` `ci[` `diw` `daw` `cit`\n>\n> > [!success] +30 XP\n>\n> → **[[_content/02 - Field Training/M-06-TRANSMISSION-Text_Objects|M-06-TRANSMISSION-Text_Objects]]** — open to begin. Timer starts on file open.",
+    "body": "```ascii\n╔══════════════════════════════════════════╗\n║  INCOMING — CIPHER                       ║\n║  BRIEFING: M-06 // TEXT OBJECTS          ║\n║  Clearance: GHOST OPERATOR              ║\n╚══════════════════════════════════════════╝\n```\n\n> [!quote] CIPHER\n> *\"GHOST extracted a structured data file from CORP's endpoint registry. Case numbers, sectors, access codes — exactly what we need for the next operation.*\n> *NEVERMORE hit it at the value level. Not whole lines this time — just the content inside brackets and quotes. Everything was placeholder-sanitized. The structure is intact. The brackets are still there. The quotes are still there. You just need to replace what's inside them.*\n> *Text objects. `ci\"` — change inside quotes. `ci(` — change inside parentheses. `ci{` — inside braces. `diw` — delete inner word. `daw` — delete around word, including spacing.*\n> *The structure tells you where to go. The objects tell you what to change.*\n> *GHOST cross-referenced the decrypted roster — it's in the directive below. The container is clean. Fix the contents.\"*\n\n\n> [!abstract] DIRECTIVE\n> > [!warning] OBJECTIVE\n> > Replace placeholder values inside brackets, quotes, and braces with GHOST's decrypted roster:\n> > - `NCE-0091-A` → `CELL-DELTA-01` (sector `sector-7-north`, clearance `field-ops`, status `active`, code `7741`)\n> > - `NCE-0042-B` → `CELL-DELTA-02` (sector `corp-adjacent`, clearance `intelligence`, status `active`, code `3392`)\n> > - `NCE-0017-C` → `GHOST` (sector `corp-internal`, clearance `deep-cover`, status `dark`, code `0012`)\n> > - `location` → `relay-cluster-7` · `frequency` → `441.7`\n> > - `window` → `THE DIFF DOES NOT LIE` · `response` → `TRUST THE DIFF`\n>\n> > [!tip] SKILLS\n> > `ci\"` `ca\"` `ci(` `ci{` `ci[` `diw` `daw` `cit`\n>\n> > [!success] +30 XP\n>\n> → **[[_content/02 - Field Training/M-06-TRANSMISSION-Text_Objects|M-06-TRANSMISSION-Text_Objects]]** — open to begin. Timer starts on file open.",
     "path": "02 - Field Training/M-06-BRIEFING-Cipher_Fragments.md"
   },
   {
@@ -2395,7 +2395,7 @@ export const ENTRIES: RawContentEntry[] = [
       "mission_type": "practice",
       "locked": true
     },
-    "body": "```ascii\n╔══════════════════════════════════════════╗\n║  KATA-03 // OBJECT INFILTRATION          ║\n║  Skills: ci\"  ci(  ci{  ca\"  da(        ║\n╚══════════════════════════════════════════╝\n```\n\nOPERATIVE CONFIG\n\nagent_id   = \"REDACTED\"\nclearance  = \"UNKNOWN\"\ncoords     = (0.0, 0.0)\nchannel    = \"OPEN\"\npassphrase = {BLANK}",
+    "body": "```ascii\n╔══════════════════════════════════════════╗\n║  KATA-03 // OBJECT INFILTRATION          ║\n║  Skills: ci\"  ci(  ci{  ca\"  da(        ║\n╚══════════════════════════════════════════╝\n```\n\nOPERATIVE CONFIG\n\nField reference (memorize, then patch below): OPERATIVE_7734 · LEVEL-4 · 52.4,13.4 · CIPHER_FREQ · NEVERMORE\n\nagent_id   = \"REDACTED\"\nclearance  = \"UNKNOWN\"\ncoords     = (0.0, 0.0)\nchannel    = \"OPEN\"\npassphrase = {BLANK}",
     "path": "KATAS/KATA-03-TRANSMISSION-Object_Infiltration.md"
   },
   {
@@ -3033,7 +3033,7 @@ export const ENTRIES: RawContentEntry[] = [
     "arc": "I",
     "chapter": "solutions",
     "frontmatter": {},
-    "body": "```ascii\n╔══════════════════════════════════════════╗\n║  KATA-03 // OBJECT INFILTRATION          ║\n║  Skills: ci\"  ci(  ci{  ca\"  da(        ║\n╚══════════════════════════════════════════╝\n```\n\nOPERATIVE CONFIG\n\nagent_id   = \"OPERATIVE_7734\"\nclearance  = \"LEVEL-4\"\ncoords     = (52.4, 13.4)\nchannel    = \"CIPHER_FREQ\"\npassphrase = {NEVERMORE}",
+    "body": "```ascii\n╔══════════════════════════════════════════╗\n║  KATA-03 // OBJECT INFILTRATION          ║\n║  Skills: ci\"  ci(  ci{  ca\"  da(        ║\n╚══════════════════════════════════════════╝\n```\n\nOPERATIVE CONFIG\n\nField reference (memorize, then patch below): OPERATIVE_7734 · LEVEL-4 · 52.4,13.4 · CIPHER_FREQ · NEVERMORE\n\nagent_id   = \"OPERATIVE_7734\"\nclearance  = \"LEVEL-4\"\ncoords     = (52.4, 13.4)\nchannel    = \"CIPHER_FREQ\"\npassphrase = {NEVERMORE}",
     "path": "solutions/KATA-03-SOLUTION-Object_Infiltration.md"
   },
   {
@@ -3163,7 +3163,7 @@ export const ENTRIES: RawContentEntry[] = [
     "arc": "I",
     "chapter": "solutions",
     "frontmatter": {},
-    "body": "TRAINING TRANSMISSION — NAVIGATION DRILL\nClassification: RESISTANCE EYES ONLY\nStatus: RESTORED\n\nOperative rendezvous: Node 7 at 23:00\nApproach vector: North entrance, third corridor\nFallback position: Sub-level 2, east stairwell\nEmergency exfil: Roof access point Charlie\n\nDrill coordinates: 52.4N / 13.4W\nContact codeword: THE DIFF DOES NOT LIE\nResponse codeword: TRUST THE DIFF\n\nNotes: Training window opens at 22:45.\nWindow is fifteen minutes. Do not be late.\nComplete all restorations before the window closes.\n\nConfirm receipt by restoring this file.\nIf you can read this correctly, you are in position.\n\n— Training Relay",
+    "body": "TRAINING TRANSMISSION — NAVIGATION DRILL\nClassification: RESISTANCE EYES ONLY\nStatus: CORRUPTED IN TRANSIT\n\nOperative rendezvous: Node 7 at 23:00\nApproach vector: North entrance, third corridor\nFallback position: Sub-level 2, east stairwell\nEmergency exfil: Roof access point Charlie\n\nDrill coordinates: 52.4N / 13.4W\nContact codeword: THE DIFF DOES NOT LIE\nResponse codeword: TRUST THE DIFF\n\nNotes: Training window opens at 22:45.\nWindow is fifteen minutes. Do not be late.\nComplete all restorations before the window closes.\n\nConfirm receipt by restoring this file.\nIf you can read this correctly, you are in position.\n\n— Training Relay",
     "path": "solutions/M-02-SOLUTION-Basic_Navigation.md"
   },
   {

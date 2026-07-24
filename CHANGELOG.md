@@ -26,6 +26,9 @@ All notable changes to this project are documented here. Format loosely follows
 - A successful run without a single recorded keystroke is never stored as a best score. Such a
   run still awards XP and completion, but is labelled `UNVERIFIED` in the result. Previously a
   0 was read as "no value yet" and became an unbeatable best.
+- Vendored the content fix from the monorepo (`8f5e5c3`): M-02 and two other missions demanded
+  solution lines absent from their transmission and were unsolvable without knowing the answer.
+  The monorepo now also gates this with a solution-derivability test.
 
 ### Added
 - Missions pause when you leave the mission note: the timer stops, keystrokes stop counting,
