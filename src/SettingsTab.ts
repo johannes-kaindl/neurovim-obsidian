@@ -217,7 +217,7 @@ export class NeuroVimSettingTab extends PluginSettingTab {
       return;
     }
     if (typeof def.action === 'function') {
-      const action = def.action as (el: HTMLElement, index: number) => void;
+      const action = def.action;
       s.addButton((b) => b.setButtonText(def.name).onClick(() => action(s.settingEl, 0)));
       return;
     }

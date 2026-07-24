@@ -5,6 +5,11 @@ All notable changes to this project are documented here. Format loosely follows
 
 ## [Unreleased]
 
+### Fixed
+- Removed an unnecessary type assertion in the settings tab, flagged by the community-store
+  review (`no-unnecessary-type-assertion`, `SettingsTab.ts`). `SettingDefinition.action`
+  already carries the asserted signature after the `typeof === 'function'` guard.
+
 ## [0.7.0] — 2026-07-24
 
 ### Changed
