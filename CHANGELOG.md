@@ -5,6 +5,8 @@ All notable changes to this project are documented here. Format loosely follows
 
 ## [Unreleased]
 
+## [0.7.1] — 2026-07-24
+
 ### Fixed
 - Removed an unnecessary type assertion in the settings tab, flagged by the community-store
   review (`no-unnecessary-type-assertion`, `SettingsTab.ts`). `SettingDefinition.action`
