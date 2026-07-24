@@ -5,6 +5,8 @@ All notable changes to this project are documented here. Format loosely follows
 
 ## [Unreleased]
 
+## [0.7.0] — 2026-07-24
+
 ### Changed
 - The default mission folder is now `_neurovim/` (was `NeuroVim/`), so it sorts with the
   other underscore-prefixed utility folders. Existing installs keep their configured folder.
