@@ -70,10 +70,14 @@
 /* Paused: dimmed so a suspended mission reads as inactive at a glance. */
 .nv-hud.is-paused { opacity: 0.72; }
 .nv-hud.is-paused .nv-hud-timer { color: var(--nv-text-dim); }
-.nv-hud-actions { display: flex; gap: 5px; }
+/* Wrap the button row instead of letting it overflow — the house pattern for tab/button
+   rows (cf. vault-rag .vault-rag-hub-tabs). In a narrow sidebar the buttons drop to the
+   next line rather than running off the edge. */
+.nv-hud-actions { display: flex; gap: 5px; flex-wrap: wrap; }
 /* In the wide pane, push the buttons to the right; in the narrow box, keep them
-   snug against the metrics so the box stays as narrow as its content. */
-.nv-nexus .nv-hud .nv-hud-actions { margin-left: auto; }
+   snug against the metrics so the box stays as narrow as its content. When they wrap in a
+   cramped sidebar, justify-content keeps each wrapped row flush right under the metrics. */
+.nv-nexus .nv-hud .nv-hud-actions { margin-left: auto; justify-content: flex-end; }
 /* EXPERIMENT (2026-07-15): !important → maximum real-DOM-chain specificity
    (.nv-hud .nv-hud-actions .nv-btn = 3 classes, up from 2). See the .nv-mission
    comment above for the full rationale/revert plan. */
@@ -105,7 +109,20 @@
   font-family: var(--font-monospace); color: var(--nv-text);
 }
 .nv-paused-label { color: var(--nv-accent); font-weight: 600; letter-spacing: 0.08em; font-size: 0.85em; }
-.nv-paused-actions { display: flex; gap: 5px; }
+.nv-paused-actions { display: flex; gap: 5px; flex-wrap: wrap; }
+/* 3-class chain to match the HUD button specificity. Without this the banner buttons fell
+   back to Obsidian's default <button> — grey and read as disabled inside the dark banner. */
+.nv-paused-banner .nv-paused-actions .nv-btn {
+  padding: 3px 10px; font-size: 0.75em; letter-spacing: 0.05em; border-radius: 4px; cursor: pointer;
+  white-space: nowrap;
+  background: var(--nv-btn-bg); border: 1px solid var(--nv-border-soft); color: var(--nv-text);
+}
+/* RETURN is the primary action — accent-filled like SUBMIT. */
+.nv-paused-banner .nv-paused-actions .nv-btn-return {
+  background: var(--nv-submit-bg); border-color: var(--nv-accent); color: var(--nv-submit-fg);
+}
+.nv-paused-banner .nv-paused-actions .nv-btn-return:hover { box-shadow: 0 0 8px var(--nv-accent); }
+.nv-paused-banner .nv-paused-actions .nv-btn-abort:hover { border-color: var(--nv-danger); color: var(--nv-danger); }
 .nv-statusbar { color: var(--nv-text-dim); font-variant-numeric: tabular-nums; }
 .nv-statusbar.is-hidden { display: none; }
 
