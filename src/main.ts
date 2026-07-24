@@ -212,13 +212,19 @@ export default class NeuroVimPlugin extends Plugin {
     this.repaint();
   }
 
-  /** Open the mission note again; presence sync then resumes the run. */
+  /** Open the mission note again; presence sync then resumes the run. If the note is still
+   *  open in some leaf, reveal that one rather than duplicating it; otherwise open it in a
+   *  NEW tab so the note the player is currently working in stays put. */
   private async returnToMission(): Promise<void> {
     const path = this.session.notePath;
     if (!path) return;
     const file = this.app.vault.getFileByPath(path);
     if (!file) return;
-    await this.app.workspace.getLeaf(false).openFile(file);
+    const open = this.app.workspace.getLeavesOfType('markdown').find(
+      (leaf) => leaf.view instanceof MarkdownView && leaf.view.file?.path === path,
+    );
+    if (open) await this.app.workspace.revealLeaf(open);
+    else await this.app.workspace.getLeaf('tab').openFile(file);
     this.syncPresence();
   }
 
