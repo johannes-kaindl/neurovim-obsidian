@@ -16,7 +16,8 @@ All notable changes to this project are documented here. Format loosely follows
 - Release tooling is delegated to the ecosystem's central `../tools/release/` (adds a
   preflight store checklist, a tag-state-based build and mirror verification) instead of a
   vendored copy that no longer received those fixes.
-
+- The declared license is now `AGPL-3.0-or-later`, matching the LICENSE text that ships
+  with the plugin (it was declared as `AGPL-3.0-only`). No change to the license itself.
 - README restructured to the ecosystem's canonical layout: added Features, Requirements,
   Install, Usage and Configuration sections (the last documenting every setting), plus a
   badge row. Existing content was kept.
