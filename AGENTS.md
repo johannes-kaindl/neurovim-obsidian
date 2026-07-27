@@ -19,6 +19,8 @@
 | Dev | `npm run dev` | esbuild watch mode (Obsidian reloads on save) |
 | Build | `npm run build` | Production bundle (no sourcemaps) |
 | Typecheck | `npm run typecheck` | `tsc --noEmit` (src/ only — test/ not included) |
+| Lint | `npm run lint` | Store gate: `eslint src --max-warnings 0` |
+| Gate | `npm run gate` | lint + typecheck + test — run before every release |
 | Tests | `npm run test` | Vitest run all |
 | Tests (watch) | `npm run test:watch` | Vitest watch mode |
 | Vendor sync | `npm run vendor` | Pull core+content snapshot from neurovim-standalone monorepo |
@@ -86,6 +88,18 @@ scripts/                — vendor-neurovim.mjs, release.mjs
 - `metadataCache.getFirstLinkpathDest(link, sourcePath)` — `sourcePath` must be per-item, NOT a shared closure
 - `app.readNote(path)` — async, may throw for inaccessible notes
 - Plugin data: `this.data` loaded in `loadData()`, saved via `saveData(this.data)` — always merge, never replace
+
+### Linting (store gate)
+- `eslint.config.mjs` runs `typescript-eslint` (type-checked) + `eslint-plugin-obsidianmd` — the
+  same plugin the Community Store scanner uses. Local lint ≈ what the store will report.
+- `--max-warnings 0` is mandatory: obsidianmd files most guideline rules as **warnings**, so
+  `eslint src` alone exits 0 on findings the store then flags in review
+- **No inline `// eslint-disable`** — exceptions go into `eslint.config.mjs` as an override with
+  a written justification. Two exist: `ui/sentence-case` (off repo-wide — proper nouns
+  `NeuroVim`/`Vim`/`qwen3-8b`, a URL placeholder, and the deliberate CRT-caps aesthetic) and
+  `no-base-to-string` (off for `src/vendor/**` — monorepo SSOT, fixes belong upstream)
+- Disabling a rule locally does **not** disable it in the store scan — expect those findings in
+  review and answer them with the justification from the config
 
 ### Testing
 - Vitest runs in node environment — DOM tests use `makeFakeEl` mock helpers

@@ -1,7 +1,6 @@
 import { App, PluginSettingTab, Setting } from 'obsidian';
 import type { SettingControl, SettingDefinition, SettingDefinitionGroup, SettingDefinitionItem } from 'obsidian';
 import type NeuroVimPlugin from './main';
-import type { HudPlacement } from './hudPlacement';
 import { ENDPOINT_PRESETS, validateEndpointInput, type EndpointStatusKind } from './vendor/kit/endpoint_diagnostics';
 import { endpointStatusEn, endpointWarningEn } from './llm/endpointText';
 import { probeEndpoint } from './llm/endpointProbe';

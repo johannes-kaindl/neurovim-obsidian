@@ -36,8 +36,8 @@ jobs:
 
       - run: npm ci
 
-      - name: Gate (typecheck + test + build)
-        run: npm run typecheck && npm test && npm run build
+      - name: Gate (lint + typecheck + test + build)
+        run: npm run gate && npm run build
 
       - name: Verify tag == package.json == manifest.json and versions.json covers it
         run: |
