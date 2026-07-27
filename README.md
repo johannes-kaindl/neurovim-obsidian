@@ -2,6 +2,10 @@
 
 > Learn Vim by playing a cyberpunk spy-thriller — inside Obsidian.
 
+[![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-blue.svg)](https://codeberg.org/jkaindl/neurovim-obsidian/src/branch/main/LICENSE)
+[![Release](https://img.shields.io/gitea/v/release/jkaindl/neurovim-obsidian?gitea_url=https%3A%2F%2Fcodeberg.org&label=release)](https://codeberg.org/jkaindl/neurovim-obsidian/releases)
+![Platform](https://img.shields.io/badge/platform-Obsidian%201.7.2%2B%20·%20desktop%20%26%20mobile-7c3aed)
+
 An AI handler named **CIPHER** assigns you "missions" that are really Vim exercises:
 restore CORP-corrupted transmissions, beat the clock, earn XP. You learn Vim almost by
 accident; the story is the hook.
@@ -10,9 +14,49 @@ NeuroVim originally started life as an Obsidian plugin, then grew into a multi-t
 game ([`neurovim-standalone`](https://codeberg.org/jkaindl/NeuroVIM): web + desktop +
 Obsidian). **vim-dojo** brings it back home as a first-class, standalone Obsidian plugin.
 
-## Hub pane
+## Features
 
-The NeuroVim pane is organized in tabs:
+- **54 playable missions** across two story arcs — 40 story transmissions and 14 katas,
+  each one a Vim exercise disguised as a transmission repair job. Missions unlock as you
+  level up.
+- **Real Vim, real notes.** Missions materialize as throwaway notes you edit with
+  Obsidian's own Vim mode — not a simulator, not a sandbox widget.
+- **Mission HUD** with live line progress, elapsed time, keystroke count, and a diff
+  highlight that clears each line the moment you get it right.
+- **Hints on demand** — character-precise, showing exactly where your line diverges
+  (`ex»it«` vs `ex»fil«`).
+- **XP, levels, and best scores** per mission (time and keystrokes), so a mission you
+  already solved becomes a speedrun target.
+- **Pause-safe.** Leave the mission note and the timer stops, Vim mode is restored, and a
+  banner offers RETURN or ABORT — no phantom keystrokes from typing elsewhere.
+- **CIPHER uplink** (optional) — in-character Vim advice and post-run debriefs from any
+  OpenAI-compatible LLM endpoint, including fully local ones.
+- **Cheatsheet** — a searchable Vim reference built into the pane.
+
+## Requirements
+
+- **Obsidian 1.7.2 or newer**, desktop or mobile.
+- **Obsidian's Vim mode** (Settings → Editor → Vim key bindings) for the intended
+  experience. Without it the game still works — you just fix transmissions without Vim
+  keybindings, which rather misses the point.
+- **Optional, for CIPHER only:** an OpenAI-compatible endpoint (LM Studio, Ollama,
+  OpenRouter, …). Leave the endpoint list empty and the whole feature stays off.
+
+## Install
+
+**From the community store** (once listed): Settings → Community plugins → Browse →
+search "NeuroVim" → Install → Enable.
+
+**Manually, from a release:** download `main.js`, `manifest.json` and `styles.css` from the
+[latest release](https://codeberg.org/jkaindl/neurovim-obsidian/releases) into
+`<vault>/.obsidian/plugins/neurovim/`, then enable NeuroVim under Community plugins.
+
+Building from source is described under [Develop / build from source](#develop--build-from-source).
+
+## Usage
+
+Open the pane via the ribbon's terminal icon or the command **NeuroVim: Open**. It is
+organized in tabs:
 
 - **NEXUS** — your status (level/XP), the welcome transmission, and a one-click
   "next mission" button.
@@ -20,21 +64,44 @@ The NeuroVim pane is organized in tabs:
 - **GUIDE** — a searchable Vim cheatsheet (filter by key or description).
 - **UPLINK** — the CIPHER chat (appears once an endpoint is configured).
 
-## CIPHER uplink (experimental, optional)
+A mission runs like this:
 
-Ask CIPHER for Vim advice — in character, powered by any OpenAI-compatible endpoint
-(LM Studio, Ollama, OpenRouter, …). Configure endpoint + model under
-Settings → NeuroVim → CIPHER uplink; leave the endpoint list empty and the feature stays
-fully off. During a mission, the HUD gains a CIPHER button that opens the uplink with the
-mission's context attached.
+1. Pick a mission (or hit "next mission"). A briefing explains the objective; **BEGIN
+   MISSION** materializes the transmission as a note and starts the timer.
+2. Fix the corrupted lines in the note using Vim. The HUD tracks progress, time and
+   keystrokes; **HINT** points at the first line that still diverges.
+3. **SUBMIT** when the text matches. You earn XP, and your time and keystroke count are
+   recorded — beating them later is the actual game.
 
-Privacy: your questions plus the active mission's metadata (title, category, goal)
-are sent to the endpoint you configure — never any other vault content.
+Commands available in the palette: **NeuroVim: Open**, **NeuroVim: Submit mission**,
+**NeuroVim: Reset mission**.
 
-### Settings
+## Configuration
 
-Settings → NeuroVim is grouped into three collapsible sections — **Missions**,
-**Appearance**, and **CIPHER uplink**; each remembers whether you left it open or closed.
+Settings → NeuroVim, grouped into **Missions**, **Appearance**, and **CIPHER uplink**;
+each section remembers whether you left it open or closed.
+
+### Missions
+
+- **Mission folder** — where throwaway mission notes are created (default `_neurovim/`).
+- **Auto Vim mode** — turn Obsidian's Vim mode on while a mission is active and restore
+  your previous setting when it ends. Note that this changes your *global* editor Vim
+  setting for the duration.
+- **Open pane on startup** — off by default; the pane opens only when you ask for it.
+- **Paused reminder after** — minutes a paused mission may sit before the floating
+  reminder appears; `0` disables it. A paused mission always shows in the status bar
+  either way.
+- **Record run traces** — see [Run traces & privacy](#run-traces--privacy).
+
+### Appearance
+
+- **HUD placement** — where mission control (timer, submit/reset/abort) appears during a
+  mission. The floating box can also be dismissed per mission via its × button.
+- **CRT color scheme** — on: a fixed cyberpunk look (dark background, phosphor green),
+  theme-independent and always legible. Off: adaptive colors that blend into your
+  light/dark Obsidian theme.
+
+### CIPHER uplink
 
 - **Endpoints** — an ordered list rather than a single URL. The first reachable endpoint
   wins, so one synced list covers the same local LLM server showing up as `localhost` at
@@ -48,6 +115,31 @@ Settings → NeuroVim is grouped into three collapsible sections — **Missions*
   away instead of deliberating. Turn it on if you want the model to reason before
   answering. Models that always think (gpt-oss/harmony) are detected and the toggle
   disables itself with an explanation, since it can't turn those off anyway.
+- **API key** — optional, for endpoints that require one.
+
+## How it works
+
+- **Content is bundled in the plugin** — the story is *earned by playing*, never spoiled by
+  files sitting in your vault. Missions unlock progressively as you level up.
+- **Menus, story, and progression live in a plugin pane** (NEXUS). XP and best times are
+  stored by the plugin (`data.json`).
+- **Missions materialize as throwaway notes** in a folder you configure (default
+  `_neurovim/`). You fix the transmission in a **real Obsidian note with real Vim mode**.
+  Deleting a mission note — or the whole folder — loses no progress; the next mission
+  re-creates it. (Fits the lore: transmissions are ephemeral.)
+
+The plugin **never touches files outside the configured mission folder.**
+
+## CIPHER uplink (experimental, optional)
+
+Ask CIPHER for Vim advice — in character, powered by any OpenAI-compatible endpoint
+(LM Studio, Ollama, OpenRouter, …). Configure endpoint + model under
+Settings → NeuroVim → CIPHER uplink; leave the endpoint list empty and the feature stays
+fully off. During a mission, the HUD gains a CIPHER button that opens the uplink with the
+mission's context attached.
+
+Privacy: your questions plus the active mission's metadata (title, category, goal)
+are sent to the endpoint you configure — never any other vault content.
 
 ## Run traces & privacy
 
@@ -63,30 +155,13 @@ word 3 with `l l l` — `3w` is one move") and lets you analyse mission balance 
   in your vault is ever touched.
 - **Optional.** Turn it off in Settings → "Record run traces". Delete `traces.jsonl` anytime.
 
-## How it works (the hybrid model)
-
-- **Content is bundled in the plugin** — the story is *earned by playing*, never spoiled by
-  files sitting in your vault. Missions unlock progressively as you level up.
-- **Menus, story, and progression live in a plugin pane** (NEXUS). XP and best times are
-  stored by the plugin (`data.json`).
-- **Missions materialize as throwaway notes** in a folder you configure (default
-  `_neurovim/`). You fix the transmission in a **real Obsidian note with real Vim mode**.
-  Deleting a mission note — or the whole folder — loses no progress; the next mission
-  re-creates it. (Fits the lore: transmissions are ephemeral.)
-
-The plugin **never touches files outside the configured mission folder.**
-
-> Enable Obsidian's Vim mode (Settings → Editor → Vim key bindings) for the intended
-> experience. Without it the game still works, but without Vim keybindings.
-
 ## Develop / build from source
 
 ```bash
 npm install
 npm run vendor    # snapshot @neurovim/core + @neurovim/content from the monorepo
 npm run build     # → main.js
-npm test          # vitest
-npm run typecheck
+npm run gate      # lint + typecheck + tests
 ```
 
 `npm run vendor` reads the monorepo from `NEUROVIM_MONOREPO` (default
@@ -94,16 +169,18 @@ npm run typecheck
 `src/vendor/neurovim/` (see `src/vendor/neurovim/VENDOR.json`). The monorepo remains the
 single source of truth for game logic and content.
 
-Manual smoke test: [`docs/SMOKE-TEST.md`](docs/SMOKE-TEST.md).
+`npm run lint` runs `eslint-plugin-obsidianmd` — the same rule set the community store
+scans with — at `--max-warnings 0`. Manual smoke test:
+[`docs/SMOKE-TEST.md`](docs/SMOKE-TEST.md).
 
 ## Release
 
 `npm run release <version>` follows the ecosystem's dual-push flow (Codeberg origin +
-GitHub mirror; the GitHub tag triggers the community-store release). Prerequisites, set up
-once: a Codeberg repo as `origin`, a `github` remote
+GitHub mirror; the GitHub tag triggers the community-store release). The release tooling
+itself lives centrally in `../tools/release/`, so releasing requires the repo to sit inside
+the `obsidian-plugins/` workspace; building and testing work from a standalone clone.
+Prerequisites, set up once: a Codeberg repo as `origin`, a `github` remote
 (`git remote add github git@github.com:<owner>/<repo>.git`), and `~/.codeberg-token`.
-Community-store submission is a later step — verify the plugin `id` (`neurovim`) is free in
-the community list first.
 
 ## License
 
