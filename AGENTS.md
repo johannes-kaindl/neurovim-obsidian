@@ -24,7 +24,12 @@
 | Tests | `npm run test` | Vitest run all |
 | Tests (watch) | `npm run test:watch` | Vitest watch mode |
 | Vendor sync | `npm run vendor` | Pull core+content snapshot from neurovim-standalone monorepo |
+| Preflight | `npm run preflight <version>` | Store checklist (manifest, LICENSE, versions.json, remotes) |
+| Version bump | `npm run version-bump <version>` | package.json + manifest.json + versions.json |
 | Release | `npm run release <version>` | Dual push (Codeberg + GitHub), changelog, tags |
+
+> Release tooling lives centrally in `../tools/release/` — this repo only delegates. A clone
+> without the `obsidian-plugins/` parent directory can build and test, but not release.
 
 ## Repo structure
 

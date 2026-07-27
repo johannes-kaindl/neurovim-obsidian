@@ -13,6 +13,9 @@ All notable changes to this project are documented here. Format loosely follows
 - Removed an unused type import (`HudPlacement`) from the settings tab.
 - `npm run vendor` now copies every top-level content module instead of a hardcoded file
   list, which silently dropped new modules from the snapshot.
+- Release tooling is delegated to the ecosystem's central `../tools/release/` (adds a
+  preflight store checklist, a tag-state-based build and mirror verification) instead of a
+  vendored copy that no longer received those fixes.
 
 ### Fixed
 - The mission briefing's start button read `▶ MISSION BEGINNEN` (German) in an otherwise
