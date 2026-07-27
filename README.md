@@ -107,6 +107,6 @@ the community list first.
 
 ## License
 
-[GNU AGPL-3.0-only](LICENSE) for code. Narrative/content is inherited from the monorepo
+[GNU AGPL-3.0-or-later](LICENSE) for code. Narrative/content is inherited from the monorepo
 under CC BY-SA 4.0. A commercial license is available for uses the AGPL does not fit (see
 the monorepo's `LICENSING.md`).

@@ -10,7 +10,7 @@
 - **Build:** esbuild → `main.js` (CJS, tree-shaking, inline sourcemaps in dev)
 - **Tests:** Vitest (node environment) — `test/obsidian-mock.ts` mocks the Obsidian API
 - **Plugin ID:** `neurovim` (display name: "NeuroVim")
-- **License:** AGPL-3.0-only
+- **License:** AGPL-3.0-or-later
 
 ## Commands
 
@@ -53,7 +53,7 @@ test/                   — Vitest tests + obsidian-mock
 docs/superpowers/       — Design specs + implementation plans
   specs/                — Design docs (review before coding)
   plans/                — Implementation plans (executor artifacts, archived after merge)
-scripts/                — vendor-neurovim.mjs, release.mjs
+scripts/                — vendor-neurovim.mjs (release tooling is central, see Commands)
 ```
 
 ## Vendor model
@@ -89,7 +89,7 @@ scripts/                — vendor-neurovim.mjs, release.mjs
 ### Settings
 - `display()` re-renders the entire tab (e.g. after "Test all") — persist UI state (collapsed sections) in PluginData
 - `mergeStoredSettings`: do NOT spread raw `data.json` into defaults — legacy fields reappear via spread
-- Changelog: write entries under `## [Unreleased]` only — `release.mjs` auto-generates version headers
+- Changelog: write entries under `## [Unreleased]` only — the release tool auto-generates version headers
 
 ### Obsidian API
 - `metadataCache.getFirstLinkpathDest(link, sourcePath)` — `sourcePath` must be per-item, NOT a shared closure
