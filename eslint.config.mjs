@@ -41,16 +41,9 @@ export default tseslint.config(
       "obsidianmd/ui/sentence-case": "off",
     },
   },
-  {
-    files: ["src/vendor/**"],
-    rules: {
-      // Vendorter Monorepo-Snapshot (SSOT: neurovim-standalone) — hier gefixt waere der
-      // Fix beim naechsten `npm run vendor` weg. `String(fm.x ?? '')` auf `unknown`-
-      // Frontmatter ist dort defensive Absicht, kein Bug: nur kaputtes Frontmatter
-      // erzeugt '[object Object]'. Echter Fix gehoert ins Monorepo (Helper `asString`).
-      // Die obsidianmd-Regeln bleiben hier bewusst SCHARF — der Store scannt den Vendor
-      // -Code mit.
-      "@typescript-eslint/no-base-to-string": "off",
-    },
-  },
 );
+// Kein Override fuer `src/vendor/**`: die 9 `no-base-to-string`-Befunde des vendorten
+// Content-Snapshots sind an der Wurzel behoben (Monorepo `bdefaaa`, Helper `asString`)
+// statt hier stillgestellt. Der Vendor-Code laeuft damit unter denselben scharfen Regeln
+// wie eigener Code — bricht der Lint nach einem `npm run vendor`, gehoert der Fix ins
+// Monorepo und danach ein erneutes Vendoring, nie ein Override hier.

@@ -10,6 +10,7 @@ import type { MissionSummary, MissionDoc, LoreDoc, GlitchDefinition } from '@neu
 import { ENTRIES, type RawContentEntry } from './generated/content';
 import { RAVEN_ORIGINAL, RAVEN_GLITCH_POOL } from './generated/sandbox';
 import { WELCOME_BODY } from './generated/welcome';
+import { asString } from './frontmatter';
 
 export { ENTRIES };
 export type { RawContentEntry };
@@ -33,17 +34,17 @@ export function getManual(): string {
 function toSummary(e: RawContentEntry): MissionSummary {
   const fm = e.frontmatter;
   return {
-    mission_id: String(fm.mission_id ?? e.id),
+    mission_id: asString(fm.mission_id, e.id),
     mission_type: (fm.mission_type as MissionSummary['mission_type']) ?? 'practice',
-    title: String(fm.title ?? e.id),
-    category: String(fm.category ?? ''),
+    title: asString(fm.title, e.id),
+    category: asString(fm.category),
     xp_reward: Number(fm.xp_reward ?? 0),
     locked: Boolean(fm.locked ?? false),
-    tier: String(fm.tier ?? ''),
+    tier: asString(fm.tier),
     difficulty: fm.difficulty != null ? Number(fm.difficulty) : undefined,
     par_keystrokes: fm.par_keystrokes != null ? Number(fm.par_keystrokes) : undefined,
-    summary: fm.summary != null ? String(fm.summary) : undefined,
-    why: fm.why != null ? String(fm.why) : undefined,
+    summary: fm.summary != null ? asString(fm.summary) : undefined,
+    why: fm.why != null ? asString(fm.why) : undefined,
     arc: e.arc,
     chapter: e.chapter,
   };
@@ -82,7 +83,7 @@ export function getLore(id: string): LoreDoc {
   return {
     id: e.id,
     kind: e.role === 'loot' ? 'loot' : e.role === 'fragment' ? 'fragment' : 'ref',
-    title: String(e.frontmatter.title ?? e.id),
+    title: asString(e.frontmatter.title, e.id),
     body: e.body,
   };
 }
@@ -104,8 +105,8 @@ export function listLore(): LoreSummary[] {
     .map((e) => ({
       id: e.id,
       kind: e.role === 'loot' ? 'loot' : e.role === 'fragment' ? 'fragment' : 'ref',
-      title: String(e.frontmatter.title ?? e.id),
-      summary: String(e.frontmatter.summary ?? ''),
+      title: asString(e.frontmatter.title, e.id),
+      summary: asString(e.frontmatter.summary),
       unlockLevel:
         e.role === 'loot' && e.frontmatter.unlock_level != null
           ? Number(e.frontmatter.unlock_level)

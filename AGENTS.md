@@ -57,6 +57,8 @@ scripts/                — vendor-neurovim.mjs, release.mjs
 - Monorepo (`/Users/Shared/code/neurovim-standalone`) is the **SSOT** for game logic
 - Pin tracked in `src/vendor/neurovim/VENDOR.json` (commit SHA + version)
 - To sync: fix in monorepo → `npm run vendor` → verify → commit vendor + VENDOR.json
+- The script copies **every** top-level `.ts` of `packages/content/src` (plus `generated/`) —
+  a hardcoded file list used to drop new modules, leaving imports unresolvable
 - tsconfig/esbuild alias `@neurovim/core` and `@neurovim/content` → vendor paths
 
 ## Coding conventions
@@ -95,9 +97,10 @@ scripts/                — vendor-neurovim.mjs, release.mjs
 - `--max-warnings 0` is mandatory: obsidianmd files most guideline rules as **warnings**, so
   `eslint src` alone exits 0 on findings the store then flags in review
 - **No inline `// eslint-disable`** — exceptions go into `eslint.config.mjs` as an override with
-  a written justification. Two exist: `ui/sentence-case` (off repo-wide — proper nouns
-  `NeuroVim`/`Vim`/`qwen3-8b`, a URL placeholder, and the deliberate CRT-caps aesthetic) and
-  `no-base-to-string` (off for `src/vendor/**` — monorepo SSOT, fixes belong upstream)
+  a written justification. Exactly one exists: `ui/sentence-case` (off repo-wide — proper nouns
+  `NeuroVim`/`Vim`/`qwen3-8b`, a URL placeholder, and the deliberate CRT-caps aesthetic)
+- `src/vendor/**` is linted under the **same sharp rules** as own code. If lint breaks after
+  `npm run vendor`, fix it in the monorepo and re-vendor — never add an override here
 - Disabling a rule locally does **not** disable it in the store scan — expect those findings in
   review and answer them with the justification from the config
 

@@ -11,6 +11,14 @@ All notable changes to this project are documented here. Format loosely follows
   test). The release workflow now runs the gate instead of typecheck+test alone, so
   guideline findings surface before a release instead of during community-store review.
 - Removed an unused type import (`HudPlacement`) from the settings tab.
+- `npm run vendor` now copies every top-level content module instead of a hardcoded file
+  list, which silently dropped new modules from the snapshot.
+
+### Fixed
+- The mission briefing's start button read `▶ MISSION BEGINNEN` (German) in an otherwise
+  English UI — now `▶ BEGIN MISSION`.
+- Frontmatter values that are YAML maps or lists no longer reach the UI as
+  `[object Object]` (fixed upstream in the monorepo, vendored as `bdefaaa`).
 
 ## [0.7.1] — 2026-07-24
 

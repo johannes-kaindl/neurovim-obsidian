@@ -25,7 +25,7 @@ export class BriefingModal extends Modal {
     const md = contentEl.createDiv({ cls: 'nv-briefing-body' });
     void MarkdownRenderer.render(this.app, stripTransmissionLink(this.body), md, '', this.comp);
     const actions = contentEl.createDiv({ cls: 'nv-briefing-actions' });
-    const btn = actions.createEl('button', { cls: 'nv-btn nv-btn-begin', text: '▶ MISSION BEGINNEN' });
+    const btn = actions.createEl('button', { cls: 'nv-btn nv-btn-begin', text: '▶ BEGIN MISSION' });
     btn.onclick = () => { this.close(); this.onBegin(); };
   }
 
