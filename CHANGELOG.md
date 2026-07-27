@@ -5,6 +5,8 @@ All notable changes to this project are documented here. Format loosely follows
 
 ## [Unreleased]
 
+## [0.7.2] — 2026-07-27
+
 ### Changed
 - Added a local store-lint gate: `eslint-plugin-obsidianmd` + type-checked `typescript-eslint`
   via `npm run lint` (`--max-warnings 0`) and a combined `npm run gate` (lint + typecheck +
