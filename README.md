@@ -1,10 +1,13 @@
 # NeuroVim (vim-dojo)
 
-> Learn Vim by playing a cyberpunk spy-thriller — inside Obsidian.
+> 🇬🇧 English · [🇩🇪 Deutsch](https://codeberg.org/jkaindl/neurovim-obsidian/src/branch/main/README.de.md)
 
 [![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-blue.svg)](https://codeberg.org/jkaindl/neurovim-obsidian/src/branch/main/LICENSE)
 [![Release](https://img.shields.io/gitea/v/release/jkaindl/neurovim-obsidian?gitea_url=https%3A%2F%2Fcodeberg.org&label=release)](https://codeberg.org/jkaindl/neurovim-obsidian/releases)
+[![Downloads](https://img.shields.io/badge/dynamic/json?logo=obsidian&color=%23483699&label=downloads&query=%24%5B%22neurovim%22%5D.downloads&url=https%3A%2F%2Fraw.githubusercontent.com%2Fobsidianmd%2Fobsidian-releases%2Fmaster%2Fcommunity-plugin-stats.json)](https://obsidian.md/plugins?id=neurovim)
 ![Platform](https://img.shields.io/badge/platform-Obsidian%201.7.2%2B%20·%20desktop%20%26%20mobile-7c3aed)
+
+> Learn Vim by playing a cyberpunk spy-thriller — inside Obsidian.
 
 An AI handler named **CIPHER** assigns you "missions" that are really Vim exercises:
 restore CORP-corrupted transmissions, beat the clock, earn XP. You learn Vim almost by

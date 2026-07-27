@@ -5,6 +5,10 @@ All notable changes to this project are documented here. Format loosely follows
 
 ## [Unreleased]
 
+### Added
+- German README (`README.de.md`) with a language switcher in both files, plus a community-store
+  downloads badge.
+
 ## [0.7.2] — 2026-07-27
 
 ### Changed
