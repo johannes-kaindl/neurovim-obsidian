@@ -44,8 +44,8 @@ Obsidian). **vim-dojo** brings it back home as a first-class, standalone Obsidia
 
 ## Install
 
-**From the community store** (once listed): Settings → Community plugins → Browse →
-search "NeuroVim" → Install → Enable.
+**From the community store:** Settings → Community plugins → Browse → search "NeuroVim" →
+Install → Enable.
 
 **Manually, from a release:** download `main.js`, `manifest.json` and `styles.css` from the
 [latest release](https://codeberg.org/jkaindl/neurovim-obsidian/releases) into
