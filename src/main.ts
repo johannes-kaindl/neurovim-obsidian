@@ -30,7 +30,7 @@ import { RunRecorder } from './keystrokeRecorder';
 import { buildRunTrace, type RunTrace } from './trace';
 import { TraceStore } from './storage/traceStore';
 import { buildDebriefMessages } from './llm/debriefPrompt';
-import { realClock } from './vendor/kit/clock';
+import { realClock } from './vendor/kit-obsidian/clock';
 import type { HubTab } from './hubTabs';
 import type { PluginData, MissionSummary } from '@neurovim/core';
 

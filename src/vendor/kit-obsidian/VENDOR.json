@@ -1,0 +1,7 @@
+{
+  "source": "obsidian-kit",
+  "version": "0.14.0",
+  "sha": "644603c",
+  "vendored": "obsidian/clock.ts, obsidian/collapsible.ts",
+  "note": "Verbatim snapshot. Never hand-edit. Re-copy from obsidian-kit to update. Umgezogen aus ../kit/ (2026-07-28, drift-audit, kit-obsidian-Ablagekonvention seit 2026-07-27). collapsible.ts hat keinen Consumer in src/, wird aber in test/vendorKit.test.ts geprüft."
+}

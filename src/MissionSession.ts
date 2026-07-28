@@ -3,7 +3,7 @@ import {
 } from '@neurovim/core';
 import type { PluginData, RunResult, DiffResult, MissionRecord } from '@neurovim/core';
 import type { BundledContent } from './content/BundledContent';
-import type { ClockPort } from './vendor/kit/clock';
+import type { ClockPort } from './vendor/kit-obsidian/clock';
 import { RunTimer } from './RunTimer';
 import { countMatchingLines, markLineDelta, type LineProgress } from './missionProgress';
 import { missionNotePath } from './paths';

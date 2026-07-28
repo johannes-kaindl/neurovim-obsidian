@@ -1,4 +1,4 @@
-import type { ClockPort } from './vendor/kit/clock';
+import type { ClockPort } from './vendor/kit-obsidian/clock';
 import type { TraceEvent } from './trace';
 
 /** Accumulates the keystroke sequence of one mission attempt. Pure — timing via

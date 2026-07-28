@@ -3,7 +3,7 @@ import { parseSSE } from '../src/vendor/kit/sse';
 import { ThinkSplitter } from '../src/vendor/kit/think';
 import { normalizeEndpoint } from '../src/vendor/kit/endpoint';
 import { classifyEndpointStatus, ENDPOINT_PRESETS, validateEndpointInput } from '../src/vendor/kit/endpoint_diagnostics';
-import { resolveCollapsed } from '../src/vendor/kit/collapsible';
+import { resolveCollapsed } from '../src/vendor/kit-obsidian/collapsible';
 import { suppressParams, isAlwaysOnThinker } from '../src/vendor/kit/reasoning';
 import { parseLmStudioContext, parseOllamaContext } from '../src/vendor/kit/model-context';
 

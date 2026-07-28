@@ -7,7 +7,7 @@ import { parseSSE } from '../vendor/kit/sse';
 import { ThinkSplitter } from '../vendor/kit/think';
 import { normalizeEndpoint } from '../vendor/kit/endpoint';
 import type { LlmMessage } from './cipherPrompt';
-import { realClock, type ClockPort } from '../vendor/kit/clock';
+import { realClock, type ClockPort } from '../vendor/kit-obsidian/clock';
 import { suppressParams } from '../vendor/kit/reasoning';
 import { effectiveSuppress } from './thinkToggle';
 

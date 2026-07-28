@@ -1,4 +1,4 @@
-import type { ClockPort } from './vendor/kit/clock';
+import type { ClockPort } from './vendor/kit-obsidian/clock';
 
 /**
  * Pausable elapsed-time counter for one mission run. Accumulates completed segments and
