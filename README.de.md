@@ -178,8 +178,9 @@ npm run build     # → main.js
 npm run gate      # Lint + Typecheck + Tests
 ```
 
-`npm run vendor` liest das Monorepo aus `NEUROVIM_MONOREPO` (Vorgabe
-`/Users/Shared/code/neurovim-standalone`) und schreibt einen gepinnten Snapshot nach
+`npm run vendor` liest das Monorepo aus `NEUROVIM_MONOREPO` (Vorgabe: der Maintainer-Checkout
+von `neurovim-standalone` unter `../../neurovim-standalone` relativ zu diesem Repo —
+Variable setzen, falls deiner woanders liegt) und schreibt einen gepinnten Snapshot nach
 `src/vendor/neurovim/` (siehe `src/vendor/neurovim/VENDOR.json`). Das Monorepo bleibt die
 einzige Quelle der Wahrheit für Spiellogik und Inhalte.
 

@@ -139,7 +139,7 @@ import { cpSync, mkdirSync, rmSync, writeFileSync, readFileSync, existsSync } fr
 import { execSync } from 'node:child_process';
 import { join } from 'node:path';
 
-const MONO = process.env.NEUROVIM_MONOREPO ?? '/Users/Shared/code/neurovim-standalone';
+const MONO = process.env.NEUROVIM_MONOREPO ?? '../../neurovim-standalone';
 const OUT = 'src/vendor/neurovim';
 
 if (!existsSync(join(MONO, 'packages/core/src/index.ts'))) {

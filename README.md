@@ -171,8 +171,9 @@ npm run build     # → main.js
 npm run gate      # lint + typecheck + tests
 ```
 
-`npm run vendor` reads the monorepo from `NEUROVIM_MONOREPO` (default
-`/Users/Shared/code/neurovim-standalone`) and writes a pinned snapshot into
+`npm run vendor` reads the monorepo from `NEUROVIM_MONOREPO` (default: the maintainer's
+checkout of `neurovim-standalone` at `../../neurovim-standalone` relative to this repo —
+set the variable if yours lives elsewhere) and writes a pinned snapshot into
 `src/vendor/neurovim/` (see `src/vendor/neurovim/VENDOR.json`). The monorepo remains the
 single source of truth for game logic and content.
 

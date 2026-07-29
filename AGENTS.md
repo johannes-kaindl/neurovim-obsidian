@@ -3,6 +3,10 @@
 > NeuroVim: Learn Vim by playing a cyberpunk spy-thriller, inside real Obsidian notes.
 > Standalone, Community-Store-ready Obsidian plugin. Vendored game logic from `neurovim-standalone` monorepo.
 
+> **Workspace standards (maintainer-local):** The binding conventions live in `_docs/CONVENTIONS.md`
+> in the maintainer's multi-project workspace, `../../_docs` relative to this repo — not part of this
+> repo, ignore if absent in your clone. Model: comply-or-explain.
+
 ## Stack
 
 - **Language:** TypeScript (ES2018, strict, JSX via Preact)
@@ -50,16 +54,14 @@ src/                    — plugin source (flat, no deep nesting)
   content/              — Content port adapter
   vendor/neurovim/      — Vendored from neurovim-standalone (core + content)
 test/                   — Vitest tests + obsidian-mock
-docs/superpowers/       — Design specs + implementation plans
-  specs/                — Design docs (review before coding)
-  plans/                — Implementation plans (executor artifacts, archived after merge)
+docs/superpowers/       — Frozen legacy specs + plans (historical — nothing new goes here, see Memory)
 scripts/                — vendor-neurovim.mjs (release tooling is central, see Commands)
 ```
 
 ## Vendor model
 
 - `src/vendor/neurovim/` is a **pinned snapshot** from `neurovim-standalone` monorepo
-- Monorepo (`/Users/Shared/code/neurovim-standalone`) is the **SSOT** for game logic
+- Monorepo (`neurovim-standalone`, checked out at `../../neurovim-standalone` relative to this repo) is the **SSOT** for game logic
 - Pin tracked in `src/vendor/neurovim/VENDOR.json` (commit SHA + version)
 - To sync: fix in monorepo → `npm run vendor` → verify → commit vendor + VENDOR.json
 - The script copies **every** top-level `.ts` of `packages/content/src` (plus `generated/`) —
@@ -124,7 +126,7 @@ scripts/                — vendor-neurovim.mjs (release tooling is central, see
 
 ## Cockpit
 
-- Location: `/Users/Shared/10_ObsidianVaults/10_Pallas/25_Coding/vim-dojo/vim-dojo.md`
+- Location: `$VAULT/25_Coding/vim-dojo/vim-dojo.md` (maintainer-local, `$VAULT` = the maintainer's Obsidian vault)
 - Contains: status, current focus, decision log, session history
 - Base file: `vim-dojo.base` (Kanban board for tasks)
 - Logs: `_Log/<date>.md`
@@ -139,3 +141,14 @@ scripts/                — vendor-neurovim.mjs (release tooling is central, see
 ## Security invariant
 
 vim-dojo **never** touches files outside the configured mission folder. Critical for Community Store review.
+
+## Memory
+
+- **SDD artifacts (since 2026-07-16): cockpit, not repo** — specs/plans/task reports live in the
+  maintainer's coding cockpit (`$VAULT/25_Coding/vim-dojo/_SDD/`, CORE-META-14, maintainer-local).
+  They carry working context (vault paths, sister-repo internals) that is of no use to anyone in a
+  public repo. The repo keeps the design essence in this file + `CHANGELOG.md`.
+- **Legacy:** `docs/superpowers/{specs,plans}/` is frozen — do not add anything new there.
+- **Never in the repo:** absolute paths outside the repo (`/Users/…`, vault paths) — use placeholders
+  (`$VAULT/…`, `~/…`, repo-relative). Provenance as repo name + `file:line` is welcome.
+  Gate: `scripts/check-no-abs-paths.mjs` (part of `npm test`).

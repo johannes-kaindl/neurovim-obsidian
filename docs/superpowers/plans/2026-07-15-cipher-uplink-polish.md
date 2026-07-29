@@ -105,7 +105,7 @@ git commit -m "fix(ui): mission-title wrapping + CRT hardening of briefing text 
 - [ ] **Step 1: Verbatim kopieren + VENDOR.json erweitern**
 
 ```bash
-cp /Users/Shared/code/obsidian-plugins/obsidian-kit/src/pure/endpoint_diagnostics.ts src/vendor/kit/endpoint_diagnostics.ts
+cp ../obsidian-kit/src/pure/endpoint_diagnostics.ts src/vendor/kit/endpoint_diagnostics.ts
 ```
 
 In `src/vendor/kit/VENDOR.json` das Feld `vendored` ersetzen durch:
@@ -992,7 +992,7 @@ git commit -m "feat(hub): tab navigation — NEXUS home (welcome + next mission)
 **Files:**
 - Modify: `styles.css` (Tabs/Nexus/Guide-Block anhängen)
 - Modify: `README.md` (Feature-Beschreibung Pane/Tabs/Guide ergänzen)
-- Modify: `/Users/Shared/code/obsidian-plugins/REGISTRY.md` (Kit-Kandidaten seeden — anderes Repo, separater Commit dort!)
+- Modify: `../REGISTRY.md` (obsidian-plugins-Dach; Kit-Kandidaten seeden — anderes Repo, separater Commit dort!)
 
 **Interfaces:**
 - Consumes: CSS-Klassen aus Task 7 (`nv-tabs`, `nv-tab`, `nv-nexus-home`, `nv-welcome-quote`, `nv-welcome-para`, `nv-next-mission`, `nv-guide*`).
@@ -1059,15 +1059,15 @@ The NeuroVim pane is organized in tabs:
 
 - [ ] **Step 3: Kit-Kandidaten in REGISTRY.md seeden (Repo `obsidian-plugins`, außerhalb von vim-dojo)**
 
-`/Users/Shared/code/obsidian-plugins/REGISTRY.md` lesen, das bestehende Zeilenformat der Rubrik `[Streaming / SSE / LLM]` übernehmen und ZWEI Einträge ergänzen (Wortlaut ans Format der Nachbarzeilen anpassen):
+`../REGISTRY.md` (obsidian-plugins-Dach) lesen, das bestehende Zeilenformat der Rubrik `[Streaming / SSE / LLM]` übernehmen und ZWEI Einträge ergänzen (Wortlaut ans Format der Nachbarzeilen anpassen):
 
 1. `[Streaming / SSE / LLM] Model-Liste von OpenAI-kompatiblem Endpoint parsen (GET /v1/models → ids) → vim-dojo/src/llm/modelList.ts → extractModelIds (Kit-Kandidat — 3. Implementierung neben vault-crews model-info.ts/listModels und vault-rag; Kit-Nachzug + Repo-Sweep fällig)`
 2. `[Settings / UI] Endpoint-Settings-QoL-Pattern: Test-Button (probe → classifyEndpointStatus → Klartext), Presets, Modell-Dropdown mit Freitext-Fallback → vim-dojo/src/SettingsTab.ts + vault-rag/src/settings.ts → (Kit-Kandidat — UI-Pattern existiert 2×, pure-Anteile schon im Kit (endpoint_diagnostics); Sweep über vault-crews/vault-rag/vim-dojo empfohlen)`
 
-Diesen Edit im Repo `obsidian-plugins` committen (das ist ein eigenes Git-Repo auf Root-Ebene — vorher mit `git -C /Users/Shared/code/obsidian-plugins status` prüfen, ob REGISTRY.md dort versioniert ist; wenn das Root kein eigenes Repo ist, den Edit unversioniert lassen und im Report vermerken):
+Diesen Edit im Repo `obsidian-plugins` committen (das ist ein eigenes Git-Repo auf Root-Ebene — vorher vom vim-dojo-Repo-Root aus mit `git -C .. status` prüfen, ob REGISTRY.md dort versioniert ist; wenn das Root kein eigenes Repo ist, den Edit unversioniert lassen und im Report vermerken):
 
 ```bash
-git -C /Users/Shared/code/obsidian-plugins add REGISTRY.md && git -C /Users/Shared/code/obsidian-plugins commit -m "docs(registry): seed kit candidates — listModels parsing + endpoint-settings QoL pattern (vim-dojo)"
+git -C .. add REGISTRY.md && git -C .. commit -m "docs(registry): seed kit candidates — listModels parsing + endpoint-settings QoL pattern (vim-dojo)"
 ```
 
 - [ ] **Step 4: Voller Durchlauf**
@@ -1082,4 +1082,4 @@ git add styles.css README.md
 git commit -m "feat(ui): hub tab styling (tabs, nexus home, guide) + README pane section"
 ```
 
-Deploy (Controller, nach Abschluss): `cp main.js manifest.json styles.css "/Users/Shared/10_ObsidianVaults/10_Pallas/.obsidian/plugins/neurovim/"` — dann Jays Smoke-Test: Kuro-Theme + Standard-Light (Briefing lesbar?), Titel-Umbruch, Tabs (Start = NEXUS, Guide-Suche, UPLINK nur mit Endpoint, HUD-CIPHER-Button springt auf UPLINK), Settings (Presets, Test gegen laufendes + gestopptes LM Studio, Modell-Dropdown).
+Deploy (Controller, nach Abschluss): `cp main.js manifest.json styles.css "$VAULT/.obsidian/plugins/neurovim/"` — dann Jays Smoke-Test: Kuro-Theme + Standard-Light (Briefing lesbar?), Titel-Umbruch, Tabs (Start = NEXUS, Guide-Suche, UPLINK nur mit Endpoint, HUD-CIPHER-Button springt auf UPLINK), Settings (Presets, Test gegen laufendes + gestopptes LM Studio, Modell-Dropdown).

@@ -12,7 +12,7 @@
 
 ## Global Constraints
 
-- **Kit-Vendoring ist verbatim.** Vendor-Dateien nie von Hand editieren — nur aus `obsidian-kit` kopieren. Quelle: `/Users/Shared/code/obsidian-plugins/obsidian-kit`, Stand `0.14.0` / SHA `644603c` (bereits in `src/vendor/kit/VENDOR.json` gepinnt).
+- **Kit-Vendoring ist verbatim.** Vendor-Dateien nie von Hand editieren — nur aus `obsidian-kit` kopieren. Quelle: Schwester-Repo `obsidian-kit` (`../obsidian-kit` relativ zu diesem Repo), Stand `0.14.0` / SHA `644603c` (bereits in `src/vendor/kit/VENDOR.json` gepinnt).
 - **Vendor-Code wird nicht doppelt getestet.** `test/vendorKit.test.ts` ist ein Drift-Test (prüft, dass die vendorierte Kopie sich verhält wie erwartet), keine Neu-Abdeckung der Kit-Logik.
 - **Code und Kommentare in `src/` sind Englisch** (bestehende Repo-Konvention). Specs/Pläne sind Deutsch.
 - **UI-STANDARD:** Der Settings-Tab bleibt Obsidian-nativ. Nur Theme-CSS-Variablen (`var(--…)`), keine festen Farben. Das CRT-Schema gilt ausschließlich in der Plugin-Pane, nicht in den Settings.
@@ -53,8 +53,8 @@ Holt die drei fehlenden Kit-Module in den Vendor-Snapshot und pinnt sie mit eine
 - [ ] **Step 1: Module verbatim kopieren**
 
 ```bash
-cd /Users/Shared/code/obsidian-plugins/vim-dojo
-KIT=/Users/Shared/code/obsidian-plugins/obsidian-kit/src
+# vom vim-dojo-Repo-Root aus:
+KIT=../obsidian-kit/src
 cp "$KIT/obsidian/collapsible.ts" src/vendor/kit/collapsible.ts
 cp "$KIT/pure/reasoning.ts"      src/vendor/kit/reasoning.ts
 cp "$KIT/pure/model-context.ts"  src/vendor/kit/model-context.ts
@@ -1393,7 +1393,7 @@ git commit -m "feat(llm): Kontextlänge des Modells anzeigen (LM Studio + Ollama
 ### Task 9: Smoke-Test, Registry, Release
 
 **Files:**
-- Modify: `/Users/Shared/code/obsidian-plugins/REGISTRY.md` (Zeilen 76, 81, 82 + Thinking-Toggle-Eintrag)
+- Modify: `../REGISTRY.md` (obsidian-plugins-Dach; Zeilen 76, 81, 82 + Thinking-Toggle-Eintrag)
 - Modify: `README.md` (Configuration), `CHANGELOG.md`
 - Test: GUI-Smoke in Obsidian (manuell, durch Jay)
 
@@ -1407,7 +1407,7 @@ Deployen und in Obsidian durchklicken:
 
 ```bash
 npm run build
-cp main.js manifest.json styles.css "/Users/Shared/10_ObsidianVaults/10_Pallas/.obsidian/plugins/neurovim/"
+cp main.js manifest.json styles.css "$VAULT/.obsidian/plugins/neurovim/"
 ```
 
 Prüfliste (Obsidian neu laden, Settings → NeuroVim):
@@ -1425,14 +1425,14 @@ Prüfliste (Obsidian neu laden, Settings → NeuroVim):
 Der Pallas-Vault hat eine 0.4.x-`data.json` mit `llmEndpoint`. Nach dem ersten Start mit 0.5.0:
 
 ```bash
-python3 -c "import json;d=json.load(open('/Users/Shared/10_ObsidianVaults/10_Pallas/.obsidian/plugins/neurovim/data.json'));print(d.get('__settings',{}))"
+python3 -c "import json,os;d=json.load(open(os.path.expandvars('$VAULT/.obsidian/plugins/neurovim/data.json')));print(d.get('__settings',{}))"
 ```
 
 Expected: `llmEndpoints` enthält den alten Wert als Ein-Element-Liste, `llmEndpoint` ist verschwunden, XP/Bestzeiten unverändert.
 
 - [ ] **Step 3: REGISTRY pflegen (AGENTS.md §2 — verbindlich)**
 
-In `/Users/Shared/code/obsidian-plugins/REGISTRY.md`:
+In `../REGISTRY.md` (obsidian-plugins-Dach):
 - **Zeile 76** (`collapsibleSection`): vim-dojo in die Consumer-Klammer aufnehmen → `(vendored: vault-rag @0.15.0+, vim-dojo @0.5.0)`.
 - **Zeile 81** (Endpoint-Listen-Editor): vim-dojo `src/llm/endpointEditor.ts` als drittes Exemplar ergänzen; Status → **Kit-Kandidat, Regel der Drei erfüllt (3 Repos: vault-rag, vault-crews, vim-dojo) — Kit-Bewertung im nächsten drift-audit fällig**.
 - **Zeile 82** (Single-Endpoint-QoL): auflösen — vim-dojo ist mit 0.5.0 kein Single-Endpoint-Plugin mehr; den Eintrag entweder streichen oder auf „historisch, aufgegangen in Zeile 81" setzen.
@@ -1466,7 +1466,7 @@ Expected: Version-Bump, Tag, Dual-Push (Codeberg + GitHub). Braucht `~/.codeberg
 - [ ] **Step 6: REGISTRY committen** (eigenes Repo — das Dach ist nicht Teil von vim-dojo)
 
 ```bash
-cd /Users/Shared/code/obsidian-plugins
+cd ..   # obsidian-plugins-Dach (vom vim-dojo-Repo-Root aus)
 git add REGISTRY.md
 git commit -m "docs(registry): vim-dojo 0.5.0 — collapsible-Consumer, Endpoint-Editor n=3, thinkToggle n=2"
 ```

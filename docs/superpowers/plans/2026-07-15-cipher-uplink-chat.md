@@ -40,9 +40,9 @@
 
 ```bash
 mkdir -p src/vendor/kit
-cp /Users/Shared/code/obsidian-plugins/obsidian-kit/src/pure/sse.ts src/vendor/kit/sse.ts
-cp /Users/Shared/code/obsidian-plugins/obsidian-kit/src/pure/think-splitter.ts src/vendor/kit/think.ts
-cp /Users/Shared/code/obsidian-plugins/obsidian-kit/src/pure/endpoint.ts src/vendor/kit/endpoint.ts
+cp ../obsidian-kit/src/pure/sse.ts src/vendor/kit/sse.ts
+cp ../obsidian-kit/src/pure/think-splitter.ts src/vendor/kit/think.ts
+cp ../obsidian-kit/src/pure/endpoint.ts src/vendor/kit/endpoint.ts
 ```
 
 (Dateiname `think.ts` statt `think-splitter.ts` folgt dem vault-crews-Vendoring; Inhalt bleibt verbatim.)
@@ -1244,7 +1244,7 @@ Expected: alle Tests PASS, typecheck sauber, `main.js` gebaut.
 - [ ] **Step 4: Deploy in den Pallas-Vault für Jays Smoke-Test**
 
 ```bash
-cp main.js manifest.json styles.css "/Users/Shared/10_ObsidianVaults/10_Pallas/.obsidian/plugins/neurovim/"
+cp main.js manifest.json styles.css "$VAULT/.obsidian/plugins/neurovim/"
 ```
 
 Dann **Handover an Jay** (manuelle Verifikation, LM Studio oder Ollama lokal gestartet):
