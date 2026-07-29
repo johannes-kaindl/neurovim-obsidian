@@ -5,6 +5,8 @@ All notable changes to this project are documented here. Format loosely follows
 
 ## [Unreleased]
 
+## [0.7.4] — 2026-07-29
+
 ### Changed
 - Maintenance release, no functional changes. The community store did not pick up 0.7.3 —
   it reported no matching release although tag, assets and manifest were correct and publicly
