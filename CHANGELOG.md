@@ -5,6 +5,8 @@ All notable changes to this project are documented here. Format loosely follows
 
 ## [Unreleased]
 
+## [0.7.3] — 2026-07-29
+
 ### Fixed
 - **M-03 "Word Movement" was unsolvable without guessing.** The mission asks you to replace
   three surveillance codes, but neither the briefing nor the transmission said what to replace
