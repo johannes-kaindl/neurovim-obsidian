@@ -3,6 +3,7 @@
 > [🇬🇧 English](https://codeberg.org/jkaindl/neurovim-obsidian/src/branch/main/README.md) · 🇩🇪 Deutsch
 
 [![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-blue.svg)](https://codeberg.org/jkaindl/neurovim-obsidian/src/branch/main/LICENSE)
+[![Docs: CC BY-SA 4.0](https://img.shields.io/badge/docs-CC%20BY--SA%204.0-lightgrey.svg)](https://codeberg.org/jkaindl/neurovim-obsidian/src/branch/main/LICENSE-DOCS)
 [![Release](https://img.shields.io/gitea/v/release/jkaindl/neurovim-obsidian?gitea_url=https%3A%2F%2Fcodeberg.org&label=release)](https://codeberg.org/jkaindl/neurovim-obsidian/releases)
 [![Downloads](https://img.shields.io/badge/dynamic/json?logo=obsidian&color=%23483699&label=downloads&query=%24%5B%22neurovim%22%5D.downloads&url=https%3A%2F%2Fraw.githubusercontent.com%2Fobsidianmd%2Fobsidian-releases%2Fmaster%2Fcommunity-plugin-stats.json)](https://obsidian.md/plugins?id=neurovim)
 ![Platform](https://img.shields.io/badge/platform-Obsidian%201.7.2%2B%20·%20desktop%20%26%20mobile-7c3aed)
@@ -44,7 +45,10 @@ NeuroVim begann als Obsidian-Plugin, wuchs dann zu einem Multi-Target-Spiel hera
   Erlebnis. Ohne ihn funktioniert das Spiel zwar weiterhin — du reparierst Transmissionen
   dann nur ohne Vim-Tastenbelegung, was den Sinn der Sache verfehlt.
 - **Optional, nur für CIPHER:** ein OpenAI-kompatibler Endpunkt (LM Studio, Ollama,
-  OpenRouter, …). Lässt du die Endpunktliste leer, bleibt die Funktion vollständig aus.
+  OpenRouter, …). Lässt du die Endpunktliste leer, bleibt die Funktion vollständig aus. Wie
+  du einen lokalen LLM-Server aufsetzt, steht zentral im
+  [Setup-Guide für lokale LLMs](https://uplink.jkaindl.de/llm-setup) — inklusive der
+  `/v1`-Falle und dem Zugriff vom Handy auf den Rechner.
 
 ## Installation
 
@@ -181,7 +185,13 @@ einzige Quelle der Wahrheit für Spiellogik und Inhalte.
 
 `npm run lint` führt `eslint-plugin-obsidianmd` aus — dasselbe Regelwerk, mit dem der
 Community-Store prüft — bei `--max-warnings 0`. Manueller Smoke-Test:
-[`docs/SMOKE-TEST.md`](docs/SMOKE-TEST.md).
+[`docs/SMOKE-TEST.md`](https://codeberg.org/jkaindl/neurovim-obsidian/src/branch/main/docs/SMOKE-TEST.md).
+
+Vor einem Pull Request bitte
+[`CONTRIBUTING.md`](https://codeberg.org/jkaindl/neurovim-obsidian/src/branch/main/CONTRIBUTING.md)
+lesen — vor allem, welche Änderungen hierher gehören und welche ins Monorepo. Architektur,
+Konventionen und bekannte Fallstricke stehen in
+[`AGENTS.md`](https://codeberg.org/jkaindl/neurovim-obsidian/src/branch/main/AGENTS.md).
 
 ## Release
 
@@ -193,8 +203,19 @@ alleinstehenden Clone. Einmalige Voraussetzungen: ein Codeberg-Repo als `origin`
 `github`-Remote (`git remote add github git@github.com:<owner>/<repo>.git`) und
 `~/.codeberg-token`.
 
+## Sicherheit
+
+Das Plugin fasst keine Dateien außerhalb des konfigurierten Missionsordners an und stellt
+keine Netzwerkanfragen, solange kein CIPHER-Endpunkt konfiguriert ist. Was aufgezeichnet wird,
+was wohin gesendet wird und wie du eine Sicherheitslücke vertraulich meldest:
+[`SECURITY.md`](https://codeberg.org/jkaindl/neurovim-obsidian/src/branch/main/SECURITY.md).
+
 ## Lizenz
 
-[GNU AGPL-3.0-or-later](LICENSE) für den Code. Erzählung und Inhalte stammen aus dem Monorepo
-unter CC BY-SA 4.0. Für Verwendungen, zu denen die AGPL nicht passt, gibt es eine kommerzielle
-Lizenz (siehe `LICENSING.md` im Monorepo).
+- **Code:** [GNU AGPL-3.0-or-later](https://codeberg.org/jkaindl/neurovim-obsidian/src/branch/main/LICENSE).
+- **Dokumentation & Texte:** [CC BY-SA 4.0](https://codeberg.org/jkaindl/neurovim-obsidian/src/branch/main/LICENSE-DOCS).
+- **Missionen und Erzählung:** stammen aus dem [Monorepo](https://codeberg.org/jkaindl/NeuroVIM)
+  unter CC BY-SA 4.0.
+
+Für Verwendungen, zu denen die AGPL nicht passt, gibt es eine kommerzielle Lizenz — siehe
+[`LICENSING.md`](https://codeberg.org/jkaindl/neurovim-obsidian/src/branch/main/LICENSING.md).

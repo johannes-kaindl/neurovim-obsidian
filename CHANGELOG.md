@@ -5,9 +5,25 @@ All notable changes to this project are documented here. Format loosely follows
 
 ## [Unreleased]
 
+### Fixed
+- **M-03 "Word Movement" was unsolvable without guessing.** The mission asks you to replace
+  three surveillance codes, but neither the briefing nor the transmission said what to replace
+  them *with* (`SCAN-7741` → `UNIT-7741`, `TRACE-3392` → `RELAY-3392`, `WATCH-0012` →
+  `NODE-0012`). The briefing now names them, as it already did for comparable missions. Fixed
+  upstream in the content monorepo and re-vendored; a new token-level invariant test there
+  makes this class of defect fail the content gate instead of reaching players.
+
 ### Added
 - German README (`README.de.md`) with a language switcher in both files, plus a community-store
   downloads badge.
+- `CONTRIBUTING.md`, `SECURITY.md`, `LICENSING.md`, `CLA.md` and `LICENSE-DOCS`. `SECURITY.md`
+  documents the threat model in full: mission-folder file access, the scope of keystroke
+  recording, what CIPHER transmits and to whom, and plaintext API-key storage.
+
+### Changed
+- README: all repo-internal links are now absolute, since the community plugin directory
+  renders the README without repo-root context and relative links break there. Requirements
+  point at the central local-LLM setup guide instead of repeating server setup.
 
 ## [0.7.2] — 2026-07-27
 
