@@ -5,6 +5,11 @@ All notable changes to this project are documented here. Format loosely follows
 
 ## [Unreleased]
 
+### Changed
+- Maintenance release, no functional changes. The community store did not pick up 0.7.3 —
+  it reported no matching release although tag, assets and manifest were correct and publicly
+  readable. This release exists to trigger a fresh scan.
+
 ## [0.7.3] — 2026-07-29
 
 ### Fixed
