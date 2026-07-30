@@ -30,7 +30,7 @@
 | Vendor sync | `npm run vendor` | Pull core+content snapshot from neurovim-standalone monorepo |
 | Preflight | `npm run preflight <version>` | Store checklist (manifest, LICENSE, versions.json, remotes) |
 | Version bump | `npm run version-bump <version>` | package.json + manifest.json + versions.json |
-| Release | `npm run release <version>` | Dual push (Codeberg + GitHub), changelog, tags |
+| Release | `npm run release <version>` | Dual push (Forgejo + GitHub), changelog, tags |
 
 > Release tooling lives centrally in `../tools/release/` — this repo only delegates. A clone
 > without the `obsidian-plugins/` parent directory can build and test, but not release.
@@ -134,7 +134,7 @@ scripts/                — vendor-neurovim.mjs (release tooling is central, see
 
 ## Remotes
 
-- **Primary:** `https://codeberg.org/jkaindl/neurovim-obsidian` (origin)
+- **Primary:** `https://git.jkaindl.de/jkaindl/neurovim-obsidian` (origin)
 - **Mirror:** `https://github.com/johannes-kaindl/neurovim-obsidian` (github-mirror)
 - Dual push via `npm run release`
 

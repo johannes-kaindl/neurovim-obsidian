@@ -73,7 +73,7 @@
   "minAppVersion": "1.5.0",
   "description": "Learn Vim by playing a cyberpunk spy-thriller. Missions are Vim exercises you fix in real Obsidian notes.",
   "author": "Johannes Kaindl",
-  "authorUrl": "https://codeberg.org/jkaindl",
+  "authorUrl": "https://git.jkaindl.de/jkaindl",
   "isDesktopOnly": false
 }
 ```

@@ -1,10 +1,10 @@
 # NeuroVim (vim-dojo)
 
-> 🇬🇧 English · [🇩🇪 Deutsch](https://codeberg.org/jkaindl/neurovim-obsidian/src/branch/main/README.de.md)
+> 🇬🇧 English · [🇩🇪 Deutsch](https://git.jkaindl.de/jkaindl/neurovim-obsidian/src/branch/main/README.de.md)
 
-[![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-blue.svg)](https://codeberg.org/jkaindl/neurovim-obsidian/src/branch/main/LICENSE)
-[![Docs: CC BY-SA 4.0](https://img.shields.io/badge/docs-CC%20BY--SA%204.0-lightgrey.svg)](https://codeberg.org/jkaindl/neurovim-obsidian/src/branch/main/LICENSE-DOCS)
-[![Release](https://img.shields.io/gitea/v/release/jkaindl/neurovim-obsidian?gitea_url=https%3A%2F%2Fcodeberg.org&label=release)](https://codeberg.org/jkaindl/neurovim-obsidian/releases)
+[![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-blue.svg)](https://git.jkaindl.de/jkaindl/neurovim-obsidian/src/branch/main/LICENSE)
+[![Docs: CC BY-SA 4.0](https://img.shields.io/badge/docs-CC%20BY--SA%204.0-lightgrey.svg)](https://git.jkaindl.de/jkaindl/neurovim-obsidian/src/branch/main/LICENSE-DOCS)
+[![Release](https://img.shields.io/gitea/v/release/jkaindl/neurovim-obsidian?gitea_url=https%3A%2F%2Fgit.jkaindl.de&label=release)](https://git.jkaindl.de/jkaindl/neurovim-obsidian/releases)
 [![Downloads](https://img.shields.io/badge/dynamic/json?logo=obsidian&color=%23483699&label=downloads&query=%24%5B%22neurovim%22%5D.downloads&url=https%3A%2F%2Fraw.githubusercontent.com%2Fobsidianmd%2Fobsidian-releases%2Fmaster%2Fcommunity-plugin-stats.json)](https://obsidian.md/plugins?id=neurovim)
 ![Platform](https://img.shields.io/badge/platform-Obsidian%201.7.2%2B%20·%20desktop%20%26%20mobile-7c3aed)
 
@@ -15,7 +15,7 @@ restore CORP-corrupted transmissions, beat the clock, earn XP. You learn Vim alm
 accident; the story is the hook.
 
 NeuroVim originally started life as an Obsidian plugin, then grew into a multi-target
-game ([`neurovim-standalone`](https://codeberg.org/jkaindl/NeuroVIM): web + desktop +
+game ([`neurovim-standalone`](https://git.jkaindl.de/jkaindl/NeuroVIM): web + desktop +
 Obsidian). **vim-dojo** brings it back home as a first-class, standalone Obsidian plugin.
 
 ## Features
@@ -55,7 +55,7 @@ Obsidian). **vim-dojo** brings it back home as a first-class, standalone Obsidia
 Install → Enable.
 
 **Manually, from a release:** download `main.js`, `manifest.json` and `styles.css` from the
-[latest release](https://codeberg.org/jkaindl/neurovim-obsidian/releases) into
+[latest release](https://git.jkaindl.de/jkaindl/neurovim-obsidian/releases) into
 `<vault>/.obsidian/plugins/neurovim/`, then enable NeuroVim under Community plugins.
 
 Building from source is described under [Develop / build from source](#develop--build-from-source).
@@ -179,36 +179,36 @@ single source of truth for game logic and content.
 
 `npm run lint` runs `eslint-plugin-obsidianmd` — the same rule set the community store
 scans with — at `--max-warnings 0`. Manual smoke test:
-[`docs/SMOKE-TEST.md`](https://codeberg.org/jkaindl/neurovim-obsidian/src/branch/main/docs/SMOKE-TEST.md).
+[`docs/SMOKE-TEST.md`](https://git.jkaindl.de/jkaindl/neurovim-obsidian/src/branch/main/docs/SMOKE-TEST.md).
 
 Before opening a pull request, please read
-[`CONTRIBUTING.md`](https://codeberg.org/jkaindl/neurovim-obsidian/src/branch/main/CONTRIBUTING.md) —
+[`CONTRIBUTING.md`](https://git.jkaindl.de/jkaindl/neurovim-obsidian/src/branch/main/CONTRIBUTING.md) —
 in particular which changes belong here and which belong in the monorepo. Architecture,
 conventions and known gotchas live in
-[`AGENTS.md`](https://codeberg.org/jkaindl/neurovim-obsidian/src/branch/main/AGENTS.md).
+[`AGENTS.md`](https://git.jkaindl.de/jkaindl/neurovim-obsidian/src/branch/main/AGENTS.md).
 
 ## Release
 
-`npm run release <version>` follows the ecosystem's dual-push flow (Codeberg origin +
+`npm run release <version>` follows the ecosystem's dual-push flow (Forgejo origin +
 GitHub mirror; the GitHub tag triggers the community-store release). The release tooling
 itself lives centrally in `../tools/release/`, so releasing requires the repo to sit inside
 the `obsidian-plugins/` workspace; building and testing work from a standalone clone.
-Prerequisites, set up once: a Codeberg repo as `origin`, a `github` remote
-(`git remote add github git@github.com:<owner>/<repo>.git`), and `~/.codeberg-token`.
+Prerequisites, set up once: a Forgejo repo as `origin`, a `github` remote
+(`git remote add github git@github.com:<owner>/<repo>.git`), and `~/.forgejo-token`.
 
 ## Security
 
 The plugin never touches files outside the configured mission folder, and makes no network
 requests until you configure a CIPHER endpoint. What gets recorded, what gets sent where, and
 how to report a vulnerability privately:
-[`SECURITY.md`](https://codeberg.org/jkaindl/neurovim-obsidian/src/branch/main/SECURITY.md).
+[`SECURITY.md`](https://git.jkaindl.de/jkaindl/neurovim-obsidian/src/branch/main/SECURITY.md).
 
 ## License
 
-- **Code:** [GNU AGPL-3.0-or-later](https://codeberg.org/jkaindl/neurovim-obsidian/src/branch/main/LICENSE).
-- **Documentation & text:** [CC BY-SA 4.0](https://codeberg.org/jkaindl/neurovim-obsidian/src/branch/main/LICENSE-DOCS).
-- **Missions and story:** inherited from the [monorepo](https://codeberg.org/jkaindl/NeuroVIM)
+- **Code:** [GNU AGPL-3.0-or-later](https://git.jkaindl.de/jkaindl/neurovim-obsidian/src/branch/main/LICENSE).
+- **Documentation & text:** [CC BY-SA 4.0](https://git.jkaindl.de/jkaindl/neurovim-obsidian/src/branch/main/LICENSE-DOCS).
+- **Missions and story:** inherited from the [monorepo](https://git.jkaindl.de/jkaindl/NeuroVIM)
   under CC BY-SA 4.0.
 
 A commercial license is available for uses the AGPL does not fit — see
-[`LICENSING.md`](https://codeberg.org/jkaindl/neurovim-obsidian/src/branch/main/LICENSING.md).
+[`LICENSING.md`](https://git.jkaindl.de/jkaindl/neurovim-obsidian/src/branch/main/LICENSING.md).

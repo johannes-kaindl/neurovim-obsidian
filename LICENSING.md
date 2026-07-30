@@ -40,7 +40,7 @@ description of your intended use.
 ## 3. Game content (missions, story, CIPHER's dialogue)
 
 The narrative content under `src/vendor/neurovim/` is a pinned snapshot from the
-[`neurovim-standalone`](https://codeberg.org/jkaindl/NeuroVIM) monorepo, which is
+[`neurovim-standalone`](https://git.jkaindl.de/jkaindl/NeuroVIM) monorepo, which is
 the single source of truth for it. It carries that project's terms: **CC BY-SA 4.0**
 for the writing, AGPL-3.0-or-later for the game logic. Same copyright holder, so
 the commercial option above covers the bundle as a whole — but if you are reusing

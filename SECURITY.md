@@ -8,7 +8,7 @@ is a click.
 
 ## Reporting a vulnerability
 
-Please **do not** file security issues as public Codeberg or GitHub issues.
+Please **do not** file security issues as public Forgejo or GitHub issues.
 
 Report privately by email to **code@jkaindl.de** (PGP welcome) with:
 
@@ -19,7 +19,7 @@ Report privately by email to **code@jkaindl.de** (PGP welcome) with:
 
 You will get an acknowledgement within **7 days** and, for confirmed issues, a fix or a
 coordinated disclosure plan within **30 days**. If you hear nothing within 7 days, please
-open a non-sensitive Codeberg issue saying you sent a security email (without the details)
+open a non-sensitive Forgejo issue saying you sent a security email (without the details)
 so it can be chased.
 
 ## Threat model
@@ -72,7 +72,7 @@ spelled out here honestly.
 - **No `eval`, no `new Function`, no dynamic `import`** in the plugin source or its bundle.
 - No `innerHTML`/`outerHTML` writes — the UI is built with Obsidian's DOM helpers.
 - Mission content is **bundled**, not fetched: the story ships inside the plugin as a pinned
-  snapshot of the [`neurovim-standalone`](https://codeberg.org/jkaindl/NeuroVIM) monorepo
+  snapshot of the [`neurovim-standalone`](https://git.jkaindl.de/jkaindl/NeuroVIM) monorepo
   (provenance in `src/vendor/neurovim/VENDOR.json`). It is not read from your vault and not
   downloaded at runtime.
 

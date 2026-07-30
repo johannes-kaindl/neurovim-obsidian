@@ -1461,7 +1461,7 @@ CHANGELOG, neuer `## 0.5.0`-Block:
 - [ ] **Step 5: Release**
 
 Run: `npm run release 0.5.0`
-Expected: Version-Bump, Tag, Dual-Push (Codeberg + GitHub). Braucht `~/.codeberg-token`; nur auf `main`.
+Expected: Version-Bump, Tag, Dual-Push (Codeberg + GitHub). Braucht `~/.forgejo-token`; nur auf `main`.
 
 - [ ] **Step 6: REGISTRY committen** (eigenes Repo — das Dach ist nicht Teil von vim-dojo)
 

@@ -6,16 +6,16 @@ in this repo.**
 
 ## Where to file things
 
-- **Bugs and feature requests:** [Codeberg issues](https://codeberg.org/jkaindl/neurovim-obsidian/issues) (primary).
+- **Bugs and feature requests:** [Forgejo issues](https://git.jkaindl.de/jkaindl/neurovim-obsidian/issues) (primary).
   The GitHub mirror exists for the Obsidian Community Plugin Directory and is not actively
   monitored for issues.
-- **Pull requests:** Codeberg. PRs against the GitHub mirror will be politely redirected.
+- **Pull requests:** Forgejo. PRs against the GitHub mirror will be politely redirected.
 - **Security issues:** see [`SECURITY.md`](SECURITY.md) — please do not file these as public issues.
 
 ## Which repo does your change belong in?
 
 This plugin is the Obsidian delivery of NeuroVim. The game logic and all mission content
-are **vendored** from the [`neurovim-standalone`](https://codeberg.org/jkaindl/NeuroVIM)
+are **vendored** from the [`neurovim-standalone`](https://git.jkaindl.de/jkaindl/NeuroVIM)
 monorepo, which is the single source of truth for them.
 
 | Your change | Repo |
@@ -63,7 +63,7 @@ straight to a PR.
 ### Setup
 
 ```bash
-git clone https://codeberg.org/jkaindl/neurovim-obsidian.git
+git clone https://git.jkaindl.de/jkaindl/neurovim-obsidian.git
 cd neurovim-obsidian
 npm install
 npm run vendor     # snapshot core + content from the monorepo
@@ -106,7 +106,7 @@ Architecture, conventions, and known gotchas are documented in [`AGENTS.md`](AGE
 npm run release <version>
 ```
 
-Dual push (Codeberg `origin` + GitHub mirror); the mirrored tag triggers the community-store
+Dual push (Forgejo `origin` + GitHub mirror); the mirrored tag triggers the community-store
 release workflow. Tags are SemVer **without** a `v` prefix.
 
 ## Code of conduct
