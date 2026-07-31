@@ -135,7 +135,7 @@ scripts/                — vendor-neurovim.mjs (release tooling is central, see
 ## Remotes
 
 - **Primary:** `https://git.jkaindl.de/jkaindl/neurovim-obsidian` (origin)
-- **Mirror:** `https://github.com/johannes-kaindl/neurovim-obsidian` (github-mirror)
+- **Mirror:** `https://github.com/johannes-kaindl/neurovim-obsidian` (github)
 - Dual push via `npm run release`
 
 ## Security invariant
@@ -152,3 +152,12 @@ vim-dojo **never** touches files outside the configured mission folder. Critical
 - **Never in the repo:** absolute paths outside the repo (`/Users/…`, vault paths) — use placeholders
   (`$VAULT/…`, `~/…`, repo-relative). Provenance as repo name + `file:line` is welcome.
   Gate: `scripts/check-no-abs-paths.mjs` (part of `npm test`).
+
+## Dach-Kontext (obsidian-plugins)
+
+This repo lives under the coordination umbrella `<code-workspace>/obsidian-plugins/`.
+**Before solving a problem:** check `../AGENTS.md` (kit-first rule) and `../REGISTRY.md`
+(solution registry) — many problems are already solved in sister plugins or in `obsidian-kit`.
+
+**Before any UI work** (views, modals, settings tabs, CSS): `../UI-STANDARD.md` is binding
+(Obsidian-native first, one frontend per plugin, theme CSS variables only).
