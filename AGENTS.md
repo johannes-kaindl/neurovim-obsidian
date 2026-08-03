@@ -24,7 +24,7 @@
 | Build | `npm run build` | Production bundle (no sourcemaps) |
 | Typecheck | `npm run typecheck` | `tsc --noEmit` (src/ only — test/ not included) |
 | Lint | `npm run lint` | Store gate: `eslint src --max-warnings 0` |
-| Gate | `npm run gate` | lint + typecheck + test — run before every release |
+| Gate | `npm run gate` | lint + typecheck + test + build — run before every release |
 | Tests | `npm run test` | Vitest run all |
 | Tests (watch) | `npm run test:watch` | Vitest watch mode |
 | Vendor sync | `npm run vendor` | Pull core+content snapshot from neurovim-standalone monorepo |

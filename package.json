@@ -12,7 +12,7 @@
     "lint": "eslint src --max-warnings 0",
     "test": "node scripts/check-no-abs-paths.mjs && vitest run",
     "test:watch": "vitest",
-    "gate": "npm run lint && npm run typecheck && npm test",
+    "gate": "npm run lint && npm run typecheck && npm test && npm run build",
     "release": "test -f ../tools/release/release.mjs || { echo \"FEHLER: ../tools/release/ fehlt. Dieses Repo muss im Dach-Verzeichnis obsidian-plugins/ neben tools/ liegen — das Release-Tooling liegt dort zentral, nicht im Plugin. Ein Clone ohne Dach ist nicht release-fähig.\" >&2; exit 1; }; node ../tools/release/release.mjs",
     "version-bump": "test -f ../tools/release/version-bump.mjs || { echo \"FEHLER: ../tools/release/ fehlt. Dieses Repo muss im Dach-Verzeichnis obsidian-plugins/ neben tools/ liegen — das Release-Tooling liegt dort zentral, nicht im Plugin. Ein Clone ohne Dach ist nicht release-fähig.\" >&2; exit 1; }; node ../tools/release/version-bump.mjs",
     "preflight": "test -f ../tools/release/preflight.mjs || { echo \"FEHLER: ../tools/release/ fehlt. Dieses Repo muss im Dach-Verzeichnis obsidian-plugins/ neben tools/ liegen — das Release-Tooling liegt dort zentral, nicht im Plugin. Ein Clone ohne Dach ist nicht release-fähig.\" >&2; exit 1; }; node ../tools/release/preflight.mjs"
