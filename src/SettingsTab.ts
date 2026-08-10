@@ -50,6 +50,12 @@ export class NeuroVimSettingTab extends PluginSettingTab {
   private activeEndpointUrl: string | null = null;
   /** Context length of the selected model in tokens, null = endpoint doesn't report it. */
   private contextLength: number | null = null;
+  /** One-shot latch for the reconnect() bootstrap in renderEndpointList. buildEndpointList only
+   *  reaches reconnect() through its own commit chains (blur, trash, "Use first", preset) — its
+   *  "Test all" button just re-renders — so without a kick-off on first render, activeEndpointUrl
+   *  and contextLength would stay null until the user happened to edit a row. Reset in hide(),
+   *  so the next tab-open probes afresh. */
+  private hasReconnectedThisOpen = false;
   // Cleanup functions a render-hatch may return (the declarative render contract; on 1.13
   // the framework runs them before tearing a row down). The imperative fallback must honor
   // the same contract — runRowCleanups() runs them before each rebuild and on hide().
@@ -271,6 +277,21 @@ export class NeuroVimSettingTab extends PluginSettingTab {
 
   private renderEndpointList = (setting: Setting): void => {
     const host = this.hostFor(setting);
+    // Bootstrap: buildEndpointList reaches reconnect() ONLY through its own commit chains (url/
+    // apiKey/model blur, trash, "Use first", preset) — its "Test all" button merely re-renders.
+    // Without this kick-off, a freshly opened tab would leave activeEndpointUrl null (every row
+    // reading "Standby — position N" while the kit's own status icons already show them
+    // reachable) and contextLength null (blank Context row) until the user edited something.
+    // The latch is raised BEFORE the call, not after: the .then() below re-enters this very
+    // hatch via refreshUi(). Raise it after that refreshUi() and the re-entry still reads false
+    // and starts a second reconnect — measured: two reconnects and four endpoint probes per
+    // tab-open instead of one and two. It converges rather than looping forever (the latch does
+    // get raised once the first refreshUi() returns), so the symptom is a doubled probe storm on
+    // every open, not a hang — quiet enough to survive review, which is why it's pinned here.
+    if (!this.hasReconnectedThisOpen) {
+      this.hasReconnectedThisOpen = true;
+      void this.reconnect().then(() => this.refreshUi());
+    }
     buildEndpointList({
       containerEl: host,
       label: 'Endpoints',
@@ -345,6 +366,9 @@ export class NeuroVimSettingTab extends PluginSettingTab {
     // failed one probe stays "unreachable" for the rest of the session — a user who then
     // starts their LLM server and reopens settings would keep seeing the stale state.
     this.modelCache.clear();
+    // Latch down with the cache: the next tab-open must re-probe which endpoint is active, for
+    // the same reason the cache is dropped — the world may have changed while settings were shut.
+    this.hasReconnectedThisOpen = false;
     this.runRowCleanups();
     super.hide();
   }
