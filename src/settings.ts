@@ -1,33 +1,23 @@
 import type { HudPlacement } from './hudPlacement';
+import { migrateEndpointList, type EndpointConfig } from './vendor/kit/endpoint_config';
 
-/** Color palette: fixed CRT look vs. adaptive Obsidian-theme colors. */
 export type ColorScheme = 'crt' | 'native';
 
 export interface VimDojoSettings {
   missionFolder: string;
   hudPlacement: HudPlacement;
   colorScheme: ColorScheme;
-  /** Turn Obsidian's Vim mode on for the duration of a mission, restore it after. */
   autoVim: boolean;
-  /** Open the NeuroVim pane automatically when Obsidian starts. Off by default. */
   openPaneOnStartup: boolean;
   /** Ordered fallback list of OpenAI-compatible endpoints — the first reachable one
-   *  wins. A local endpoint moves with the network (localhost at the host vs. LAN IP
-   *  on the road); one synced list covers every network. Empty = feature off. */
-  llmEndpoints: string[];
-  /** Optional bearer token for cloud proxies (LM Studio/Ollama need none). */
-  llmApiKey: string;
-  /** Model id to request, e.g. "qwen3-8b". Empty = feature off. */
+   *  wins. Each entry may carry its own API key and model override; a bare
+   *  `{ url }` falls back to the global key-less/`llmModel` request. Empty = feature off. */
+  llmEndpoints: EndpointConfig[];
+  /** Model id to request when an endpoint has no override, e.g. "qwen3-8b". Empty = feature off. */
   llmModel: string;
-  /** Ask the model not to think. On by default: vim tips are short, thinking is slow. */
   llmSuppressThinking: boolean;
-  /** Record the keystroke sequence of each successful run to a local traces.jsonl
-   *  (for the CIPHER debrief and offline balance analysis). Local only, never sent
-   *  automatically. On by default. */
   recordTraces: boolean;
-  /** Minutes a mission may stay paused before the floating reminder appears. 0 disables it. */
   pausedBannerMinutes: number;
-  /** Collapsed state per settings section, keyed by section id. */
   uiCollapsed: Record<string, boolean>;
 }
 
@@ -38,7 +28,6 @@ export const DEFAULT_SETTINGS: VimDojoSettings = {
   autoVim: false,
   openPaneOnStartup: false,
   llmEndpoints: [],
-  llmApiKey: '',
   llmModel: '',
   llmSuppressThinking: true,
   recordTraces: true,
@@ -46,45 +35,39 @@ export const DEFAULT_SETTINGS: VimDojoSettings = {
   uiCollapsed: {},
 };
 
-/** Lifts the 0.4.x single `llmEndpoint` into the 0.5.0 `llmEndpoints` list. The list wins
- *  when present (it is the newer field); a lone legacy endpoint becomes a one-entry list.
- *  Pure — the caller applies it to raw `data.json` before defaults are merged. */
-export function migrateEndpointList(single: string | undefined, list: string[] | undefined): string[] {
-  // Array.isArray, not just truthy: a hand-edited or corrupted data.json can put any JSON
-  // value under llmEndpoints. A non-empty string is truthy and has a numeric .length too,
-  // so a plain `list && list.length` check let a string through to list.filter, which
-  // doesn't exist there and threw — taking the whole plugin down with it on load.
-  if (Array.isArray(list) && list.length) return list.filter((e) => e && e.trim() !== '');
-  if (single && single.trim() !== '') return [single.trim()];
-  return [];
-}
-
-/** The CIPHER uplink is live only when at least one endpoint and a model are set.
- *  Configuration only — reachability is deliberately not checked here, or the chat would
- *  vanish on a dead endpoint instead of reporting the error. */
 export function isLlmConfigured(s: Pick<VimDojoSettings, 'llmEndpoints' | 'llmModel'>): boolean {
   return s.llmEndpoints.length > 0 && s.llmModel.trim() !== '';
 }
 
-/** Merge a raw `data.json` `__settings` blob onto the defaults, migrating the 0.4.x
- *  `llmEndpoint` field on the way in. Destructure the legacy field out of the rest —
- *  spreading the source wholesale would carry it onto the merged settings, and persist()
- *  writes that object back to data.json verbatim, re-seeding a dead field on every save.
- *  Pure — no Obsidian dependency — so main.ts's onload can stay a thin wrapper around it
- *  and the migration is testable without a plugin mock. */
+/** Applies a legacy GLOBAL API key onto every migrated endpoint that doesn't already carry
+ *  its own — vim-dojo pre-0.8.0 had one Bearer token shared by every endpoint in the list;
+ *  the kit's per-endpoint EndpointConfig has no equivalent global field, so a plain
+ *  migrateEndpointList() call would silently drop a configured key on upgrade and every
+ *  endpoint would go from authenticated to anonymous without any signal. Pure — no Obsidian
+ *  dependency. */
+function foldLegacyApiKey(eps: EndpointConfig[], legacyKey: string | undefined): EndpointConfig[] {
+  const key = legacyKey?.trim();
+  if (!key) return eps;
+  return eps.map((cfg) => (cfg.apiKey ? cfg : { ...cfg, apiKey: key }));
+}
+
+/** Merge a raw `data.json` `__settings` blob onto the defaults, migrating both the 0.4.x
+ *  single `llmEndpoint` field and the pre-0.8.0 global `llmApiKey` on the way in. Both legacy
+ *  fields are destructured out of `rest` — spreading the source wholesale would carry them
+ *  onto the merged settings, and persist() writes that object back to data.json verbatim,
+ *  re-seeding dead fields on every save. Pure — no Obsidian dependency — so main.ts's onload
+ *  can stay a thin wrapper around it and the migration is testable without a plugin mock. */
 export function mergeStoredSettings(raw: unknown): VimDojoSettings {
-  const { llmEndpoint, ...rest } = (raw ?? {}) as Partial<VimDojoSettings> & { llmEndpoint?: string };
+  const { llmEndpoint, llmApiKey, llmEndpoints, ...rest } = (raw ?? {}) as Partial<VimDojoSettings> & {
+    llmEndpoint?: string;
+    llmApiKey?: string;
+    llmEndpoints?: (string | EndpointConfig)[];
+  };
+  const migrated = migrateEndpointList(llmEndpoint, llmEndpoints);
   return {
     ...DEFAULT_SETTINGS,
     ...rest,
-    llmEndpoints: migrateEndpointList(llmEndpoint, rest.llmEndpoints),
-    // {...DEFAULT_SETTINGS} above is a shallow copy: without this, a raw blob with no
-    // uiCollapsed field would carry DEFAULT_SETTINGS.uiCollapsed through by reference, so any
-    // later in-place mutation of it would leak into that module-wide constant and every
-    // settings instance merged afterwards. Spreading it fresh here gives every call its own
-    // object. (The field is vestigial since the declarative-settings migration — native
-    // settings groups replaced the collapsible sections that read it — but is kept for
-    // forward-compat with older data.json.)
+    llmEndpoints: foldLegacyApiKey(migrated, llmApiKey),
     uiCollapsed: { ...DEFAULT_SETTINGS.uiCollapsed, ...rest.uiCollapsed },
   };
 }
