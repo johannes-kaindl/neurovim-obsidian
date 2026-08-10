@@ -5,6 +5,12 @@ All notable changes to this project are documented here. Format loosely follows
 
 ## [Unreleased]
 
+### Changed
+- CIPHER endpoint settings: each endpoint in the fallback list can now carry its own API key
+  and model override, instead of one API key shared by every endpoint. Existing configurations
+  migrate automatically — a previously-set API key is applied to every endpoint on first load
+  after upgrading.
+
 ## [0.7.4] — 2026-07-29
 
 ### Changed
