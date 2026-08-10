@@ -1,7 +1,7 @@
 {
   "source": "obsidian-kit",
-  "version": "0.14.0",
-  "sha": "644603c",
-  "vendored": "pure/sse.ts, pure/think-splitter.ts (als think.ts), pure/endpoint.ts, pure/endpoint_diagnostics.ts, pure/reasoning.ts, pure/model-context.ts",
-  "note": "Verbatim snapshot. Never hand-edit. Re-copy from obsidian-kit to update. obsidian/clock.ts + obsidian/collapsible.ts liegen seit 2026-07-28 (drift-audit, kit-obsidian-Ablagekonvention) in ../kit-obsidian/, siehe dortige VENDOR.json."
+  "version": "0.26.0",
+  "sha": "2a7b5d7",
+  "vendored": "pure/sse.ts, pure/think-splitter.ts (als think.ts), pure/endpoint.ts, pure/endpoint_diagnostics.ts, pure/reasoning.ts, pure/model-context.ts, pure/endpoint_config.ts, pure/model-choice.ts, pure/model-list-cache.ts, pure/timeout.ts",
+  "note": "Verbatim snapshot. Never hand-edit. Re-copy from obsidian-kit to update. obsidian/clock.ts + obsidian/collapsible.ts + obsidian/endpoint-list.ts + obsidian/model-picker.ts liegen in ../kit-obsidian/, siehe dortige VENDOR.json."
 }

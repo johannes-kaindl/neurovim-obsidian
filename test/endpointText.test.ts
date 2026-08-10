@@ -4,7 +4,9 @@ import type { EndpointStatusKind } from '../src/vendor/kit/endpoint_diagnostics'
 
 describe('endpointStatusEn', () => {
   it('maps every status kind to a non-empty English message', () => {
-    const kinds: EndpointStatusKind[] = ['ok', 'refused', 'unknown-host', 'timeout', 'not-an-llm-api', 'unknown'];
+    const kinds: EndpointStatusKind[] = [
+      'ok', 'refused', 'unknown-host', 'timeout', 'not-an-llm-api', 'unauthorized', 'unknown',
+    ];
     for (const k of kinds) {
       const msg = endpointStatusEn(k, 'boom');
       expect(msg.length).toBeGreaterThan(0);
