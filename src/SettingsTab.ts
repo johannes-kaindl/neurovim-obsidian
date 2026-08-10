@@ -82,6 +82,11 @@ export class NeuroVimSettingTab extends PluginSettingTab {
       const n = Number.parseInt(String(value), 10);
       s.pausedBannerMinutes = Number.isFinite(n) && n >= 0 ? n : 5;
     }
+    // Same reason the old renderModel text field trimmed: a pasted model id keeps its
+    // surrounding whitespace, and " qwen3-8b" goes to the endpoint verbatim — an opaque
+    // model-not-found rather than a visible mistake. isLlmConfigured() trims before its
+    // emptiness test, so an all-whitespace value must not read as "configured" either.
+    else if (key === 'llmModel') s.llmModel = (value as string).trim();
     else s[key] = value;
     await this.plugin.saveSettings();
   }
@@ -132,6 +137,12 @@ export class NeuroVimSettingTab extends PluginSettingTab {
   private cipherGroup(): SettingDefinitionGroup {
     return { type: 'group', heading: 'CIPHER uplink (experimental)', items: [
       { name: 'CIPHER uplink', desc: 'Ask CIPHER for Vim advice via any OpenAI-compatible endpoint.', render: this.renderCipherIntro },
+      // The global model is what isLlmConfigured() gates the whole CIPHER feature on, and it is
+      // the fallback effectiveModel() hands every endpoint row that carries no override — so it
+      // needs an editor of its own. The old dynamic model dropdown moved into the endpoint rows
+      // (buildEndpointList draws one per row, fed by the model cache); what stays global is a
+      // plain string, hence a declarative text control rather than another render hatch.
+      { name: 'Model', desc: 'Default model id to request, e.g. qwen3-8b. Endpoint rows can override this individually.', control: { type: 'text', key: 'llmModel', placeholder: 'qwen3-8b' } },
       { name: 'Endpoints', desc: 'Ordered fallback list — the first reachable one is used. Each row may set its own API key and model override.', render: this.renderEndpointList },
       { name: 'Context', desc: 'Context window of the selected model.', render: this.renderContext },
       { name: 'Model thinking', desc: 'Whether the model is asked not to think before answering.', render: this.renderThinking },
