@@ -63,7 +63,13 @@ export function mergeStoredSettings(raw: unknown): VimDojoSettings {
     llmApiKey?: string;
     llmEndpoints?: (string | EndpointConfig)[];
   };
-  const migrated = migrateEndpointList(llmEndpoint, llmEndpoints);
+  // migrateEndpointList (vendored from the kit) does not guard Array.isArray — a hand-edited or
+  // corrupted data.json can put any JSON value under llmEndpoints (e.g. a bare string), and that
+  // reaches .map inside migrateEndpointList and throws, taking the whole plugin down with "failed
+  // to load plugin" on the next onload. Coerce a non-array value to undefined here, at the
+  // untrusted-input boundary, rather than editing the vendored file.
+  const safeList = Array.isArray(llmEndpoints) ? llmEndpoints : undefined;
+  const migrated = migrateEndpointList(llmEndpoint, safeList);
   return {
     ...DEFAULT_SETTINGS,
     ...rest,

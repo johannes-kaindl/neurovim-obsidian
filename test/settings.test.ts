@@ -91,4 +91,14 @@ describe('mergeStoredSettings — endpoint migration', () => {
     expect(mergeStoredSettings({ pausedBannerMinutes: 0 }).pausedBannerMinutes).toBe(0);
     expect(mergeStoredSettings({ pausedBannerMinutes: 12 }).pausedBannerMinutes).toBe(12);
   });
+
+  it('falls back to the single/empty path instead of throwing on a non-array llmEndpoints', () => {
+    // Regression: a hand-edited or corrupted data.json can have llmEndpoints be any JSON value.
+    // The vendored kit's migrateEndpointList only guards `list && list.length`, which lets a
+    // non-empty string through to .map — that threw and took the whole plugin down with
+    // "failed to load plugin" on the next onload.
+    expect(mergeStoredSettings({ llmEndpoints: 'http://x:1' }).llmEndpoints).toEqual([]);
+    expect(mergeStoredSettings({ llmEndpoint: 'http://legacy:1', llmEndpoints: 'http://x:1' }).llmEndpoints)
+      .toEqual([{ url: 'http://legacy:1' }]);
+  });
 });
