@@ -1,8 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { CipherClient, type SseTransport } from '../src/llm/CipherClient';
-import type { ClockPort } from '../src/llm/clock';
+import type { ClockPort } from '../src/vendor/kit-obsidian/clock';
 
-const CFG = { endpoint: 'http://localhost:1234/v1/', apiKey: '', model: 'test-model', suppressThinking: false };
+const CFG = { endpoint: { url: 'http://localhost:1234/v1/', apiKey: '' }, model: 'test-model', suppressThinking: false };
 const MSGS = [{ role: 'user' as const, content: 'q' }];
 
 /** Node's own timers — CipherClient's default clock uses `window`, which
@@ -60,7 +60,7 @@ describe('CipherClient.stream', () => {
     await new CipherClient(t1, undefined, fakeClock).stream(CFG, MSGS, () => undefined, new AbortController().signal);
     expect(t1.calls[0].headers.Authorization).toBeUndefined();
     const t2 = fakeTransport(['data: [DONE]\n']);
-    await new CipherClient(t2, undefined, fakeClock).stream({ ...CFG, apiKey: 'sk-x' }, MSGS, () => undefined, new AbortController().signal);
+    await new CipherClient(t2, undefined, fakeClock).stream({ ...CFG, endpoint: { ...CFG.endpoint, apiKey: 'sk-x' } }, MSGS, () => undefined, new AbortController().signal);
     expect(t2.calls[0].headers.Authorization).toBe('Bearer sk-x');
   });
 

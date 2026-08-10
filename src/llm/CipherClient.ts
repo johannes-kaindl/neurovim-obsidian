@@ -6,6 +6,7 @@
 import { parseSSE } from '../vendor/kit/sse';
 import { ThinkSplitter } from '../vendor/kit/think';
 import { normalizeEndpoint } from '../vendor/kit/endpoint';
+import { authHeaders, type EndpointConfig } from '../vendor/kit/endpoint_config';
 import type { LlmMessage } from './cipherPrompt';
 import { realClock, type ClockPort } from '../vendor/kit-obsidian/clock';
 import { suppressParams } from '../vendor/kit/reasoning';
@@ -21,7 +22,7 @@ export interface SseTransport {
   ): Promise<number>;
 }
 
-export interface CipherConfig { endpoint: string; apiKey: string; model: string; suppressThinking: boolean }
+export interface CipherConfig { endpoint: EndpointConfig; model: string; suppressThinking: boolean }
 
 export type StreamOutcome =
   | { ok: true; content: string }
@@ -49,9 +50,8 @@ export class CipherClient {
       return { ok: false, kind: 'aborted', detail: 'stream aborted', partial: '' };
     }
 
-    const url = `${normalizeEndpoint(cfg.endpoint)}/v1/chat/completions`;
-    const headers: Record<string, string> = {};
-    if (cfg.apiKey) headers.Authorization = `Bearer ${cfg.apiKey}`;
+    const url = `${normalizeEndpoint(cfg.endpoint.url)}/v1/chat/completions`;
+    const headers: Record<string, string> = authHeaders(cfg.endpoint.apiKey);
     const body = {
       model: cfg.model,
       messages,
