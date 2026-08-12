@@ -121,7 +121,7 @@ scripts/                — vendor-neurovim.mjs (release tooling is central, see
 1. **Plan reference code is untested** — bugs in plan examples propagate verbatim to implementation. Review gate catches what TDD misses.
 2. **`tsconfig` excludes `test/`** — type-only imports on non-existent paths in tests slip through silently
 3. **Settings are dual-path** — `getSettingDefinitions()` is the single truth (Obsidian 1.13+), `display()` → `renderImperative()` draws the same structure for ≤1.12. Add new rows to the definition groups, never to `display()` alone; text controls hand back strings, so coerce in `setControlValue`. Stateful CIPHER rows stay `render` hatches.
-4. **Endpoint probe / model context** still use `window.setTimeout` instead of ClockPort — timeout paths untested
+4. **Endpoint config is per-endpoint** — `llmEndpoints` is `EndpointConfig[]` (url + optional key + optional model override). Anything that reasons about "the model" must use `effectiveModel(endpoint, llmModel)`, never the bare global `llmModel`, or UI and request disagree. `EndpointResolver` caches the whole config, so `saveSettings()` invalidates it
 5. **CM6 packages are external** — never bundle `@codemirror/*`; Obsidian provides them at runtime
 
 ## Cockpit

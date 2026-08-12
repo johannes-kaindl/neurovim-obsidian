@@ -10,6 +10,7 @@ export function endpointStatusEn(kind: EndpointStatusKind, raw?: string): string
     case 'unknown-host': return 'Unknown host — typo in the address?';
     case 'timeout': return 'Timed out — network unreachable (wrong network / VPN off?).';
     case 'not-an-llm-api': return 'Responds, but not an OpenAI-compatible endpoint — wrong path or service?';
+    case 'unauthorized': return 'Access denied — missing or invalid API key.';
     case 'unknown': return `Unreachable — ${raw ?? 'unknown error'}`;
   }
 }

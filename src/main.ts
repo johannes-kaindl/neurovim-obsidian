@@ -25,6 +25,7 @@ import { XhrSseTransport } from './llm/XhrSseTransport';
 import { buildKnowledge, buildChatMessages, type CipherKnowledge } from './llm/cipherPrompt';
 import { EndpointResolver } from './llm/endpointResolver';
 import { probeEndpoint } from './llm/endpointProbe';
+import { effectiveModel, type EndpointConfig } from './vendor/kit/endpoint_config';
 import { DEFAULT_SETTINGS, isLlmConfigured, mergeStoredSettings, type VimDojoSettings } from './settings';
 import { RunRecorder } from './keystrokeRecorder';
 import { buildRunTrace, type RunTrace } from './trace';
@@ -69,7 +70,7 @@ export default class NeuroVimPlugin extends Plugin {
   private cipherAbort: AbortController | null = null;
   private endpointResolver = new EndpointResolver(
     () => this.settings.llmEndpoints,
-    async (ep) => (await probeEndpoint(ep, this.settings.llmApiKey)).status.reachable,
+    async (cfg) => (await probeEndpoint(cfg)).status.reachable,
   );
   private cipherKnowledge: CipherKnowledge | null = null;
   /** Active hub tab + guide search query — session-local UI state, not persisted. */
@@ -258,7 +259,17 @@ export default class NeuroVimPlugin extends Plugin {
     return null;
   }
 
-  async saveSettings(): Promise<void> { await this.persist(); this.repaint(); }
+  /** Every settings write goes through here — the settings tab's declarative controls, the
+   *  kit's endpoint-list commits and the thinking toggle all call it. The resolver caches the
+   *  WHOLE EndpointConfig (url + per-endpoint key + model override), so a saved edit to a key
+   *  or a model would otherwise not reach the next CIPHER request: the only other invalidation
+   *  is a `kind === 'network'` stream failure, and a 401 or a wrong-model answer is an `http`
+   *  failure, not a network one — the stale config would survive until Obsidian restarts. */
+  async saveSettings(): Promise<void> {
+    this.endpointResolver.invalidate();
+    await this.persist();
+    this.repaint();
+  }
 
   /** Persist PluginData + settings under one data.json blob. */
   private async persist(): Promise<void> {
@@ -384,13 +395,13 @@ export default class NeuroVimPlugin extends Plugin {
         : null,
       trace,
     });
-    const cfg = {
-      apiKey: this.settings.llmApiKey,
-      model: this.settings.llmModel,
-      suppressThinking: this.settings.llmSuppressThinking,
-    };
-    const runStream = (endpoint: string): Promise<StreamOutcome> =>
-      this.cipherClient.stream({ endpoint, ...cfg }, messages, onToken, signal);
+    const runStream = (endpoint: EndpointConfig): Promise<StreamOutcome> =>
+      this.cipherClient.stream(
+        { endpoint, model: effectiveModel(endpoint, this.settings.llmModel), suppressThinking: this.settings.llmSuppressThinking },
+        messages,
+        onToken,
+        signal,
+      );
 
     const endpoint = await this.endpointResolver.resolve();
     let outcome: StreamOutcome = endpoint === null
@@ -424,9 +435,9 @@ export default class NeuroVimPlugin extends Plugin {
       history,
       question,
     });
-    const runStream = async (endpoint: string): Promise<StreamOutcome> =>
+    const runStream = async (endpoint: EndpointConfig): Promise<StreamOutcome> =>
       this.cipherClient.stream(
-        { endpoint, apiKey: this.settings.llmApiKey, model: this.settings.llmModel, suppressThinking: this.settings.llmSuppressThinking },
+        { endpoint, model: effectiveModel(endpoint, this.settings.llmModel), suppressThinking: this.settings.llmSuppressThinking },
         messages,
         (t) => {
           // Stale stream from a reset/superseded turn — don't write into the new turn's state.

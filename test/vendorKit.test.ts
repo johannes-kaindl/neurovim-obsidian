@@ -3,6 +3,7 @@ import { parseSSE } from '../src/vendor/kit/sse';
 import { ThinkSplitter } from '../src/vendor/kit/think';
 import { normalizeEndpoint } from '../src/vendor/kit/endpoint';
 import { classifyEndpointStatus, ENDPOINT_PRESETS, validateEndpointInput } from '../src/vendor/kit/endpoint_diagnostics';
+import { applyEndpointEdit, migrateEndpointList, moveEndpointToFront } from '../src/vendor/kit/endpoint_config';
 import { resolveCollapsed } from '../src/vendor/kit-obsidian/collapsible';
 import { suppressParams, isAlwaysOnThinker } from '../src/vendor/kit/reasoning';
 import { parseLmStudioContext, parseOllamaContext } from '../src/vendor/kit/model-context';
@@ -47,6 +48,38 @@ describe('vendored endpoint_diagnostics', () => {
   it('ships LM Studio and Ollama presets and warns on a missing scheme', () => {
     expect(ENDPOINT_PRESETS.map((p) => p.label)).toEqual(['LM Studio', 'Ollama']);
     expect(validateEndpointInput('localhost:1234').map((w) => w.rule)).toContain('scheme');
+  });
+});
+
+/** Smoke coverage for the list-editing primitives the settings UI now delegates to — blank-entry
+ *  filtering and adder-row semantics used to live in this repo and were tested here; they moved
+ *  into the vendored kit, whose own tests live in another repo and never run in this one. */
+describe('vendored endpoint_config', () => {
+  it('applyEndpointEdit: the adder row appends a trimmed url and ignores an empty one', () => {
+    expect(applyEndpointEdit([], 0, 'url', '  http://a:1  ', true)).toEqual([{ url: 'http://a:1' }]);
+    expect(applyEndpointEdit([{ url: 'http://a:1' }], 1, 'url', '   ', true)).toEqual([{ url: 'http://a:1' }]);
+  });
+
+  it('applyEndpointEdit: clearing a url removes the entry, clearing a key keeps it', () => {
+    const eps = [{ url: 'http://a:1', apiKey: 'sk-x' }, { url: 'http://b:2' }];
+    expect(applyEndpointEdit(eps, 0, 'url', '', false)).toEqual([{ url: 'http://b:2' }]);
+    expect(applyEndpointEdit(eps, 0, 'apiKey', '', false)).toEqual([{ url: 'http://a:1' }, { url: 'http://b:2' }]);
+    expect(applyEndpointEdit(eps, 1, 'model', ' qwen3 ', false))
+      .toEqual([{ url: 'http://a:1', apiKey: 'sk-x' }, { url: 'http://b:2', model: 'qwen3' }]);
+  });
+
+  it('moveEndpointToFront: moves an entry to index 0, no-ops on 0 or out of range', () => {
+    const eps = [{ url: 'http://a:1' }, { url: 'http://b:2' }, { url: 'http://c:3' }];
+    expect(moveEndpointToFront(eps, 2)).toEqual([{ url: 'http://c:3' }, { url: 'http://a:1' }, { url: 'http://b:2' }]);
+    expect(moveEndpointToFront(eps, 0)).toEqual(eps);
+    expect(moveEndpointToFront(eps, 9)).toEqual(eps);
+  });
+
+  it('migrateEndpointList: filters blanks, lifts a single legacy url, and lets the list win', () => {
+    expect(migrateEndpointList(undefined, ['http://a:1', '  ', 'http://b:2'])).toEqual([{ url: 'http://a:1' }, { url: 'http://b:2' }]);
+    expect(migrateEndpointList('http://legacy:1', undefined)).toEqual([{ url: 'http://legacy:1' }]);
+    expect(migrateEndpointList('http://legacy:1', [])).toEqual([{ url: 'http://legacy:1' }]);
+    expect(migrateEndpointList('http://legacy:1', ['http://a:1'])).toEqual([{ url: 'http://a:1' }]);
   });
 });
 

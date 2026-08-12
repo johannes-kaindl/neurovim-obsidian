@@ -1,32 +1,62 @@
 import { App, PluginSettingTab, Setting } from 'obsidian';
 import type { SettingControl, SettingDefinition, SettingDefinitionGroup, SettingDefinitionItem } from 'obsidian';
 import type NeuroVimPlugin from './main';
-import { ENDPOINT_PRESETS, validateEndpointInput, type EndpointStatusKind } from './vendor/kit/endpoint_diagnostics';
+import { buildEndpointList, type EndpointListStrings } from './vendor/kit-obsidian/endpoint-list';
+import { createModelListCache } from './vendor/kit/model-list-cache';
+import { effectiveModel, resolveActiveEndpointConfig, type EndpointConfig } from './vendor/kit/endpoint_config';
+import { normalizeEndpoint } from './vendor/kit/endpoint';
+import type { EndpointStatus } from './vendor/kit/endpoint_diagnostics';
 import { endpointStatusEn, endpointWarningEn } from './llm/endpointText';
 import { probeEndpoint } from './llm/endpointProbe';
-import { applyEndpointEdit, activeIndexFromStatuses } from './llm/endpointEditor';
 import { thinkToggleState } from './llm/thinkToggle';
 import { probeModelContext } from './llm/modelContext';
 
+/** Every user-visible string of the kit's endpoint-list editor. The kit deliberately
+ *  phrases nothing itself — wording and language belong to the consumer. */
+const ENDPOINT_STRINGS: EndpointListStrings = {
+  addPlaceholder: 'http://localhost:1234',
+  apiKeyPlaceholder: 'API key (optional)',
+  modelPlaceholder: 'qwen3-8b',
+  ariaUrl: 'Endpoint URL',
+  ariaAdd: 'Add endpoint URL',
+  ariaApiKey: (url) => `API key for ${url}`,
+  ariaModel: (url) => `Model override for ${url}`,
+  emptyModelLabel: (globalModel) => `— use global model${globalModel ? ` (${globalModel})` : ''} —`,
+  modelHint: (key) => (key === 'unreachable' ? 'Endpoint unreachable — last known value shown.'
+    : key === 'no-list' ? 'Endpoint doesn’t report a model list — type the model id.' : ''),
+  savedSuffix: '(saved)',
+  refreshModels: 'Refresh model list',
+  moveToFront: 'Use first',
+  remove: 'Remove',
+  thirdParty: 'This endpoint has an API key — requests leave your machine.',
+  probing: 'Testing…',
+  statusTooltip: (status) => endpointStatusEn(status.kind, status.raw),
+  role: (role) => (role.kind === 'active' ? 'Active'
+    : role.kind === 'unreachable' ? 'Unreachable'
+    : role.kind === 'skipped-model' ? 'Reachable, but skipped (model mismatch)'
+    : `Standby — position ${role.position}`),
+  warnings: (ws) => ws.map((w) => endpointWarningEn(w.rule)).join(' · '),
+  presetTooltip: (preset) => `Add ${preset.url}`,
+  presetLabel: (preset) => preset.label,
+  checkConnection: 'Test all',
+  saveFailed: 'Could not save — settings reverted, try again.',
+};
+
 export class NeuroVimSettingTab extends PluginSettingTab {
-  /** Probe status per endpoint, keyed by endpoint *value* (its URL) rather than list
-   *  position. Add/remove/replace anywhere in the list can shift every later index, but
-   *  a value-keyed map means unrelated rows keep their status across such a reshape —
-   *  only the row whose value actually changed loses its status (correctly: it's an
-   *  unprobed value now). Two identical URLs in the list intentionally share one status
-   *  entry — they're the same server. Rendered via a derived index-parallel list (see
-   *  `renderEndpoints()`) to match `activeIndexFromStatuses`' index-based contract.
-   *  Survives re-renders. */
-  private statuses: Map<string, EndpointStatusKind> = new Map();
-  /** Models reported by the active (first reachable) endpoint. */
-  private models: string[] = [];
+  /** Model lists per endpoint + generation counter. Belongs to the lifetime of the
+   *  settings tab (survives every rebuild) — cleared in hide(). */
+  private readonly modelCache = createModelListCache();
+  /** Endpoint (by normalized url) resolved to active by the last reconnect() — drives the
+   *  row-active highlight, the context line, and `renderThinking`'s effective-model lookup. */
+  private activeEndpointUrl: string | null = null;
   /** Context length of the selected model in tokens, null = endpoint doesn't report it. */
   private contextLength: number | null = null;
-  /** Bumped by every commitEndpoints() call. Async probes (refreshContext, "Test all")
-   *  capture this before their await and compare it after: if it moved, the endpoint
-   *  list was edited while the probe was in flight, so the result is for a configuration
-   *  that no longer exists and must be discarded rather than written back. */
-  private endpointGeneration = 0;
+  /** One-shot latch for the reconnect() bootstrap in renderEndpointList. buildEndpointList only
+   *  reaches reconnect() through its own commit chains (blur, trash, "Use first", preset) — its
+   *  "Test all" button just re-renders — so without a kick-off on first render, activeEndpointUrl
+   *  and contextLength would stay null until the user happened to edit a row. Reset in hide(),
+   *  so the next tab-open probes afresh. */
+  private hasReconnectedThisOpen = false;
   // Cleanup functions a render-hatch may return (the declarative render contract; on 1.13
   // the framework runs them before tearing a row down). The imperative fallback must honor
   // the same contract — runRowCleanups() runs them before each rebuild and on hide().
@@ -59,6 +89,11 @@ export class NeuroVimSettingTab extends PluginSettingTab {
       const n = Number.parseInt(String(value), 10);
       s.pausedBannerMinutes = Number.isFinite(n) && n >= 0 ? n : 5;
     }
+    // Same reason the old renderModel text field trimmed: a pasted model id keeps its
+    // surrounding whitespace, and " qwen3-8b" goes to the endpoint verbatim — an opaque
+    // model-not-found rather than a visible mistake. isLlmConfigured() trims before its
+    // emptiness test, so an all-whitespace value must not read as "configured" either.
+    else if (key === 'llmModel') s.llmModel = (value as string).trim();
     else s[key] = value;
     await this.plugin.saveSettings();
   }
@@ -104,66 +139,36 @@ export class NeuroVimSettingTab extends PluginSettingTab {
 
   /** The CIPHER uplink section is stateful throughout (async endpoint probing, dynamic
    *  model dropdown, model-coupled context line, forced thinking toggle) — every row here
-   *  is a `render` hatch that keeps the original imperative logic intact. Their names/descs
-   *  still feed Obsidian's settings search. */
+   *  is a `render` hatch. The endpoint editor itself is the kit's `buildEndpointList`;
+   *  the rows' names/descs still feed Obsidian's settings search. */
   private cipherGroup(): SettingDefinitionGroup {
     return { type: 'group', heading: 'CIPHER uplink (experimental)', items: [
       { name: 'CIPHER uplink', desc: 'Ask CIPHER for Vim advice via any OpenAI-compatible endpoint.', render: this.renderCipherIntro },
-      { name: 'Endpoints', desc: 'Ordered fallback list — the first reachable one is used.', render: this.renderEndpoints },
-      { name: 'Connection', desc: 'Test every endpoint and load the model list from the first reachable one.', render: this.renderConnection },
-      { name: 'Model', desc: 'Pick or type the model id to request from the endpoint.', render: this.renderModel },
+      // The global model is what isLlmConfigured() gates the whole CIPHER feature on, and it is
+      // the fallback effectiveModel() hands every endpoint row that carries no override — so it
+      // needs an editor of its own. The old dynamic model dropdown moved into the endpoint rows
+      // (buildEndpointList draws one per row, fed by the model cache); what stays global is a
+      // plain string, hence a declarative text control rather than another render hatch.
+      { name: 'Model', desc: 'Default model id to request, e.g. qwen3-8b. Endpoint rows can override this individually.', control: { type: 'text', key: 'llmModel', placeholder: 'qwen3-8b' } },
+      { name: 'Endpoints', desc: 'Ordered fallback list — the first reachable one is used. Each row may set its own API key and model override.', render: this.renderEndpointList },
       { name: 'Context', desc: 'Context window of the selected model.', render: this.renderContext },
       { name: 'Model thinking', desc: 'Whether the model is asked not to think before answering.', render: this.renderThinking },
-      { name: 'API key (optional)', desc: 'Bearer token for endpoints that need one. Local servers usually don\'t.', render: this.renderApiKey },
     ] };
   }
 
-  /** Commits a new endpoint list. No explicit status reset needed: `statuses` is keyed
-   *  by endpoint value, so a removed or replaced entry simply stops resolving to a
-   *  status once the index-parallel view is re-derived on the next render.
-   *  `models` and `contextLength`, however, are stale the moment the list changes:
-   *  both were probed against whichever endpoint used to be active, and any edit here
-   *  (blur commit, trash, preset) can change which endpoint that is or remove it
-   *  outright. Since neither is keyed by endpoint value, they must be cleared rather
-   *  than carried over — otherwise the UI would keep showing a model list and a context
-   *  token count for a configuration that no longer exists. */
-  private commitEndpoints(next: string[]): void {
-    this.plugin.settings.llmEndpoints = next;
-    this.models = [];
-    this.contextLength = null;
-    this.endpointGeneration++;
-    void this.plugin.saveSettings().then(() => this.refreshUi());
-  }
-
-  /** Refreshes the context length for the active endpoint + selected model, then
-   *  re-renders. The active endpoint is derived the same way `renderEndpoints()` derives it:
-   *  `statuses` is keyed by endpoint value, so it's projected to an index-parallel list
-   *  before handing it to `activeIndexFromStatuses`' index-based contract. */
-  private async refreshContext(): Promise<void> {
-    // Captured before the await below: if commitEndpoints() runs while probeModelContext
-    // is in flight (a row edited or removed mid-probe), the generation moves and the
-    // result we're about to get back describes an endpoint/model pairing that's already
-    // gone. commitEndpoints() already cleared contextLength and re-rendered, so in that
-    // case we discard the late result instead of writing stale data back over it.
-    // The model is captured alongside it for the same reason: endpointGeneration only
-    // bumps on endpoint-list edits, not on a plain model-dropdown switch, so a second
-    // refreshContext() for a different model wouldn't move it. Without also comparing
-    // the model, a slow first probe (e.g. an LM Studio timeout followed by an Ollama
-    // fallback) could resolve after a faster second probe for a different model and
-    // overwrite that model's correct result with a value that belongs to neither the
-    // dropdown's current selection nor llmModel.
-    const generation = this.endpointGeneration;
-    const model = this.plugin.settings.llmModel;
-    const endpoints = this.plugin.settings.llmEndpoints;
-    const statusList = endpoints.map((ep) => this.statuses.get(ep) ?? null);
-    const active = activeIndexFromStatuses(statusList);
-    const endpoint = active >= 0 ? endpoints[active] : undefined;
-    const contextLength = endpoint && model
-      ? await probeModelContext(endpoint, this.plugin.settings.llmApiKey, model)
-      : null;
-    if (generation !== this.endpointGeneration || this.plugin.settings.llmModel !== model) return;
-    this.contextLength = contextLength;
-    this.refreshUi();
+  /** Re-derives the active endpoint from the current list via the SAME kit primitive
+   *  EndpointResolver uses (first reachable wins) — no reason to hand-roll a second copy of
+   *  that loop just because this caller doesn't want caching. Refreshes the context-length
+   *  line for whatever comes back. Called by buildEndpointList after every save that can
+   *  change which endpoint is active. */
+  private async reconnect(): Promise<void> {
+    const active = await resolveActiveEndpointConfig(
+      this.plugin.settings.llmEndpoints,
+      (cfg) => probeEndpoint(cfg).then((r) => r.status.reachable),
+    );
+    this.activeEndpointUrl = active ? active.url : null;
+    const model = active ? effectiveModel(active, this.plugin.settings.llmModel) : '';
+    this.contextLength = active && model ? await probeModelContext(active, model) : null;
   }
 
   // ── Imperative fallback (Obsidian < 1.13) ───────────────────────────────
@@ -271,150 +276,60 @@ export class NeuroVimSettingTab extends PluginSettingTab {
     });
   };
 
-  private renderEndpoints = (setting: Setting): void => {
-    const cipherEl = this.hostFor(setting);
-
-    // Derived index-parallel view of the value-keyed status map, for
-    // activeIndexFromStatuses' index-based contract and per-row status lookup below.
-    const statusList = this.plugin.settings.llmEndpoints.map((ep) => this.statuses.get(ep) ?? null);
-
-    const rows = [...this.plugin.settings.llmEndpoints, ''];
-    rows.forEach((value, index) => {
-      const isAdder = index === rows.length - 1;
-      const status = isAdder ? null : (statusList[index] ?? null);
-      const active = activeIndexFromStatuses(statusList) === index;
-
-      const row = new Setting(cipherEl)
-        .setName(isAdder ? 'Add endpoint' : `Endpoint ${index + 1}${active ? ' — active' : ''}`)
-        .addText((t) => {
-          t.setPlaceholder('http://localhost:1234').setValue(value);
-          // Commit on blur, NOT onChange — onChange fires per keystroke, so the adder
-          // would append every intermediate value ("h", "ht", "htt", …) and clearing a
-          // row mid-edit would splice it away and shift every later index. Same wiring
-          // as vault-crews' editor, for the same reason.
-          t.inputEl.addEventListener('blur', () => {
-            // Never reuse the render-time index: commitEndpoints mutates
-            // settings.llmEndpoints synchronously but re-renders only after the async
-            // save resolves, so another row's blur (e.g. tabbing through fields) can
-            // reshape the list before this blur fires. Resolve this row by its
-            // render-time value instead; if it's no longer in the list, another commit
-            // already dealt with it — just re-render. The adder row is exempt:
-            // applyEndpointEdit ignores the index entirely when isAdder is true.
-            const list = this.plugin.settings.llmEndpoints;
-            const i = isAdder ? list.length : list.indexOf(value);
-            if (!isAdder && i === -1) { this.refreshUi(); return; }
-            const next = applyEndpointEdit(list, i, t.getValue(), isAdder);
-            if (next.length === list.length && next.every((e, k) => e === list[k])) return;
-            this.commitEndpoints(next);
-          });
-        });
-
-      if (!isAdder) {
-        row.setDesc(status ? endpointStatusEn(status, undefined) : 'Not tested yet.');
-        row.descEl.addClass(active ? 'nv-endpoint-active' : 'nv-endpoint-row');
-        row.addExtraButton((b) =>
-          b.setIcon('trash-2').setTooltip('Remove').onClick(() => {
-            // Never reuse the render-time index: a blur commit from another row may have
-            // reshaped the list between this row's render and this click. Find the row by
-            // value instead; if it's already gone, just re-render.
-            const list = this.plugin.settings.llmEndpoints;
-            const i = list.indexOf(value);
-            if (i === -1) { this.refreshUi(); return; }
-            this.commitEndpoints(applyEndpointEdit(list, i, '', false));
-          }),
-        );
-        for (const w of validateEndpointInput(value)) {
-          row.descEl.createDiv({ text: `⚠ ${endpointWarningEn(w.rule)}`, cls: 'nv-setting-warning' });
-        }
-      } else {
-        ENDPOINT_PRESETS.forEach((preset) => {
-          row.addButton((b) =>
-            b.setButtonText(preset.label).setTooltip(`Add ${preset.url}`).onClick(() => {
-              this.commitEndpoints(applyEndpointEdit(this.plugin.settings.llmEndpoints, index, preset.url, true));
-            }),
-          );
-        });
-      }
-    });
-  };
-
-  private renderConnection = (setting: Setting): void => {
+  private renderEndpointList = (setting: Setting): void => {
     const host = this.hostFor(setting);
-    new Setting(host)
-      .setName('Connection')
-      .setDesc('Test every endpoint and load the model list from the first reachable one.')
-      .addButton((b) =>
-        b.setButtonText('Test all').onClick(async () => {
-          b.setButtonText('Testing…');
-          b.setDisabled(true);
-          // Captured before the await below, same reasoning as refreshContext(): if the
-          // endpoint list is edited while these probes (up to 5s each, 10s for an Ollama
-          // fallback) are in flight, commitEndpoints() has already cleared/re-rendered
-          // state for the new list, and writing these results in on top would resurrect
-          // stale data for endpoints that no longer apply.
-          const generation = this.endpointGeneration;
-          const endpoints = this.plugin.settings.llmEndpoints;
-          const results = await Promise.all(
-            endpoints.map((ep) => probeEndpoint(ep, this.plugin.settings.llmApiKey)),
-          );
-          if (generation !== this.endpointGeneration) return;
-          // Rebuild from scratch, keyed by value — "Test all" freshly probes every
-          // current endpoint, so there's nothing to carry over from the old map.
-          const nextStatuses = new Map<string, EndpointStatusKind>();
-          results.forEach((r, i) => nextStatuses.set(endpoints[i], r.status.kind));
-          this.statuses = nextStatuses;
-          const statusList = endpoints.map((ep) => nextStatuses.get(ep) ?? null);
-          const active = activeIndexFromStatuses(statusList);
-          this.models = active >= 0 ? results[active].models : [];
-          // refreshContext() re-captures the generation itself at this point, so its own
-          // guard checks against edits made during *its* await, not this one.
-          await this.refreshContext();
-        }),
-      );
-  };
-
-  private renderModel = (setting: Setting): void => {
-    const host = this.hostFor(setting);
-    const modelSetting = new Setting(host).setName('Model');
-    if (this.models.length > 0) {
-      modelSetting
-        .setDesc('Pick one of the models the endpoint reports.')
-        .addDropdown((d) => {
-          const current = this.plugin.settings.llmModel;
-          if (current && !this.models.includes(current)) d.addOption(current, `${current} (saved)`);
-          for (const id of this.models) d.addOption(id, id);
-          d.setValue(current || this.models[0]);
-          // A dropdown has no empty state: adopt the shown value so the visible
-          // selection and the saved setting can't drift apart. Also (re-)probe context
-          // length for the adopted model: on a fresh config, "Test all" ran refreshContext()
-          // before llmModel was set, so it probed with an empty model and left
-          // contextLength null. Without this, the context line would never appear until a
-          // second "Test all" or a manual dropdown change. Safe from a render loop:
-          // refreshContext() ends in refreshUi(), but by then `current` is the just-adopted
-          // model, so this branch doesn't fire again on that re-render.
-          if (!current) {
-            this.plugin.settings.llmModel = this.models[0];
-            void this.plugin.saveSettings();
-            void this.refreshContext();
-          }
-          d.onChange(async (v) => {
-            this.plugin.settings.llmModel = v;
-            await this.plugin.saveSettings();
-            await this.refreshContext();
-          });
-        });
-    } else {
-      modelSetting
-        .setDesc('Model id to request from the endpoint, e.g. qwen3-8b — or run "Test all" to pick from a list.')
-        .addText((t) =>
-          t.setPlaceholder('qwen3-8b')
-            .setValue(this.plugin.settings.llmModel)
-            .onChange(async (v) => {
-              this.plugin.settings.llmModel = v.trim();
-              await this.plugin.saveSettings();
-            }),
-        );
+    // Bootstrap: buildEndpointList reaches reconnect() ONLY through its own commit chains (url/
+    // apiKey/model blur, trash, "Use first", preset) — its "Test all" button merely re-renders.
+    // Without this kick-off, a freshly opened tab would leave activeEndpointUrl null (every row
+    // reading "Standby — position N" while the kit's own status icons already show them
+    // reachable) and contextLength null (blank Context row) until the user edited something.
+    // The latch is raised BEFORE the call, not after: the .then() below re-enters this very
+    // hatch via refreshUi(). Raise it after that refreshUi() and the re-entry still reads false
+    // and starts a second reconnect — measured: two reconnects and four endpoint probes per
+    // tab-open instead of one and two. It converges rather than looping forever (the latch does
+    // get raised once the first refreshUi() returns), so the symptom is a doubled probe storm on
+    // every open, not a hang — quiet enough to survive review, which is why it's pinned here.
+    if (!this.hasReconnectedThisOpen) {
+      this.hasReconnectedThisOpen = true;
+      void this.reconnect().then(() => this.refreshUi());
     }
+    buildEndpointList({
+      containerEl: host,
+      label: 'Endpoints',
+      desc: 'Ordered fallback list — the first reachable one is used.',
+      placeholder: 'http://localhost:1234',
+      strings: ENDPOINT_STRINGS,
+      cache: this.modelCache,
+      get: () => this.plugin.settings.llmEndpoints,
+      set: (eps) => { this.plugin.settings.llmEndpoints = eps; },
+      active: () => this.activeEndpointUrl,
+      // probeEndpoint() already returns BOTH status and models in one round trip, so a client
+      // handed out here memoizes its single in-flight probe and serves .probe()/.listModels()
+      // from it. What that saves is precise: buildEndpointList calls clientFor(cfg) TWICE per row
+      // (once for the model-list cache, once for the status icon) and each call gets its own fresh
+      // closure — the memo does NOT dedupe across those two. It dedupes INSIDE the cache's load(),
+      // which calls listModels() on the client and then, when the list comes back empty, probe()
+      // on that same object; without the memo that pair would be two round trips.
+      clientFor: (cfg: EndpointConfig) => {
+        let inFlight: ReturnType<typeof probeEndpoint> | null = null;
+        const probeOnce = (): ReturnType<typeof probeEndpoint> => (inFlight ??= probeEndpoint(cfg));
+        return {
+          // Return type spelled out on purpose: `clientFor`'s declared type is an INTERSECTION
+          // of two `probe()` signatures ({ probe(): Promise<EndpointStatus> } & ModelListClient,
+          // whose probe() only promises { reachable }). Contextually typing an object literal
+          // against that intersection makes TS infer .then()'s result as the UNION of both
+          // returns, which then satisfies neither member. The kit's own callers hand back class
+          // instances (vault-rag: ChatClient/EmbeddingClient) whose declared methods sidestep
+          // this; a literal has to say which one it means.
+          probe: (): Promise<EndpointStatus> => probeOnce().then((r) => r.status),
+          listModels: (): Promise<string[]> => probeOnce().then((r) => r.models),
+        };
+      },
+      globalModel: () => this.plugin.settings.llmModel,
+      save: () => this.plugin.saveSettings(),
+      reconnect: () => this.reconnect(),
+      rerender: () => this.refreshUi(),
+    });
   };
 
   private renderContext = (setting: Setting): void => {
@@ -429,7 +344,21 @@ export class NeuroVimSettingTab extends PluginSettingTab {
 
   private renderThinking = (setting: Setting): void => {
     const host = this.hostFor(setting);
-    const think = thinkToggleState(this.plugin.settings.llmModel, this.plugin.settings.llmSuppressThinking);
+    // The toggle must reason about the model the REQUEST will use: main.ts asks with
+    // effectiveModel(endpoint, llmModel), so a per-endpoint override — not the global model —
+    // decides whether the model is an always-on thinker. Look the active entry up FRESH in the
+    // list (the kit's own applyRole does the same, for the same reason: after a model commit
+    // only the list carries the new value) and compare normalized urls, since activeEndpointUrl
+    // comes back normalized from the resolver while the stored entry keeps whatever was typed.
+    // No active endpoint (nothing reachable, or the probe hasn't landed yet) → the global model,
+    // exactly as before.
+    const active = this.plugin.settings.llmEndpoints.find(
+      (ep) => normalizeEndpoint(ep.url) === this.activeEndpointUrl,
+    );
+    const model = active
+      ? effectiveModel(active, this.plugin.settings.llmModel)
+      : this.plugin.settings.llmModel;
+    const think = thinkToggleState(model, this.plugin.settings.llmSuppressThinking);
     new Setting(host)
       .setName('Model thinking')
       .setDesc(think.desc)
@@ -448,22 +377,15 @@ export class NeuroVimSettingTab extends PluginSettingTab {
       );
   };
 
-  private renderApiKey = (setting: Setting): void => {
-    const host = this.hostFor(setting);
-    new Setting(host)
-      .setName('API key (optional)')
-      .setDesc('Bearer token for endpoints that need one. Local servers usually don\'t.')
-      .addText((t) => {
-        t.inputEl.type = 'password';
-        t.setValue(this.plugin.settings.llmApiKey)
-          .onChange(async (v) => {
-            this.plugin.settings.llmApiKey = v.trim();
-            await this.plugin.saveSettings();
-          });
-      });
-  };
-
   hide(): void {
+    // Mandatory per the kit's MIGRATION.md: the model-list cache holds promises and
+    // deliberately outlives every tab rebuild. Without clearing it here, an endpoint that
+    // failed one probe stays "unreachable" for the rest of the session — a user who then
+    // starts their LLM server and reopens settings would keep seeing the stale state.
+    this.modelCache.clear();
+    // Latch down with the cache: the next tab-open must re-probe which endpoint is active, for
+    // the same reason the cache is dropped — the world may have changed while settings were shut.
+    this.hasReconnectedThisOpen = false;
     this.runRowCleanups();
     super.hide();
   }

@@ -3,23 +3,28 @@
  *  Never throws — every failure maps to a classified EndpointStatus. */
 import { requestUrl } from 'obsidian';
 import { normalizeEndpoint } from '../vendor/kit/endpoint';
-import { classifyEndpointStatus, type EndpointStatus } from '../vendor/kit/endpoint_diagnostics';
-import { extractModelIds } from './modelList';
+import { authHeaders, type EndpointConfig } from '../vendor/kit/endpoint_config';
+import { classifyEndpointStatus, extractModelIds, type EndpointStatus } from '../vendor/kit/endpoint_diagnostics';
+import { withTimeout } from '../vendor/kit/timeout';
+import { realClock, type ClockPort } from '../vendor/kit-obsidian/clock';
 
 const PROBE_TIMEOUT_MS = 5_000;
 
 export interface ProbeResult { status: EndpointStatus; models: string[] }
 
-export async function probeEndpoint(endpoint: string, apiKey: string): Promise<ProbeResult> {
-  const url = `${normalizeEndpoint(endpoint)}/v1/models`;
-  const headers: Record<string, string> = apiKey ? { Authorization: `Bearer ${apiKey}` } : {};
-  const timeout = new Promise<'timeout'>((res) => window.setTimeout(() => res('timeout'), PROBE_TIMEOUT_MS));
+export async function probeEndpoint(cfg: EndpointConfig, clock: ClockPort = realClock): Promise<ProbeResult> {
+  const url = `${normalizeEndpoint(cfg.url)}/v1/models`;
+  const headers = authHeaders(cfg.apiKey);
   try {
-    const r = await Promise.race([requestUrl({ url, method: 'GET', headers, throw: false }), timeout]);
-    if (r === 'timeout') return { status: classifyEndpointStatus({ kind: 'timeout' }), models: [] };
+    const result = await withTimeout(
+      requestUrl({ url, method: 'GET', headers, throw: false }),
+      PROBE_TIMEOUT_MS,
+      clock,
+    );
+    if (result.timedOut) return { status: classifyEndpointStatus({ kind: 'timeout' }), models: [] };
     let body: unknown = null;
-    try { body = JSON.parse(r.text); } catch { body = null; }
-    const status = classifyEndpointStatus({ kind: 'response', status: r.status, body });
+    try { body = JSON.parse(result.value.text); } catch { body = null; }
+    const status = classifyEndpointStatus({ kind: 'response', status: result.value.status, body });
     return { status, models: status.reachable ? extractModelIds(body) : [] };
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e);

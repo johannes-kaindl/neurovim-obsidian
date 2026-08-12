@@ -1,10 +1,9 @@
 import { describe, it, expect } from 'vitest';
-import { DEFAULT_SETTINGS, isLlmConfigured, mergeStoredSettings, migrateEndpointList } from '../src/settings';
+import { DEFAULT_SETTINGS, isLlmConfigured, mergeStoredSettings } from '../src/settings';
 
 describe('LLM settings', () => {
   it('defaults to unconfigured (feature off)', () => {
     expect(DEFAULT_SETTINGS.llmEndpoints).toEqual([]);
-    expect(DEFAULT_SETTINGS.llmApiKey).toBe('');
     expect(DEFAULT_SETTINGS.llmModel).toBe('');
     expect(isLlmConfigured(DEFAULT_SETTINGS)).toBe(false);
   });
@@ -22,58 +21,74 @@ describe('LLM settings', () => {
   });
 
   it('requires at least one endpoint and a model', () => {
-    expect(isLlmConfigured({ llmEndpoints: ['http://localhost:1234'], llmModel: '' })).toBe(false);
+    expect(isLlmConfigured({ llmEndpoints: [{ url: 'http://localhost:1234' }], llmModel: '' })).toBe(false);
     expect(isLlmConfigured({ llmEndpoints: [], llmModel: 'qwen3' })).toBe(false);
-    expect(isLlmConfigured({ llmEndpoints: ['http://localhost:1234'], llmModel: 'qwen3' })).toBe(true);
+    expect(isLlmConfigured({ llmEndpoints: [{ url: 'http://localhost:1234' }], llmModel: 'qwen3' })).toBe(true);
+  });
+
+  it('counts a per-endpoint model override as configured, without any global model', () => {
+    // Regression: gating on a non-empty GLOBAL llmModel locked out exactly the setup the
+    // per-endpoint override exists for — the endpoint knows its model, the request would go
+    // through (main.ts sends effectiveModel(ep, llmModel)), yet CIPHER read as "off".
+    expect(isLlmConfigured({
+      llmEndpoints: [{ url: 'http://localhost:1234', model: 'qwen3' }],
+      llmModel: '',
+    })).toBe(true);
+  });
+
+  it('stays unconfigured when an endpoint has neither an override nor a global model', () => {
+    expect(isLlmConfigured({
+      llmEndpoints: [{ url: 'http://a:1', model: 'qwen3' }, { url: 'http://b:2' }],
+      llmModel: '',
+    })).toBe(false);
+  });
+
+  it('defaults the paused-banner threshold to five minutes', () => {
+    expect(DEFAULT_SETTINGS.pausedBannerMinutes).toBe(5);
   });
 });
 
-describe('migrateEndpointList', () => {
-  it('keeps an existing list and drops blank entries', () => {
-    expect(migrateEndpointList(undefined, ['http://a:1', '  ', 'http://b:2'])).toEqual(['http://a:1', 'http://b:2']);
-  });
-
-  it('lifts a single 0.4.x endpoint into a one-entry list', () => {
-    expect(migrateEndpointList('http://localhost:1234', undefined)).toEqual(['http://localhost:1234']);
-    expect(migrateEndpointList('  http://localhost:1234  ', undefined)).toEqual(['http://localhost:1234']);
-  });
-
-  it('prefers the list when both are present (list is the newer field)', () => {
-    expect(migrateEndpointList('http://old:1', ['http://new:2'])).toEqual(['http://new:2']);
-  });
-
-  it('yields an empty list when nothing is configured', () => {
-    expect(migrateEndpointList(undefined, undefined)).toEqual([]);
-    expect(migrateEndpointList('   ', [])).toEqual([]);
-  });
-
-  it('falls back to the single/empty path instead of throwing on a non-array list', () => {
-    // Regression: a hand-edited or corrupted data.json can have llmEndpoints be any JSON
-    // value. A non-empty string is truthy and has a numeric .length, so the old
-    // `list && list.length` guard let it through to `list.filter`, which doesn't exist on
-    // a string — that throw propagated out of mergeStoredSettings on onload, and Obsidian
-    // reported "failed to load plugin".
-    expect(migrateEndpointList(undefined, 'http://x:1' as unknown as string[])).toEqual([]);
-    expect(migrateEndpointList('http://legacy:1', 'http://x:1' as unknown as string[]))
-      .toEqual(['http://legacy:1']);
-  });
-});
-
-describe('mergeStoredSettings', () => {
-  it('lifts a legacy llmEndpoint into llmEndpoints and does not carry the dead field along', () => {
+describe('mergeStoredSettings — endpoint migration', () => {
+  it('lifts a legacy 0.4.x single llmEndpoint into a one-entry EndpointConfig list', () => {
     const settings = mergeStoredSettings({ llmEndpoint: 'http://localhost:1234' });
-    expect(settings.llmEndpoints).toEqual(['http://localhost:1234']);
-    // The legacy field must not survive onto the merged settings object — persist() writes
-    // this object back to data.json verbatim, so any stray property here would be re-seeded
-    // into storage on every save, forever, even though 0.5.0 never reads it again.
+    expect(settings.llmEndpoints).toEqual([{ url: 'http://localhost:1234' }]);
     expect(Object.hasOwn(settings, 'llmEndpoint')).toBe(false);
+  });
+
+  it('lifts a legacy 0.7.x string[] llmEndpoints into EndpointConfig[]', () => {
+    const settings = mergeStoredSettings({ llmEndpoints: ['http://a:1', 'http://b:2'] });
+    expect(settings.llmEndpoints).toEqual([{ url: 'http://a:1' }, { url: 'http://b:2' }]);
+  });
+
+  it('folds a legacy global llmApiKey onto every migrated endpoint, then drops the field', () => {
+    const settings = mergeStoredSettings({
+      llmEndpoints: ['http://a:1', 'http://b:2'],
+      llmApiKey: 'sk-secret',
+    });
+    expect(settings.llmEndpoints).toEqual([
+      { url: 'http://a:1', apiKey: 'sk-secret' },
+      { url: 'http://b:2', apiKey: 'sk-secret' },
+    ]);
+    expect(Object.hasOwn(settings, 'llmApiKey')).toBe(false);
+  });
+
+  it('does not overwrite a per-endpoint key that already exists (post-migration data.json)', () => {
+    const settings = mergeStoredSettings({
+      llmEndpoints: [{ url: 'http://a:1', apiKey: 'own-key' }],
+      llmApiKey: 'stale-global',
+    });
+    expect(settings.llmEndpoints).toEqual([{ url: 'http://a:1', apiKey: 'own-key' }]);
+  });
+
+  it('ignores an empty/whitespace legacy global key', () => {
+    const settings = mergeStoredSettings({ llmEndpoints: ['http://a:1'], llmApiKey: '   ' });
+    expect(settings.llmEndpoints).toEqual([{ url: 'http://a:1' }]);
   });
 
   it('merges defaults with a raw blob that has no legacy field', () => {
     const settings = mergeStoredSettings({ missionFolder: 'Custom/' });
     expect(settings.missionFolder).toBe('Custom/');
     expect(settings.llmEndpoints).toEqual([]);
-    expect(Object.hasOwn(settings, 'llmEndpoint')).toBe(false);
   });
 
   it('handles a missing or null blob by falling back to defaults', () => {
@@ -82,11 +97,6 @@ describe('mergeStoredSettings', () => {
   });
 
   it('gives each merge its own uiCollapsed object, not a shared reference to the default', () => {
-    // Regression: {...DEFAULT_SETTINGS} only shallow-copies, so when data.json has no
-    // uiCollapsed, `rest.uiCollapsed` is undefined and the merge used to fall through to
-    // DEFAULT_SETTINGS.uiCollapsed itself (the same object, by reference) for every call.
-    // A section toggle then wrote straight into the module-wide DEFAULT_SETTINGS constant,
-    // and every other settings instance loaded afterwards inherited that stray value.
     const a = mergeStoredSettings({});
     const b = mergeStoredSettings({});
     a.uiCollapsed.cipher = true;
@@ -94,12 +104,18 @@ describe('mergeStoredSettings', () => {
     expect(DEFAULT_SETTINGS.uiCollapsed).toEqual({});
   });
 
-  it('defaults the paused-banner threshold to five minutes', () => {
-    expect(DEFAULT_SETTINGS.pausedBannerMinutes).toBe(5);
-  });
-
   it('keeps a stored paused-banner threshold, including 0 (disabled)', () => {
     expect(mergeStoredSettings({ pausedBannerMinutes: 0 }).pausedBannerMinutes).toBe(0);
     expect(mergeStoredSettings({ pausedBannerMinutes: 12 }).pausedBannerMinutes).toBe(12);
+  });
+
+  it('falls back to the single/empty path instead of throwing on a non-array llmEndpoints', () => {
+    // Regression: a hand-edited or corrupted data.json can have llmEndpoints be any JSON value.
+    // The vendored kit's migrateEndpointList only guards `list && list.length`, which lets a
+    // non-empty string through to .map — that threw and took the whole plugin down with
+    // "failed to load plugin" on the next onload.
+    expect(mergeStoredSettings({ llmEndpoints: 'http://x:1' }).llmEndpoints).toEqual([]);
+    expect(mergeStoredSettings({ llmEndpoint: 'http://legacy:1', llmEndpoints: 'http://x:1' }).llmEndpoints)
+      .toEqual([{ url: 'http://legacy:1' }]);
   });
 });

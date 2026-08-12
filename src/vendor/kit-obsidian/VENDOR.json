@@ -1,7 +1,7 @@
 {
   "source": "obsidian-kit",
-  "version": "0.14.0",
-  "sha": "644603c",
-  "vendored": "obsidian/clock.ts, obsidian/collapsible.ts",
-  "note": "Verbatim snapshot. Never hand-edit. Re-copy from obsidian-kit to update. Umgezogen aus ../kit/ (2026-07-28, drift-audit, kit-obsidian-Ablagekonvention seit 2026-07-27). collapsible.ts hat keinen Consumer in src/, wird aber in test/vendorKit.test.ts geprüft."
+  "version": "0.26.0",
+  "sha": "2a7b5d7",
+  "vendored": "obsidian/clock.ts, obsidian/collapsible.ts, obsidian/endpoint-list.ts, obsidian/model-picker.ts",
+  "note": "Verbatim snapshot. Never hand-edit. Re-copy from obsidian-kit to update. collapsible.ts has no consumer in src/, checked by test/vendorKit.test.ts only. endpoint-list.ts and model-picker.ts carry ONE mechanical deviation from verbatim: kit-internal imports of ../pure/* are rewritten to ../kit/* to match this repo's vendor layout (obsidian-kit's src/obsidian + src/pure become kit-obsidian + kit here). Reproduce that rewrite on every re-vendor; nothing else may differ. Same fix precedented in markdown-presentation's VENDOR.json at the same sha."
 }

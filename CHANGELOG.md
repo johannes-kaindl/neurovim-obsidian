@@ -5,6 +5,18 @@ All notable changes to this project are documented here. Format loosely follows
 
 ## [Unreleased]
 
+### Changed
+- CIPHER endpoint settings: each endpoint in the fallback list can now carry its own API key
+  and model override, instead of one API key shared by every endpoint. Existing configurations
+  migrate automatically — a previously-set API key is applied to every endpoint on first load
+  after upgrading.
+- A per-endpoint model override alone is enough to enable the CIPHER uplink — the global model
+  field no longer has to be filled in as well. It stays the fallback for endpoints without an
+  override, and an endpoint with neither still counts as unconfigured.
+- Saving settings now takes effect on the next CIPHER request instead of after an Obsidian
+  restart: an edited API key or model override no longer keeps serving the previously resolved
+  endpoint configuration.
+
 ## [0.7.4] — 2026-07-29
 
 ### Changed
