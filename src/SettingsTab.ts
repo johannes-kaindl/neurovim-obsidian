@@ -4,6 +4,7 @@ import type NeuroVimPlugin from './main';
 import { buildEndpointList, type EndpointListStrings } from './vendor/kit-obsidian/endpoint-list';
 import { createModelListCache } from './vendor/kit/model-list-cache';
 import { effectiveModel, resolveActiveEndpointConfig, type EndpointConfig } from './vendor/kit/endpoint_config';
+import { normalizeEndpoint } from './vendor/kit/endpoint';
 import type { EndpointStatus } from './vendor/kit/endpoint_diagnostics';
 import { endpointStatusEn, endpointWarningEn } from './llm/endpointText';
 import { probeEndpoint } from './llm/endpointProbe';
@@ -45,8 +46,8 @@ export class NeuroVimSettingTab extends PluginSettingTab {
   /** Model lists per endpoint + generation counter. Belongs to the lifetime of the
    *  settings tab (survives every rebuild) — cleared in hide(). */
   private readonly modelCache = createModelListCache();
-  /** Endpoint (by normalized url) resolved to active by the last buildEndpointList reconnect —
-   *  drives both `renderContext`'s active-endpoint lookup and the row-active highlight. */
+  /** Endpoint (by normalized url) resolved to active by the last reconnect() — drives the
+   *  row-active highlight, the context line, and `renderThinking`'s effective-model lookup. */
   private activeEndpointUrl: string | null = null;
   /** Context length of the selected model in tokens, null = endpoint doesn't report it. */
   private contextLength: number | null = null;
@@ -302,11 +303,13 @@ export class NeuroVimSettingTab extends PluginSettingTab {
       get: () => this.plugin.settings.llmEndpoints,
       set: (eps) => { this.plugin.settings.llmEndpoints = eps; },
       active: () => this.activeEndpointUrl,
-      // probeEndpoint() already returns BOTH status and models in one round trip. buildEndpointList
-      // calls .probe() (status icon) and .listModels() (model dropdown, via the cache) as two
-      // separate calls on the object this factory returns — without memoizing here, each row would
-      // hit the network twice for what is actually one probe. clientFor(cfg) is called once per row
-      // per render, so a closure-scoped memo is enough; no need for anything longer-lived.
+      // probeEndpoint() already returns BOTH status and models in one round trip, so a client
+      // handed out here memoizes its single in-flight probe and serves .probe()/.listModels()
+      // from it. What that saves is precise: buildEndpointList calls clientFor(cfg) TWICE per row
+      // (once for the model-list cache, once for the status icon) and each call gets its own fresh
+      // closure — the memo does NOT dedupe across those two. It dedupes INSIDE the cache's load(),
+      // which calls listModels() on the client and then, when the list comes back empty, probe()
+      // on that same object; without the memo that pair would be two round trips.
       clientFor: (cfg: EndpointConfig) => {
         let inFlight: ReturnType<typeof probeEndpoint> | null = null;
         const probeOnce = (): ReturnType<typeof probeEndpoint> => (inFlight ??= probeEndpoint(cfg));
@@ -341,7 +344,21 @@ export class NeuroVimSettingTab extends PluginSettingTab {
 
   private renderThinking = (setting: Setting): void => {
     const host = this.hostFor(setting);
-    const think = thinkToggleState(this.plugin.settings.llmModel, this.plugin.settings.llmSuppressThinking);
+    // The toggle must reason about the model the REQUEST will use: main.ts asks with
+    // effectiveModel(endpoint, llmModel), so a per-endpoint override — not the global model —
+    // decides whether the model is an always-on thinker. Look the active entry up FRESH in the
+    // list (the kit's own applyRole does the same, for the same reason: after a model commit
+    // only the list carries the new value) and compare normalized urls, since activeEndpointUrl
+    // comes back normalized from the resolver while the stored entry keeps whatever was typed.
+    // No active endpoint (nothing reachable, or the probe hasn't landed yet) → the global model,
+    // exactly as before.
+    const active = this.plugin.settings.llmEndpoints.find(
+      (ep) => normalizeEndpoint(ep.url) === this.activeEndpointUrl,
+    );
+    const model = active
+      ? effectiveModel(active, this.plugin.settings.llmModel)
+      : this.plugin.settings.llmModel;
+    const think = thinkToggleState(model, this.plugin.settings.llmSuppressThinking);
     new Setting(host)
       .setName('Model thinking')
       .setDesc(think.desc)

@@ -8,6 +8,7 @@ const MSGS = [{ role: 'user' as const, content: 'q' }];
 /** Node's own timers — CipherClient's default clock uses `window`, which
  *  doesn't exist in this Vitest node environment. */
 const fakeClock: ClockPort = {
+  now: () => 0,
   setTimeout: (fn, ms) => setTimeout(fn, ms) as unknown as number,
   clearTimeout: (id) => clearTimeout(id as unknown as NodeJS.Timeout),
 };

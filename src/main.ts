@@ -259,7 +259,17 @@ export default class NeuroVimPlugin extends Plugin {
     return null;
   }
 
-  async saveSettings(): Promise<void> { await this.persist(); this.repaint(); }
+  /** Every settings write goes through here — the settings tab's declarative controls, the
+   *  kit's endpoint-list commits and the thinking toggle all call it. The resolver caches the
+   *  WHOLE EndpointConfig (url + per-endpoint key + model override), so a saved edit to a key
+   *  or a model would otherwise not reach the next CIPHER request: the only other invalidation
+   *  is a `kind === 'network'` stream failure, and a 401 or a wrong-model answer is an `http`
+   *  failure, not a network one — the stale config would survive until Obsidian restarts. */
+  async saveSettings(): Promise<void> {
+    this.endpointResolver.invalidate();
+    await this.persist();
+    this.repaint();
+  }
 
   /** Persist PluginData + settings under one data.json blob. */
   private async persist(): Promise<void> {

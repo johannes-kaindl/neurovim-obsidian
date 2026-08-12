@@ -26,6 +26,23 @@ describe('LLM settings', () => {
     expect(isLlmConfigured({ llmEndpoints: [{ url: 'http://localhost:1234' }], llmModel: 'qwen3' })).toBe(true);
   });
 
+  it('counts a per-endpoint model override as configured, without any global model', () => {
+    // Regression: gating on a non-empty GLOBAL llmModel locked out exactly the setup the
+    // per-endpoint override exists for — the endpoint knows its model, the request would go
+    // through (main.ts sends effectiveModel(ep, llmModel)), yet CIPHER read as "off".
+    expect(isLlmConfigured({
+      llmEndpoints: [{ url: 'http://localhost:1234', model: 'qwen3' }],
+      llmModel: '',
+    })).toBe(true);
+  });
+
+  it('stays unconfigured when an endpoint has neither an override nor a global model', () => {
+    expect(isLlmConfigured({
+      llmEndpoints: [{ url: 'http://a:1', model: 'qwen3' }, { url: 'http://b:2' }],
+      llmModel: '',
+    })).toBe(false);
+  });
+
   it('defaults the paused-banner threshold to five minutes', () => {
     expect(DEFAULT_SETTINGS.pausedBannerMinutes).toBe(5);
   });

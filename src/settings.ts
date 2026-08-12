@@ -1,5 +1,5 @@
 import type { HudPlacement } from './hudPlacement';
-import { migrateEndpointList, type EndpointConfig } from './vendor/kit/endpoint_config';
+import { effectiveModel, migrateEndpointList, type EndpointConfig } from './vendor/kit/endpoint_config';
 
 export type ColorScheme = 'crt' | 'native';
 
@@ -35,8 +35,14 @@ export const DEFAULT_SETTINGS: VimDojoSettings = {
   uiCollapsed: {},
 };
 
+/** The CIPHER feature is on when there is at least one endpoint and EVERY endpoint would
+ *  resolve to a non-empty model. Gating on the global `llmModel` alone locked out the setup
+ *  the per-endpoint override exists for: a single endpoint carrying its own model and no
+ *  global default is fully configured, yet read as "off". A strict generalization of the old
+ *  check — with no overrides in play, `effectiveModel` is the global model for every entry. */
 export function isLlmConfigured(s: Pick<VimDojoSettings, 'llmEndpoints' | 'llmModel'>): boolean {
-  return s.llmEndpoints.length > 0 && s.llmModel.trim() !== '';
+  return s.llmEndpoints.length > 0
+    && s.llmEndpoints.every((ep) => effectiveModel(ep, s.llmModel).trim() !== '');
 }
 
 /** Applies a legacy GLOBAL API key onto every migrated endpoint that doesn't already carry

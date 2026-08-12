@@ -330,9 +330,6 @@
 .nv-crt .nv-uplink-error .nv-uplink-text { color: var(--nv-danger); }
 .nv-native .nv-uplink-error .nv-uplink-text { color: var(--text-error); }
 
-/* ── Settings: CIPHER uplink diagnostics ─────────────────────── */
-.nv-setting-warning { color: var(--text-warning, #b58900); font-size: 0.85em; }
-
 /* ── Hub tabs ─────────────────────────────────────────────────── */
 .nv-tabs { display: flex; gap: 4px; margin: 0.5em 0 1em; border-bottom: 1px solid var(--nv-border-soft); }
 /* EXPERIMENT (2026-07-15): !important → maximum real-DOM-chain specificity
@@ -397,9 +394,6 @@
 .okit-collapsible-chevron { display: inline-flex; color: var(--text-muted); }
 .okit-collapsible-body { padding-top: var(--size-4-2); }
 .okit-collapsible-body.is-collapsed { display: none; }
-
-.nv-endpoint-active { color: var(--text-success); font-weight: var(--font-semibold); }
-.nv-endpoint-row { color: var(--text-muted); }
 
 /* obsidian-kit buildEndpointList — vendored, do not hand-edit */
 
