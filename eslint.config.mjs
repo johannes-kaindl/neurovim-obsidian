@@ -1,49 +1,30 @@
-// Obsidian-Guideline-Gate (PROF-OBS-08): type-checked gegen ECHTE obsidian-Typen.
-// Laeuft additiv zu typecheck/test — `npm run lint` ist mit `--max-warnings 0` scharf
-// gestellt, weil eslint-plugin-obsidianmd die store-relevanten Guideline-Regeln
-// ueberwiegend als `warning` fuehrt: ohne das Flag waere das Gate gruen und der
-// Community-Store-Scanner meldete denselben Befund erst im Review.
-// KEIN Inline-`// eslint-disable` — genuin unvermeidbare Ausnahmen NUR als Override
-// unten, mit Begruendung (Review verbietet Inline-disables).
-import tseslint from "typescript-eslint";
+// Kanonischer Kern — Quelle: obsidian-plugins/tools/release-template/eslint.config.mjs.
+// NIE von Hand editieren: tools/template_drift_check.py prueft Byte-Gleichheit gegen das
+// Template; Aenderungen passieren IM Template und rollen per Vendoring in alle Repos.
+//
+// Das ist der lokale Spiegel des Community-Store-Scanners — dieselbe Regelquelle
+// (eslint-plugin-obsidianmd), damit `npm run lint` == Store-Scan gilt. Repo-eigene
+// Abweichungen (parserOptions aufs richtige tsconfig, begruendete file-scoped
+// Overrides) gehoeren AUSSCHLIESSLICH nach ./eslint.overrides.mjs. Inline-
+// `eslint-disable` blockt scripts/check-no-inline-disables.mjs im lint-Script.
 import obsidianmd from "eslint-plugin-obsidianmd";
+import overrides from "./eslint.overrides.mjs";
 
-export default tseslint.config(
-  { ignores: ["main.js", "node_modules/**", "test/**", "*.mjs", "*.config.*"] },
-  ...tseslint.configs.recommendedTypeChecked,
+export default [
+  {
+    ignores: [
+      "main.js",
+      "node_modules/**",
+      "coverage/**",
+      "tests/**",
+      "docs/**",
+      "scripts/**",
+      ".remember/**",
+      "*.config.mjs",
+      "*.config.ts",
+      "*.config.js",
+    ],
+  },
   ...obsidianmd.configs.recommended,
-  {
-    files: ["src/**/*.ts", "src/**/*.tsx"],
-    languageOptions: {
-      parserOptions: {
-        project: ["./tsconfig.json"],
-        tsconfigRootDir: import.meta.dirname,
-      },
-    },
-  },
-
-  // --- Overrides (mit Begruendung) -----------------------------------------
-  {
-    rules: {
-      // `obsidianmd/ui/sentence-case` ist fuer dieses Plugin repo-weit nicht erfuellbar,
-      // und zwar aus drei unabhaengigen Gruenden — file-scoped waere Etikettenschwindel,
-      // weil jede UI-Datei mindestens einen davon trifft:
-      //  1. EIGENNAMEN: die Regel verlangt 'Neurovim' statt 'NeuroVim', 'vim restored'
-      //     statt 'Vim restored' und 'Qwen3-8b' statt der Modell-ID 'qwen3-8b'. Alle drei
-      //     Umschreibungen waeren schlicht Falschschreibungen.
-      //  2. URLS: der Endpoint-Placeholder 'http://localhost:1234' wuerde zu
-      //     'HTTP://localhost:1234'.
-      //  3. CRT-AESTHETIK: die Terminal-Notices ('>_ MISSION PAUSED …') sind die bewusste
-      //     comply-or-explain-Ausnahme dieses Plugins von UI-STANDARD.md (Spiel-Oberflaeche
-      //     != Produktiv-Panel, im Cockpit dokumentiert).
-      // Der Store-Scanner schaltet die Regel NICHT ab — die Befunde koennen im Review
-      // als Warning auftauchen und sind dort mit denselben drei Punkten zu beantworten.
-      "obsidianmd/ui/sentence-case": "off",
-    },
-  },
-);
-// Kein Override fuer `src/vendor/**`: die 9 `no-base-to-string`-Befunde des vendorten
-// Content-Snapshots sind an der Wurzel behoben (Monorepo `bdefaaa`, Helper `asString`)
-// statt hier stillgestellt. Der Vendor-Code laeuft damit unter denselben scharfen Regeln
-// wie eigener Code — bricht der Lint nach einem `npm run vendor`, gehoert der Fix ins
-// Monorepo und danach ein erneutes Vendoring, nie ein Override hier.
+  ...overrides,
+];

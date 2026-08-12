@@ -9,7 +9,7 @@
     "build": "node esbuild.config.mjs production",
     "dev": "node esbuild.config.mjs",
     "typecheck": "tsc --noEmit",
-    "lint": "eslint src --max-warnings 0",
+    "lint": "node scripts/check-no-inline-disables.mjs && eslint src --max-warnings 0",
     "test": "node scripts/check-no-abs-paths.mjs && vitest run",
     "test:watch": "vitest",
     "gate": "npm run lint && npm run typecheck && npm test && npm run build",
