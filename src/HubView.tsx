@@ -2,7 +2,7 @@ import { ItemView, WorkspaceLeaf } from 'obsidian';
 import { render, h, Fragment } from 'preact';
 import { ProgressionEngine, CHEATSHEET } from '@neurovim/core';
 import type { MissionSummary, PluginData } from '@neurovim/core';
-import { getWelcome } from '@neurovim/content';
+import { getWelcome, listLore } from '@neurovim/content';
 import { MissionHud } from './MissionHud';
 import type { HudRenderProps } from './HudMount';
 import type { ColorScheme } from './settings';
@@ -11,6 +11,7 @@ import { effectiveTab, type HubTab } from './hubTabs';
 import { nextMission } from './nextMission';
 import { parseWelcomeBlocks } from './welcomeBlocks';
 import { filterCheatsheet } from './filterCheatsheet';
+import { buildArchive } from './lore/loreIndex';
 
 export const VIEW_TYPE_NEUROVIM = 'neurovim-hub';
 
@@ -26,15 +27,21 @@ export interface HubProps {
   onSelectTab: (t: HubTab) => void;
   guideQuery: string;
   onGuideQuery: (q: string) => void;
+  /** Opens the reader for one artifact. Title is passed through so a failed
+   *  lookup still has a heading to show. */
+  onOpenLore: (id: string, title: string) => void;
   scheme: ColorScheme;
 }
 
 const WELCOME_BLOCKS = parseWelcomeBlocks(getWelcome());
+/** Static bundle data — pulled once, not per repaint (the hub repaints every 500ms). */
+const LORE = listLore();
 
 function TabBar(p: { active: HubTab; uplinkVisible: boolean; onSelect: (t: HubTab) => void }) {
   const tabs: { id: HubTab; label: string }[] = [
     { id: 'nexus', label: 'NEXUS' },
     { id: 'missions', label: 'MISSIONS' },
+    { id: 'archive', label: 'ARCHIVE' },
     { id: 'guide', label: 'GUIDE' },
     ...(p.uplinkVisible ? [{ id: 'uplink' as HubTab, label: 'UPLINK' }] : []),
   ];
@@ -129,6 +136,34 @@ function GuideTab(p: { query: string; onQuery: (q: string) => void }) {
   );
 }
 
+function ArchiveTab(p: HubProps) {
+  const sections = buildArchive(LORE, p.data.unlocked);
+  return (
+    <div class="nv-archive">
+      {sections.map((s) => (
+        <div class="nv-archive-group">
+          <div class="nv-archive-label">{s.label}</div>
+          {s.entries.map((e) =>
+            e.locked ? (
+              <div class="nv-card is-locked" aria-disabled="true">
+                <span class="nv-card-title">🔒 {e.title}</span>
+                <span class="nv-card-badge">LVL {e.unlockLevel}</span>
+                <span class="nv-card-summary">Locked — reach level {e.unlockLevel} to recover.</span>
+              </div>
+            ) : (
+              <button class="nv-card" onClick={() => p.onOpenLore(e.id, e.title)}>
+                <span class="nv-card-title">{e.title}</span>
+                {e.unlockLevel != null && <span class="nv-card-badge">LVL {e.unlockLevel}</span>}
+                {e.summary && <span class="nv-card-summary">{e.summary}</span>}
+              </button>
+            ),
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function Hub(p: HubProps) {
   const tab = effectiveTab(p.activeTab, p.cipher !== null);
   return (
@@ -138,6 +173,7 @@ function Hub(p: HubProps) {
       <TabBar active={tab} uplinkVisible={p.cipher !== null} onSelect={p.onSelectTab} />
       {tab === 'nexus' && <NexusTab {...p} />}
       {tab === 'missions' && <MissionsTab {...p} />}
+      {tab === 'archive' && <ArchiveTab {...p} />}
       {tab === 'guide' && <GuideTab key="guide" query={p.guideQuery} onQuery={p.onGuideQuery} />}
       {tab === 'uplink' && p.cipher && <CipherChat key="cipher-chat" {...p.cipher} />}
     </div>

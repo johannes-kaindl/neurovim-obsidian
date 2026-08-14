@@ -5,6 +5,12 @@ All notable changes to this project are documented here. Format loosely follows
 
 ## [Unreleased]
 
+### Added
+- **THE ARCHIVE** — new hub tab browsing the story layer: 9 loot artifacts and 14
+  intercepted fragments, read in a modal with rendered markdown. Loot unlocks with
+  your level; fragments are open from the start. The unlock state was already being
+  tracked — this makes it visible.
+
 ## [0.7.5] — 2026-08-12
 
 ### Changed

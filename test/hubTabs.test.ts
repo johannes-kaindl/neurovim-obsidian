@@ -9,4 +9,7 @@ describe('effectiveTab', () => {
   it('falls back to nexus when uplink is selected but not visible', () => {
     expect(effectiveTab('uplink', false)).toBe('nexus');
   });
+  it('keeps archive selected — it is always available', () => {
+    expect(effectiveTab('archive', false)).toBe('archive');
+  });
 });

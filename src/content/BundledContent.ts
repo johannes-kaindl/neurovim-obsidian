@@ -1,4 +1,4 @@
-import { listMissions, getMission } from '@neurovim/content';
+import { listMissions, getMission, getLore } from '@neurovim/content';
 import type { ContentPort, MissionSummary, MissionDoc, LoreDoc } from '@neurovim/core';
 
 /** ContentPort backed by the vendored, bundled @neurovim/content (NOT the vault). */
@@ -9,7 +9,7 @@ export class BundledContent implements ContentPort {
   async getMission(id: string): Promise<MissionDoc> {
     return getMission(id);
   }
-  async getLore(_id: string): Promise<LoreDoc> {
-    throw new Error('Lore is not part of the MVP');
+  async getLore(id: string): Promise<LoreDoc> {
+    return getLore(id);
   }
 }

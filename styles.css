@@ -463,3 +463,51 @@
   flex: 1 1 auto;
   min-width: 0;
 }
+
+/* ── ARCHIVE ─────────────────────────────────────────────────────────────
+   Cards mirror .nv-mission (see above) including its three-class specificity:
+   the CRT scheme has to win against theme defaults on real ancestor chains. */
+.nv-archive { display: flex; flex-direction: column; gap: 14px; }
+.nv-archive-group { display: flex; flex-direction: column; gap: 6px; }
+.nv-archive-label {
+  color: var(--nv-accent);
+  font-size: 0.78em;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.nv-root .nv-nexus .nv-card {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 8px 10px;
+  text-align: left;
+  background: var(--nv-panel);
+  border: 1px solid var(--nv-border);
+  border-radius: 4px;
+  cursor: pointer;
+  height: auto;
+}
+.nv-root .nv-nexus .nv-card:hover:not(.is-locked) { border-color: var(--nv-accent); }
+.nv-card.is-locked { opacity: 0.58; cursor: not-allowed; }
+.nv-root .nv-nexus .nv-card-title {
+  color: var(--nv-text);
+  font-weight: 600;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.nv-card-badge { color: var(--nv-accent); font-size: 0.75em; letter-spacing: 0.06em; }
+.nv-card-summary {
+  color: var(--nv-text-dim);
+  font-size: 0.85em;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+/* Reader modal — mirrors .nv-briefing above */
+.nv-lore-title {
+  color: var(--nv-accent);
+  margin-bottom: 10px;
+  letter-spacing: 0.04em;
+}
+.nv-lore-body { color: var(--nv-text); }
+.nv-lore-actions { display: flex; justify-content: flex-end; margin-top: 14px; }

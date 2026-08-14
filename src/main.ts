@@ -19,6 +19,7 @@ import { NeuroVimSettingTab } from './SettingsTab';
 import { buildResultView } from './result/resultView';
 import { ResultModal } from './result/ResultModal';
 import { BriefingModal } from './briefing/BriefingModal';
+import { LoreModal } from './lore/LoreModal';
 import { ChatSession } from './llm/chatSession';
 import { CipherClient, type StreamOutcome } from './llm/CipherClient';
 import { XhrSseTransport } from './llm/XhrSseTransport';
@@ -275,6 +276,18 @@ export default class NeuroVimPlugin extends Plugin {
   private async persist(): Promise<void> {
     const blob: StoredBlob = { ...this.data, __settings: this.settings };
     await this.saveData(blob);
+  }
+
+  /** Opens one archive artifact. Title comes from the index the click originated in,
+   *  so a lookup failure still yields a titled modal instead of a dead end. */
+  private async openLore(id: string, title: string): Promise<void> {
+    let body = '';
+    try {
+      body = (await this.content.getLore(id)).body;
+    } catch {
+      body = ''; // LoreModal renders "_No data on file._"
+    }
+    new LoreModal(this.app, id, title, body, this.settings.colorScheme).open();
   }
 
   private async handleStart(id: string): Promise<void> {
@@ -586,6 +599,7 @@ export default class NeuroVimPlugin extends Plugin {
         onSelectTab: (t) => { this.hubTab = t; this.repaint(); },
         guideQuery: this.guideQuery,
         onGuideQuery: (q) => { this.guideQuery = q; this.repaint(); },
+        onOpenLore: (id, title) => void this.openLore(id, title),
         scheme: this.settings.colorScheme,
       });
     }
