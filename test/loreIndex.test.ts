@@ -52,3 +52,20 @@ describe('buildArchive', () => {
     expect(out[0].kind).toBe('fragment');
   });
 });
+
+describe('buildArchive — section counts', () => {
+  it('reports how many of a section are open, so a collapsed header still informs', () => {
+    const [loot] = buildArchive(
+      [lore('LOOT-01', 'loot', 2), lore('LOOT-02', 'loot', 3), lore('LOOT-03', 'loot', 4)],
+      ['LOOT-01'],
+    );
+    expect(loot.total).toBe(3);
+    expect(loot.openCount).toBe(1);
+  });
+
+  it('counts every fragment as open — fragments never gate on progress', () => {
+    const [frag] = buildArchive([lore('FRAGMENT-01', 'fragment'), lore('FRAGMENT-02', 'fragment')], []);
+    expect(frag.openCount).toBe(frag.total);
+    expect(frag.total).toBe(2);
+  });
+})

@@ -233,7 +233,7 @@
    a LIGHT theme that renders dark-on-dark → unreadable. Remap the theme vars to
    the CRT palette for the rendered content so it reads as dark-mode. Custom
    props set on this closer ancestor win over Obsidian's :root/body defaults. */
-.nv-briefing-modal.nv-crt .nv-briefing-body {
+.modal.nv-crt .nv-md-surface {
   --text-normal: var(--nv-text);
   --text-muted: var(--nv-text-dim);
   --text-faint: var(--nv-border-soft);
@@ -250,7 +250,7 @@
    (darken keeps the darker pixel) — no colour override survives it. Force
    normal blending, then paint the CRT palette: green title/icon via
    --callout-color, dark panel bg, light body — monochrome-green terminal look. */
-.nv-briefing-modal.nv-crt .nv-briefing-body .callout {
+.modal.nv-crt .nv-md-surface .callout {
   mix-blend-mode: normal;
   --callout-color: 69, 255, 138;
   background-color: var(--nv-panel);
@@ -260,28 +260,28 @@
    content with rules MORE SPECIFIC than our CSS-variable remap above — the remap
    alone cannot win. On a fixed-dark container text must be forced per element:
    theme-agnostic means theme-agnostic. (Sibling lesson to the mix-blend-mode fix.) */
-.nv-briefing-modal.nv-crt .nv-briefing-body p,
-.nv-briefing-modal.nv-crt .nv-briefing-body li,
-.nv-briefing-modal.nv-crt .nv-briefing-body em,
-.nv-briefing-modal.nv-crt .nv-briefing-body strong,
-.nv-briefing-modal.nv-crt .nv-briefing-body blockquote,
-.nv-briefing-modal.nv-crt .nv-briefing-body blockquote p,
-.nv-briefing-modal.nv-crt .nv-briefing-body .callout-content,
-.nv-briefing-modal.nv-crt .nv-briefing-body .callout-content p,
-.nv-briefing-modal.nv-crt .nv-briefing-body .callout-content em {
+.modal.nv-crt .nv-md-surface p,
+.modal.nv-crt .nv-md-surface li,
+.modal.nv-crt .nv-md-surface em,
+.modal.nv-crt .nv-md-surface strong,
+.modal.nv-crt .nv-md-surface blockquote,
+.modal.nv-crt .nv-md-surface blockquote p,
+.modal.nv-crt .nv-md-surface .callout-content,
+.modal.nv-crt .nv-md-surface .callout-content p,
+.modal.nv-crt .nv-md-surface .callout-content em {
   color: var(--nv-text);
 }
-.nv-briefing-modal.nv-crt .nv-briefing-body h1,
-.nv-briefing-modal.nv-crt .nv-briefing-body h2,
-.nv-briefing-modal.nv-crt .nv-briefing-body h3,
-.nv-briefing-modal.nv-crt .nv-briefing-body h4,
-.nv-briefing-modal.nv-crt .nv-briefing-body h5,
-.nv-briefing-modal.nv-crt .nv-briefing-body h6,
-.nv-briefing-modal.nv-crt .nv-briefing-body .callout-title,
-.nv-briefing-modal.nv-crt .nv-briefing-body .callout-title-inner {
+.modal.nv-crt .nv-md-surface h1,
+.modal.nv-crt .nv-md-surface h2,
+.modal.nv-crt .nv-md-surface h3,
+.modal.nv-crt .nv-md-surface h4,
+.modal.nv-crt .nv-md-surface h5,
+.modal.nv-crt .nv-md-surface h6,
+.modal.nv-crt .nv-md-surface .callout-title,
+.modal.nv-crt .nv-md-surface .callout-title-inner {
   color: var(--nv-accent);
 }
-.nv-briefing-modal.nv-crt .nv-briefing-body code {
+.modal.nv-crt .nv-md-surface code {
   color: var(--nv-text);
   background: var(--nv-panel);
 }
@@ -295,7 +295,20 @@
 .nv-briefing .nv-btn:hover { box-shadow: 0 0 10px var(--nv-accent); }
 /* Obsidian auto-adds a copy button to the ASCII code-block that opens every
    briefing. The briefing is read-only lore — the button is meaningless here. */
-.nv-briefing .copy-code-button { display: none; }
+/* Obsidian auto-adds a copy button to every code block. Briefings and lore are
+   read-only fiction — copying an ASCII header is meaningless, and the button
+   floats over the frame. Shared with the reader, hence .nv-md-surface. */
+.nv-md-surface .copy-code-button { display: none; }
+/* ASCII headers are drawn with box-glyphs and depend on fixed line widths. The
+   default markdown code block wraps, which snapped every frame apart in a narrow
+   modal (smoke test 2026-08-15, step 3). Scroll instead of wrapping — a broken
+   box is unreadable, a scrollbar is not. */
+.modal.nv-crt .nv-md-surface pre,
+.nv-md-surface pre {
+  white-space: pre;
+  overflow-x: auto;
+}
+.nv-md-surface pre code { white-space: pre; word-break: normal; overflow-wrap: normal; }
 
 /* ── UPLINK // CIPHER ─────────────────────────────────────────── */
 .nv-uplink { margin-top: 1.5em; border-top: 1px dashed currentColor; padding-top: 0.75em; }
@@ -331,7 +344,15 @@
 .nv-native .nv-uplink-error .nv-uplink-text { color: var(--text-error); }
 
 /* ── Hub tabs ─────────────────────────────────────────────────── */
-.nv-tabs { display: flex; gap: 4px; margin: 0.5em 0 1em; border-bottom: 1px solid var(--nv-border-soft); }
+/* Wrap instead of overflowing — the house pattern for tab/button rows, same as
+   .nv-hud-actions above. Fassung uebernommen aus vault-rag/styles.css
+   (.vault-rag-hub-tabs / .vault-rag-hub-tab), 2026-08-15: wrap + shrinkable tabs
+   + min-width:0 so a long label ellipsizes instead of forcing the row wider.
+   Without it the 5th tab (UPLINK) was simply unreachable in a narrow sidebar. */
+.nv-tabs {
+  display: flex; flex-wrap: wrap; gap: 4px; margin: 0.5em 0 1em;
+  border-bottom: 1px solid var(--nv-border-soft);
+}
 /* EXPERIMENT (2026-07-15): !important → maximum real-DOM-chain specificity
    (.nv-root .nv-nexus .nv-tabs .nv-tab = 4 classes). `background: transparent`
    had lost to Obsidian's own <button> background under a light theme (it
@@ -342,6 +363,9 @@
   background: transparent; border: none; border-bottom: 2px solid transparent;
   color: var(--nv-text-dim); font-family: inherit; font-size: 0.8em; letter-spacing: 0.12em;
   padding: 4px 8px; cursor: pointer; box-shadow: none;
+  /* min-width:0 lets a tab shrink below its label width, so the row breaks at a
+     tab boundary instead of pushing past the pane edge (vault-rag pattern). */
+  min-width: 0;
 }
 .nv-root .nv-nexus .nv-tabs .nv-tab:hover { color: var(--nv-text); }
 .nv-root .nv-nexus .nv-tabs .nv-tab.is-active { color: var(--nv-accent); border-bottom-color: var(--nv-accent); }
@@ -469,15 +493,48 @@
    the CRT scheme has to win against theme defaults on real ancestor chains. */
 .nv-archive { display: flex; flex-direction: column; gap: 14px; }
 .nv-archive-group { display: flex; flex-direction: column; gap: 6px; }
-.nv-archive-label {
+/* The group header is a <button> (collapse toggle), so it needs the same reset as
+   .nv-tab — Obsidian paints its own pill background otherwise. Three-class chain
+   for the same cascade reason as .nv-mission. */
+.nv-root .nv-nexus .nv-archive-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 2px 0;
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  height: auto;
+  text-align: left;
+  cursor: pointer;
   color: var(--nv-accent);
+  font-family: inherit;
   font-size: 0.78em;
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
+.nv-root .nv-nexus .nv-archive-label:hover { color: var(--nv-text); }
+.nv-archive-caret { font-size: 0.9em; line-height: 1; }
+/* Pushed to the far end: reads as a progress tally, not as part of the title. */
+.nv-archive-count {
+  margin-left: auto;
+  color: var(--nv-text-dim);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0;
+}
 .nv-root .nv-nexus .nv-card {
   display: flex;
   flex-direction: column;
+  /* An unlocked card is a <button>, a locked one a <div> (see HubView ArchiveTab).
+     Obsidian centres its buttons' flex items, so on the <button> variant every
+     span shrank to its text width and sat centred, while the <div> variant
+     stretched and read left — same class, two alignments (smoke test 2026-08-15,
+     step 7). text-align alone cannot fix that: the box itself was too narrow.
+     Restoring the flex default (stretch) makes both variants full-width, which is
+     what text-align: left needs to bite. Cf. .nv-mission above, which sidesteps
+     the whole issue by being a grid with explicit align-items. */
+  align-items: stretch;
   gap: 3px;
   padding: 8px 10px;
   text-align: left;
@@ -504,10 +561,26 @@
 }
 
 /* Reader modal — mirrors .nv-briefing above */
+/* The reader was built as a twin of BriefingModal but never inherited its frame
+   rules, so under the CRT scheme it stayed in the theme's colours while the hub
+   behind it was green (smoke test 2026-08-15, step 3). These four rules are the
+   briefing's, mirrored — the markdown content itself is handled by the shared
+   .nv-md-surface block above. */
+.modal.nv-lore-modal.nv-crt {
+  background: var(--nv-pane-bg); border: 1px solid var(--nv-border);
+  box-shadow: 0 0 28px rgba(0, 0, 0, 0.55);
+}
+.nv-lore-modal .modal-close-button { color: var(--nv-text-dim); }
+.nv-lore-modal .modal-close-button:hover { color: var(--nv-accent); }
 .nv-lore-title {
   color: var(--nv-accent);
+  font-family: var(--font-monospace);
+  font-weight: 700;
+  text-shadow: 0 0 8px var(--nv-accent);
   margin-bottom: 10px;
   letter-spacing: 0.04em;
 }
-.nv-lore-body { color: var(--nv-text); }
+/* Cap the height like the briefing: a Codex volume is far longer than a
+   transmission and pushed the modal past the viewport. */
+.nv-lore .nv-lore-body { color: var(--nv-text); max-height: 60vh; overflow-y: auto; }
 .nv-lore-actions { display: flex; justify-content: flex-end; margin-top: 14px; }

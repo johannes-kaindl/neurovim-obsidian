@@ -30,6 +30,11 @@ export interface HubProps {
   /** Opens the reader for one artifact. Title is passed through so a failed
    *  lookup still has a heading to show. */
   onOpenLore: (id: string, title: string) => void;
+  /** Persisted collapse state, keyed `archive:<kind>`. Lives in settings.uiCollapsed
+   *  rather than component state because the hub repaints every 500ms — local
+   *  state would snap back open on the next tick. */
+  collapsed: Record<string, boolean>;
+  onToggleCollapsed: (key: string) => void;
   scheme: ColorScheme;
 }
 
@@ -140,26 +145,47 @@ function ArchiveTab(p: HubProps) {
   const sections = buildArchive(LORE, p.data.unlocked);
   return (
     <div class="nv-archive">
-      {sections.map((s) => (
-        <div class="nv-archive-group">
-          <div class="nv-archive-label">{s.label}</div>
-          {s.entries.map((e) =>
-            e.locked ? (
-              <div class="nv-card is-locked" aria-disabled="true">
-                <span class="nv-card-title">🔒 {e.title}</span>
-                <span class="nv-card-badge">LVL {e.unlockLevel}</span>
-                <span class="nv-card-summary">Locked — reach level {e.unlockLevel} to recover.</span>
-              </div>
-            ) : (
-              <button class="nv-card" onClick={() => p.onOpenLore(e.id, e.title)}>
-                <span class="nv-card-title">{e.title}</span>
-                {e.unlockLevel != null && <span class="nv-card-badge">LVL {e.unlockLevel}</span>}
-                {e.summary && <span class="nv-card-summary">{e.summary}</span>}
-              </button>
-            ),
-          )}
-        </div>
-      ))}
+      {sections.map((s) => {
+        const key = `archive:${s.kind}`;
+        // Default is open: what the player unlocked should be visible without a
+        // click. Only an explicit collapse is remembered.
+        const isCollapsed = p.collapsed[key] === true;
+        return (
+          <div class="nv-archive-group">
+            <button
+              class="nv-archive-label"
+              aria-expanded={!isCollapsed}
+              onClick={() => p.onToggleCollapsed(key)}
+            >
+              <span class="nv-archive-caret">{isCollapsed ? '▸' : '▾'}</span>
+              <span class="nv-archive-label-text">{s.label}</span>
+              {/* The count stays visible when collapsed, so the header keeps
+                  reporting progress instead of hiding it behind a click. */}
+              <span class="nv-archive-count">
+                {s.openCount}/{s.total}
+              </span>
+            </button>
+            {!isCollapsed &&
+              s.entries.map((e) =>
+                e.locked ? (
+                  <div class="nv-card is-locked" aria-disabled="true">
+                    <span class="nv-card-title">🔒 {e.title}</span>
+                    <span class="nv-card-badge">LVL {e.unlockLevel}</span>
+                    <span class="nv-card-summary">
+                      Locked — reach level {e.unlockLevel} to recover.
+                    </span>
+                  </div>
+                ) : (
+                  <button class="nv-card" onClick={() => p.onOpenLore(e.id, e.title)}>
+                    <span class="nv-card-title">{e.title}</span>
+                    {e.unlockLevel != null && <span class="nv-card-badge">LVL {e.unlockLevel}</span>}
+                    {e.summary && <span class="nv-card-summary">{e.summary}</span>}
+                  </button>
+                ),
+              )}
+          </div>
+        );
+      })}
     </div>
   );
 }

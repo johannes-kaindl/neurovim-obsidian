@@ -10,6 +10,20 @@ All notable changes to this project are documented here. Format loosely follows
   intercepted fragments, read in a modal with rendered markdown. Loot unlocks with
   your level; fragments are open from the start. The unlock state was already being
   tracked — this makes it visible.
+- Archive groups collapse, and their headers show how many artifacts of the group are
+  readable (`1/9`) — so a long loot list no longer buries the fragments below it. The
+  collapsed state is remembered.
+
+### Fixed
+- Hub tabs wrap to a second row instead of running off the pane edge. In a narrow
+  sidebar the last tab (UPLINK) was unreachable.
+- The lore reader now follows the CRT colour scheme. It was built as a twin of the
+  briefing modal but never inherited its palette rules, so artifacts rendered in the
+  theme's colours while the hub behind them was green.
+- ASCII headers in the reader scroll instead of wrapping — wrapping broke every box
+  frame apart.
+- Archive cards align consistently. Unlocked cards are `<button>`s and locked ones
+  `<div>`s; Obsidian centres button content, so the two variants disagreed.
 
 ## [0.7.5] — 2026-08-12
 

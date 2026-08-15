@@ -600,6 +600,15 @@ export default class NeuroVimPlugin extends Plugin {
         guideQuery: this.guideQuery,
         onGuideQuery: (q) => { this.guideQuery = q; this.repaint(); },
         onOpenLore: (id, title) => void this.openLore(id, title),
+        collapsed: this.settings.uiCollapsed,
+        onToggleCollapsed: (key) => {
+          this.settings.uiCollapsed = {
+            ...this.settings.uiCollapsed,
+            [key]: !this.settings.uiCollapsed[key],
+          };
+          this.repaint();
+          void this.saveSettings();
+        },
         scheme: this.settings.colorScheme,
       });
     }

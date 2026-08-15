@@ -24,7 +24,10 @@ export class LoreModal extends Modal {
       cls: 'nv-lore-title',
       text: `>_ ${this.artifactId} — ${this.artifactTitle}`,
     });
-    const md = contentEl.createDiv({ cls: 'nv-lore-body' });
+    // nv-md-surface: shared with BriefingModal — see styles.css § Rendered markdown.
+    // Without it the reader rendered in the theme's colours instead of the CRT
+    // palette, and the ASCII headers wrapped (smoke test 2026-08-15, step 3).
+    const md = contentEl.createDiv({ cls: 'nv-lore-body nv-md-surface' });
     // Empty body is the fallback for a missing artifact — see main.ts openLore().
     void MarkdownRenderer.render(
       this.app,

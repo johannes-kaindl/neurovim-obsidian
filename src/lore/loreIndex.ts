@@ -14,6 +14,11 @@ export interface ArchiveSection {
   kind: 'loot' | 'fragment';
   label: string;
   entries: ArchiveEntry[];
+  /** Artifacts in this section. */
+  total: number;
+  /** How many of them are readable. Shown in the header so a collapsed section
+   *  still reports progress instead of hiding it. */
+  openCount: number;
 }
 
 /** Section order is the reading order of the archive. REF is absent on purpose:
@@ -30,10 +35,8 @@ const SECTIONS: { kind: 'loot' | 'fragment'; label: string }[] = [
  */
 export function buildArchive(items: LoreSummary[], unlocked: string[]): ArchiveSection[] {
   const owned = new Set(unlocked);
-  return SECTIONS.map(({ kind, label }) => ({
-    kind,
-    label,
-    entries: items
+  return SECTIONS.map(({ kind, label }) => {
+    const entries = items
       .filter((it) => it.kind === kind)
       .map((it) => ({
         id: it.id,
@@ -41,6 +44,13 @@ export function buildArchive(items: LoreSummary[], unlocked: string[]): ArchiveS
         summary: it.summary,
         locked: kind === 'loot' && !owned.has(it.id),
         unlockLevel: it.unlockLevel,
-      })),
-  })).filter((s) => s.entries.length > 0);
+      }));
+    return {
+      kind,
+      label,
+      entries,
+      total: entries.length,
+      openCount: entries.filter((e) => !e.locked).length,
+    };
+  }).filter((s) => s.entries.length > 0);
 }
