@@ -14,6 +14,8 @@ An AI handler named **CIPHER** assigns you "missions" that are really Vim exerci
 restore CORP-corrupted transmissions, beat the clock, earn XP. You learn Vim almost by
 accident; the story is the hook.
 
+<p align="center"><img src="https://git.jkaindl.de/jkaindl/neurovim-obsidian/raw/branch/main/docs/images/hero.png" width="820" alt="A NeuroVim mission open in an Obsidian note: the corrupted transmission in the editor with Vim mode active, and the mission HUD showing elapsed time, keystrokes and line progress"></p>
+
 NeuroVim originally started life as an Obsidian plugin, then grew into a multi-target
 game ([`neurovim-standalone`](https://git.jkaindl.de/jkaindl/NeuroVIM): web + desktop +
 Obsidian). **vim-dojo** brings it back home as a first-class, standalone Obsidian plugin.
@@ -36,6 +38,10 @@ Obsidian). **vim-dojo** brings it back home as a first-class, standalone Obsidia
 - **CIPHER uplink** (optional) — in-character Vim advice and post-run debriefs from any
   OpenAI-compatible LLM endpoint, including fully local ones.
 - **Cheatsheet** — a searchable Vim reference built into the pane.
+
+<img src="https://git.jkaindl.de/jkaindl/neurovim-obsidian/raw/branch/main/docs/images/briefing.png" width="820" alt="The mission briefing: CIPHER explaining the job in character before the mission starts">
+
+<img src="https://git.jkaindl.de/jkaindl/neurovim-obsidian/raw/branch/main/docs/images/missions.png" width="820" alt="The MISSIONS tab: completed missions marked with a check, available ones showing their XP reward, later ones still locked">
 
 ## Requirements
 
@@ -123,6 +129,12 @@ each section remembers whether you left it open or closed.
   answering. Models that always think (gpt-oss/harmony) are detected and the toggle
   disables itself with an explanation, since it can't turn those off anyway.
 - **API key** — optional, for endpoints that require one.
+
+<img src="https://git.jkaindl.de/jkaindl/neurovim-obsidian/raw/branch/main/docs/images/archive.png" width="820" alt="The ARCHIVE tab: a recovered loot artifact next to locked ones, each showing the level needed to unlock it">
+
+<img src="https://git.jkaindl.de/jkaindl/neurovim-obsidian/raw/branch/main/docs/images/reader.png" width="820" alt="A lore artifact open in the reader, rendered as markdown in the CRT colour scheme">
+
+<img src="https://git.jkaindl.de/jkaindl/neurovim-obsidian/raw/branch/main/docs/images/guide.png" width="820" alt="The GUIDE tab filtered by the search term delete, listing the matching Vim keys">
 
 ## How it works
 

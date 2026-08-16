@@ -5,3 +5,4 @@ data.json
 .DS_Store
 .remember/
 .gui-smoke.mjs
+.shots.mjs
