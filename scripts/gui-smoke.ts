@@ -31,7 +31,7 @@
 
 import { execFileSync } from "node:child_process";
 
-import { Cdp, attachTo, closeExtraLeaves, pollUntil } from "./lib/cdp.js";
+import { Cdp, attachTo, closeExtraLeaves, pollUntil } from "../../tools/obsidian-cdp/cdp.js";
 
 const PLUGIN_ID = "neurovim";
 /** src/HubView.tsx: VIEW_TYPE_NEUROVIM */
@@ -112,7 +112,7 @@ async function openHub(cdp: Cdp): Promise<void> {
   // (a) nach disablePlugin bleiben die Blatt-Hüllen zurück, sind aber vom Workspace
   //     abgetrennt — getRightLeaf(false) greift eine davon, setViewState läuft ohne
   //     Fehler durch und rendert ins Nichts (dieselbe Falle wie bei openFile, siehe
-  //     lib/cdp.ts § openExisting);
+  //     tools/obsidian-cdp/cdp.ts § openExisting);
   // (b) setViewState IN einer Poll-Schleife erzeugt pro Runde ein weiteres Blatt —
   //     der Lauf hinterließ so 16 verwaiste Hub-Blätter.
   await cdp.evaluate(`

@@ -68,7 +68,9 @@ ohne Fehler ins Nichts rendert. Beides ist behoben; der Lauf räumt seine Blätt
 
 Material für die spätere Kit-Extraktion (Dach-`AGENTS.md`, Extraktions-Schwelle):
 
-- `scripts/lib/cdp.ts` **unverändert** übernommen (Herkunftsstempel in Zeile 1). Genutzt
+- `scripts/lib/cdp.ts` **unverändert** übernommen (Herkunftsstempel in Zeile 1; *seit dem
+  Abend des 2026-08-16 nicht mehr im Repo, sondern importiert aus
+  `obsidian-plugins/tools/obsidian-cdp/cdp.ts` — Extraktion vollzogen*). Genutzt
   werden `Cdp`, `attachTo`, `closeExtraLeaves`, `pollUntil` — die Notiz-Helfer (`openNote`,
   `reopenNote`, `openExisting`) braucht vim-dojo nicht: geprüft wird eine **Sidebar-View**,
   keine Notiz im Hauptbereich. Das ist der erste sichtbare Schnitt zwischen „Brücke" und

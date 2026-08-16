@@ -24,9 +24,9 @@
 import { existsSync, mkdirSync, rmSync } from "node:fs";
 import { join } from "node:path";
 
-import { Cdp, attachTo, closeExtraLeaves, pollUntil } from "./lib/cdp.js";
-import { boxOf, capture, setWindowSize, writeShot, type Rect } from "./lib/shot.js";
-import { buildVault, stagingVaultDir } from "./lib/vault.js";
+import { Cdp, attachTo, closeExtraLeaves, pollUntil } from "../../tools/obsidian-cdp/cdp.js";
+import { boxOf, capture, setWindowSize, writeShot, type Rect } from "../../tools/obsidian-cdp/shot.js";
+import { buildVault, stagingVaultDir } from "../../tools/obsidian-cdp/vault.js";
 
 const PLUGIN_ID = "neurovim";
 const HUB_VIEW = "neurovim-hub";
