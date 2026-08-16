@@ -20,6 +20,30 @@ Erzeugt von `npm run shots`, geprüft von `npm run shots:check`
 | `settings.png` | feature | README, README.de | Der Einstellungen-Tab, so weit er ohne Scrollen lesbar ist: Missionsordner, HUD-Platzierung, Farbschema. **Offene Lücke (2026-08-16):** ab Obsidian 1.13 sind die Einstellungen ein **eigenes Fenster ohne Workspace**; der Treiber ist mit dem Workspace-Fenster verbunden und findet den Tab dort nicht. Lösung wäre eine zweite CDP-Verbindung (`attachTo("settings", …)`, in der Brücke vorhanden) — nicht gebaut, weil kein anderes Bild sie braucht. `shots:check` meldet die Lücke bei jedem Lauf. |
 | `uplink.png` | feature | README, README.de | Der UPLINK-Tab mit einem CIPHER-Wortwechsel — Frage des Spielers, Antwort in der Rolle. **Vorbehalt:** braucht einen erreichbaren OpenAI-kompatiblen Endpunkt. Ist keiner verfügbar, bleibt diese Zeile stehen und `shots:check` meldet das Bild bei jedem Lauf als fehlend — eine sichtbare Lücke ist besser als eine stillschweigend gestrichene Zusage. |
 
+## Anzeigebreite: nie über die aufgenommene Größe
+
+**Ein Bild wird höchstens so groß dargestellt, wie es aufgenommen wurde (Maßstab 1:1) —
+außer es gibt einen Grund zu zoomen.** Die Klassenbreite aus `readme-spec.json` ist eine
+Obergrenze, keine Vorgabe.
+
+Der Fallstrick sitzt im Zusammenspiel mit Retina: der Treiber nimmt mit `deviceScaleFactor 2`
+auf, und `scaleTo` verkleinert **nur, was breiter als `capture_width` (1200) ist**. Ein
+schmaler Ausschnitt bleibt deshalb unskaliert und trägt doppelte Pixel:
+
+| Aufnahme | Bilddatei | echte CSS-Breite | zulässige Anzeigebreite |
+|---|---|---|---|
+| Sidebar-Panel (420 px breit) | 824 px | 412 | **412** — nicht 820 |
+| Modal | 1168 px | 584 | **584** |
+| ganzes Fenster (1280 px) | 1200 px (herunterskaliert) | 1280 | 820 (Klassenbreite) |
+
+Faustregel: **ist die Datei schmaler als 1200 px, ist sie eine unskalierte Retina-Aufnahme —
+dann Anzeigebreite = Dateibreite ÷ 2.** Ist sie genau 1200 px breit, wurde sie skaliert und
+die Klassenbreite gilt.
+
+Am 2026-08-16 waren fünf von sechs Bildern mit `width="820"` eingebettet und damit bis zu
+**doppelt so groß** dargestellt wie aufgenommen — von Johannes im gerenderten README gesehen,
+nicht vom Lint: der prüft Klassen und Budgets, nicht den Maßstab.
+
 ## UI-Strings (verbatim aus `src/`)
 
 Zum Gegenlesen der Bilder — geändert sich einer, ist entweder das Bild veraltet oder der
@@ -50,7 +74,7 @@ Bild zeigt die Progression nicht.
 ## Reproduktion
 
 ```bash
-export STAGING_VAULTS_DIR=/Users/Shared/60_StagingVaults
+export STAGING_VAULTS_DIR="$STAGING_VAULTS"   # Sammelordner der Aufnahme-Vaults
 
 npm run shots -- --setup          # Vault aus fixture/ bauen; danach Obsidian NEU STARTEN
 osascript -e 'quit app "Obsidian"'
@@ -62,8 +86,9 @@ npm run shots:check                            # gegen den Standard prüfen
 ```
 
 Der Vault entsteht unter `$STAGING_VAULTS_DIR/vim-dojo` — die Variable ist Pflicht, ein
-fest eingebauter Pfad wäre für jeden außer einer Person falsch (und `check-no-abs-paths`
-verbietet ihn zu Recht).
+fest eingebauter Pfad wäre für jeden außer einer Person falsch. `check-no-abs-paths`
+(Teil von `npm test`) verbietet ihn auch in dieser Datei; der konkrete Ort steht deshalb
+im maintainer-lokalen Cockpit, nicht hier.
 
 `--setup` löscht `workspace.json` und die Plugin-`data.json` im Aufnahme-Vault: ein
 früherer Lauf soll nicht in die nächsten Bilder durchschlagen.

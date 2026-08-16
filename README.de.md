@@ -40,9 +40,9 @@ NeuroVim begann als Obsidian-Plugin, wuchs dann zu einem Multi-Target-Spiel hera
   jedem OpenAI-kompatiblen LLM-Endpunkt, auch einem rein lokalen.
 - **Spickzettel** — eine durchsuchbare Vim-Referenz direkt im Plugin-Bereich.
 
-<img src="https://git.jkaindl.de/jkaindl/neurovim-obsidian/raw/branch/main/docs/images/briefing.png" width="820" alt="The mission briefing: CIPHER explaining the job in character before the mission starts">
+<img src="https://git.jkaindl.de/jkaindl/neurovim-obsidian/raw/branch/main/docs/images/briefing.png" width="584" alt="The mission briefing: CIPHER explaining the job in character before the mission starts">
 
-<img src="https://git.jkaindl.de/jkaindl/neurovim-obsidian/raw/branch/main/docs/images/missions.png" width="820" alt="The MISSIONS tab: completed missions marked with a check, available ones showing their XP reward, later ones still locked">
+<img src="https://git.jkaindl.de/jkaindl/neurovim-obsidian/raw/branch/main/docs/images/missions.png" width="412" alt="The MISSIONS tab: completed missions marked with a check, available ones showing their XP reward, later ones still locked">
 
 ## Voraussetzungen
 
@@ -134,11 +134,11 @@ jede Gruppe merkt sich, ob du sie offen oder geschlossen gelassen hast.
   deaktiviert sich dann mit einer Erklärung, weil er daran ohnehin nichts ändern kann.
 - **API key** — optional, für Endpunkte, die einen verlangen.
 
-<img src="https://git.jkaindl.de/jkaindl/neurovim-obsidian/raw/branch/main/docs/images/archive.png" width="820" alt="The ARCHIVE tab: a recovered loot artifact next to locked ones, each showing the level needed to unlock it">
+<img src="https://git.jkaindl.de/jkaindl/neurovim-obsidian/raw/branch/main/docs/images/archive.png" width="412" alt="The ARCHIVE tab: a recovered loot artifact next to locked ones, each showing the level needed to unlock it">
 
-<img src="https://git.jkaindl.de/jkaindl/neurovim-obsidian/raw/branch/main/docs/images/reader.png" width="820" alt="A lore artifact open in the reader, rendered as markdown in the CRT colour scheme">
+<img src="https://git.jkaindl.de/jkaindl/neurovim-obsidian/raw/branch/main/docs/images/reader.png" width="584" alt="A lore artifact open in the reader, rendered as markdown in the CRT colour scheme">
 
-<img src="https://git.jkaindl.de/jkaindl/neurovim-obsidian/raw/branch/main/docs/images/guide.png" width="820" alt="The GUIDE tab filtered by the search term delete, listing the matching Vim keys">
+<img src="https://git.jkaindl.de/jkaindl/neurovim-obsidian/raw/branch/main/docs/images/guide.png" width="412" alt="The GUIDE tab filtered by the search term delete, listing the matching Vim keys">
 
 ## Funktionsweise
 
