@@ -12,10 +12,13 @@
     "lint": "node scripts/check-no-inline-disables.mjs && eslint src --max-warnings 0",
     "test": "node scripts/check-no-abs-paths.mjs && vitest run",
     "test:watch": "vitest",
-    "gate": "npm run lint && npm run typecheck && npm test && npm run build",
+    "gate": "npm run lint && npm run typecheck && npm run typecheck:scripts && npm test && npm run build",
     "release": "test -f ../tools/release/release.mjs || { echo \"FEHLER: ../tools/release/ fehlt. Dieses Repo muss im Dach-Verzeichnis obsidian-plugins/ neben tools/ liegen — das Release-Tooling liegt dort zentral, nicht im Plugin. Ein Clone ohne Dach ist nicht release-fähig.\" >&2; exit 1; }; node ../tools/release/release.mjs",
     "version-bump": "test -f ../tools/release/version-bump.mjs || { echo \"FEHLER: ../tools/release/ fehlt. Dieses Repo muss im Dach-Verzeichnis obsidian-plugins/ neben tools/ liegen — das Release-Tooling liegt dort zentral, nicht im Plugin. Ein Clone ohne Dach ist nicht release-fähig.\" >&2; exit 1; }; node ../tools/release/version-bump.mjs",
-    "preflight": "test -f ../tools/release/preflight.mjs || { echo \"FEHLER: ../tools/release/ fehlt. Dieses Repo muss im Dach-Verzeichnis obsidian-plugins/ neben tools/ liegen — das Release-Tooling liegt dort zentral, nicht im Plugin. Ein Clone ohne Dach ist nicht release-fähig.\" >&2; exit 1; }; node ../tools/release/preflight.mjs"
+    "preflight": "test -f ../tools/release/preflight.mjs || { echo \"FEHLER: ../tools/release/ fehlt. Dieses Repo muss im Dach-Verzeichnis obsidian-plugins/ neben tools/ liegen — das Release-Tooling liegt dort zentral, nicht im Plugin. Ein Clone ohne Dach ist nicht release-fähig.\" >&2; exit 1; }; node ../tools/release/preflight.mjs",
+    "deploy": "npm run build && cp main.js manifest.json styles.css \"${OBSIDIAN_PLUGIN_DIR:?set OBSIDIAN_PLUGIN_DIR}\"/",
+    "typecheck:scripts": "tsc -p tsconfig.scripts.json --noEmit",
+    "smoke:gui": "esbuild scripts/gui-smoke.ts --bundle --platform=node --format=esm --outfile=.gui-smoke.mjs --log-level=warning && node .gui-smoke.mjs"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",
