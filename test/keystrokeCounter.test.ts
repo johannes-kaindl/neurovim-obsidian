@@ -1,19 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { countsAsKeystroke, isEditorKeydownTarget, isMissionEditorKeystroke } from '../src/keystrokeCounter';
-
-describe('countsAsKeystroke', () => {
-  it('counts printable, navigation, and command keys (incl. vim motions/operators)', () => {
-    for (const k of ['h', 'j', 'k', 'l', 'w', 'b', 'd', 'x', 'i', 'a', '0', '$', 'Escape', 'Enter', 'Backspace', 'ArrowLeft', ' ']) {
-      expect(countsAsKeystroke(k)).toBe(true);
-    }
-  });
-
-  it('ignores bare modifier keys (they carry no edit intent on their own)', () => {
-    for (const k of ['Control', 'Alt', 'Meta', 'Shift', 'CapsLock']) {
-      expect(countsAsKeystroke(k)).toBe(false);
-    }
-  });
-});
+import { countsAsKeystroke } from '@neurovim/core';
+import { isEditorKeydownTarget, isMissionEditorKeystroke } from '../src/keystrokeCounter';
 
 describe('isEditorKeydownTarget', () => {
   const fakeTarget = (matches: boolean) => ({
@@ -49,5 +36,9 @@ describe('isMissionEditorKeystroke (recording scope)', () => {
   });
   it('false for a null target', () => {
     expect(isMissionEditorKeystroke('d', null)).toBe(false);
+  });
+  it('applies the core rule rather than a local copy', () => {
+    expect(countsAsKeystroke('Shift')).toBe(false);
+    expect(countsAsKeystroke('d')).toBe(true);
   });
 });

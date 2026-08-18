@@ -28,9 +28,7 @@ import { EndpointResolver } from './llm/endpointResolver';
 import { probeEndpoint } from './llm/endpointProbe';
 import { effectiveModel, type EndpointConfig } from './vendor/kit/endpoint_config';
 import { DEFAULT_SETTINGS, isLlmConfigured, mergeStoredSettings, type VimDojoSettings } from './settings';
-import { RunRecorder } from './keystrokeRecorder';
-import { buildRunTrace, type RunTrace } from './trace';
-import { TraceStore } from './storage/traceStore';
+import { buildRunTrace, TraceStore, type RunTrace } from '@neurovim/core';
 import { buildDebriefMessages } from './llm/debriefPrompt';
 import { realClock } from './vendor/kit-obsidian/clock';
 import type { HubTab } from './hubTabs';
@@ -66,7 +64,6 @@ export default class NeuroVimPlugin extends Plugin {
   private tick: number | null = null;
   private cipherSession = new ChatSession();
   private cipherClient = new CipherClient(new XhrSseTransport());
-  private recorder = new RunRecorder(realClock);
   private traceStore: TraceStore | null = null;
   private cipherAbort: AbortController | null = null;
   private endpointResolver = new EndpointResolver(
@@ -128,16 +125,14 @@ export default class NeuroVimPlugin extends Plugin {
       // typed in another note. This is the structural fix for the KEYSTROKES 0 run.
       if (this.session.state !== 'active') return;
       if (!isMissionEditorKeystroke(e.key, e.target)) return;
-      this.session.metrics.addKeystroke();
       // Record only keystrokes typed into the mission note's OWN editor — not another note
       // open in a split during the run. The trace is persisted and can be sent to the LLM,
-      // so it must never capture a different note's content. (Counting keeps the wider
-      // any-editor scope; recording is deliberately the stricter subset.)
-      // Vim mode is deferred (best-effort, CM internals): recorder supports `mode`, wiring
-      // passes undefined for v1. CIPHER reads the raw key sequence fine without it.
-      if (this.settings.recordTraces && this.isMissionNoteKeydown(e.target)) {
-        this.recorder.record(e.key);
-      }
+      // so it must never capture a different note's content. Counting keeps the wider
+      // any-editor scope: omitting the key argument counts without recording.
+      // Vim mode is deferred (best-effort, CM internals): the tracker supports `mode`,
+      // wiring passes undefined for v1. CIPHER reads the raw key sequence fine without it.
+      const record = this.settings.recordTraces && this.isMissionNoteKeydown(e.target);
+      this.session.metrics.addKeystroke(record ? e.key : undefined);
     }, { capture: true });
 
     this.addSettingTab(new NeuroVimSettingTab(this.app, this));
@@ -315,7 +310,6 @@ export default class NeuroVimPlugin extends Plugin {
       this.boxDismissed = false;
       this.hint = null;
       this.enterAutoVim();
-      this.recorder.reset();
       const m = this.missions.find((x) => x.mission_id === id);
       this.cipherSession.setMission(m
         ? { id: m.mission_id, title: m.title, category: m.category, why: m.why, parKeystrokes: m.par_keystrokes }
@@ -331,6 +325,9 @@ export default class NeuroVimPlugin extends Plugin {
     const res = await this.session.submit();
     const cm = this.missionEditorView();
     if (res.ok) {
+      // Read the trace BEFORE end(): MissionSession.end() resets the tracker, and since the
+      // recorder was merged into it, resetting now also drops the events.
+      const events = this.session.metrics.getEvents();
       if (cm) clearHighlight(cm);
       this.hint = null;
       this.revealedLines = [];
@@ -339,7 +336,6 @@ export default class NeuroVimPlugin extends Plugin {
       this.restoreVim();
       this.cipherSession.setMission(null);
 
-      const events = this.recorder.snapshot();
       const m = this.missions.find((x) => x.mission_id === res.result.mission_id);
       const par = m?.par_keystrokes ?? null;
       const trace = buildRunTrace(res.result, events, par, new Date().toISOString());
@@ -365,7 +361,6 @@ export default class NeuroVimPlugin extends Plugin {
   private async handleReset(): Promise<void> {
     if (!this.session.activeMissionId) return;
     await this.session.reset();
-    this.recorder.reset();
     this.boxDismissed = false;
     this.hint = null;
     this.revealedLines = [];

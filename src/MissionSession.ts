@@ -49,7 +49,7 @@ function bumpRunOnly(prev: MissionRecord | undefined, today: string): MissionRec
 }
 
 export class MissionSession {
-  readonly metrics = new MetricsTracker();
+  readonly metrics: MetricsTracker;
   private readonly timer: RunTimer;
   private _state: MissionState = 'idle';
   /** Wall time the current pause began, null while not paused. */
@@ -62,6 +62,8 @@ export class MissionSession {
 
   constructor(private readonly deps: MissionSessionDeps) {
     this.timer = new RunTimer(deps.clock);
+    // Same clock as the timer: metrics time and trace timestamps come from one source.
+    this.metrics = new MetricsTracker(deps.clock);
   }
 
   get activeMissionId(): string | null { return this._id; }

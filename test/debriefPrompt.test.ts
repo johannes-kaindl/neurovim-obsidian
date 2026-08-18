@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { buildDebriefMessages, serializeSequence } from '../src/llm/debriefPrompt';
-import type { RunTrace } from '../src/trace';
+import type { RunTrace } from '@neurovim/core';
 
 const knowledge = { quickRef: 'QREF', cheatsheet: 'CHEAT' };
 const mission = { id: 'M1', title: 'First Cut', category: 'delete', why: 'wasted motion is a liability', parKeystrokes: 11 };

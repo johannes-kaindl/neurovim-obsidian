@@ -4,7 +4,7 @@
  * performance. Reuses the shared CipherKnowledge/MissionContext types.
  */
 import type { LlmMessage, MissionContext, CipherKnowledge } from './cipherPrompt';
-import type { TraceEvent, RunTrace } from '../trace';
+import type { TraceEvent, RunTrace } from '@neurovim/core';
 
 // The two-stage <think> format matters: small local models reason out loud instead of
 // answering. Fighting that with "don't think" fails (see scripts/debrief-lab). Channelling
