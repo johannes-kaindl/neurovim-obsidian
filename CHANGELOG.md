@@ -5,6 +5,15 @@ All notable changes to this project are documented here. Format loosely follows
 
 ## [Unreleased]
 
+### Changed
+- **The CIPHER uplink now comes from `@neurovim/core`.** Prompt building, the chat
+  session and the turn choreography moved upstream behind the new `LlmPort`; this
+  plugin keeps what is genuinely its own — transport, SSE, endpoint resolution and
+  model choice — and wires them into the port via `CorePortAdapter`. Behaviour is
+  unchanged, including the distinction between CUT (the killed turn still lands its
+  partial answer as "— signal cut") and RST (the turn is disowned and the channel
+  cleared). 489 lines removed, 48 added.
+
 ### Added
 - **THE ARCHIVE** — new hub tab browsing the story layer: 9 loot artifacts and 14
   intercepted fragments, read in a modal with rendered markdown. Loot unlocks with
