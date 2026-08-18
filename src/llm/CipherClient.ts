@@ -7,7 +7,7 @@ import { parseSSE } from '../vendor/kit/sse';
 import { ThinkSplitter } from '../vendor/kit/think';
 import { normalizeEndpoint } from '../vendor/kit/endpoint';
 import { authHeaders, type EndpointConfig } from '../vendor/kit/endpoint_config';
-import type { LlmMessage } from './cipherPrompt';
+import type { LlmMessage } from '@neurovim/core';
 import { realClock, type ClockPort } from '../vendor/kit-obsidian/clock';
 import { suppressParams } from '../vendor/kit/reasoning';
 import { effectiveSuppress } from './thinkToggle';

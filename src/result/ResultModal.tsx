@@ -3,14 +3,14 @@ import { h, render } from 'preact';
 import { useState, useRef, useEffect } from 'preact/hooks';
 import type { ResultView, MetricRow } from './resultView';
 import type { ColorScheme } from '../settings';
-import type { StreamOutcome } from '../llm/CipherClient';
+import type { LlmResult } from '@neurovim/core';
 
 /** Streams a CIPHER debrief for the just-completed run. Resolves to the final outcome;
  *  tokens arrive via onToken. Provided by main.ts (null when unconfigured/off). */
 export type DebriefRunner = (
   onToken: (t: string) => void,
   signal: AbortSignal,
-) => Promise<StreamOutcome>;
+) => Promise<LlmResult>;
 
 function Row({ row }: { row: MetricRow }) {
   return (

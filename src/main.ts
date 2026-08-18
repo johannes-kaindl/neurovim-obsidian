@@ -20,16 +20,18 @@ import { buildResultView } from './result/resultView';
 import { ResultModal } from './result/ResultModal';
 import { BriefingModal } from './briefing/BriefingModal';
 import { LoreModal } from './lore/LoreModal';
-import { ChatSession } from './llm/chatSession';
-import { CipherClient, type StreamOutcome } from './llm/CipherClient';
+import { CipherClient } from './llm/CipherClient';
 import { XhrSseTransport } from './llm/XhrSseTransport';
-import { buildKnowledge, buildChatMessages, type CipherKnowledge } from './llm/cipherPrompt';
+import { CorePortAdapter } from './llm/CorePortAdapter';
 import { EndpointResolver } from './llm/endpointResolver';
 import { probeEndpoint } from './llm/endpointProbe';
 import { effectiveModel, type EndpointConfig } from './vendor/kit/endpoint_config';
 import { DEFAULT_SETTINGS, isLlmConfigured, mergeStoredSettings, type VimDojoSettings } from './settings';
-import { buildRunTrace, TraceStore, type RunTrace } from '@neurovim/core';
-import { buildDebriefMessages } from './llm/debriefPrompt';
+import {
+  buildRunTrace, TraceStore, CipherUplink, ChatSession, buildKnowledge, quickReference,
+  type RunTrace, type LlmResult, type MissionContext,
+} from '@neurovim/core';
+import { ENTRIES } from '@neurovim/content';
 import { realClock } from './vendor/kit-obsidian/clock';
 import type { HubTab } from './hubTabs';
 import type { PluginData, MissionSummary } from '@neurovim/core';
@@ -65,12 +67,11 @@ export default class NeuroVimPlugin extends Plugin {
   private cipherSession = new ChatSession();
   private cipherClient = new CipherClient(new XhrSseTransport());
   private traceStore: TraceStore | null = null;
-  private cipherAbort: AbortController | null = null;
+  private cipherUplink: CipherUplink | null = null;
   private endpointResolver = new EndpointResolver(
     () => this.settings.llmEndpoints,
     async (cfg) => (await probeEndpoint(cfg)).status.reachable,
   );
-  private cipherKnowledge: CipherKnowledge | null = null;
   /** Active hub tab + guide search query — session-local UI state, not persisted. */
   private hubTab: HubTab = 'nexus';
   private guideQuery = '';
@@ -148,10 +149,9 @@ export default class NeuroVimPlugin extends Plugin {
     if (this.tick !== null) window.clearInterval(this.tick);
     this.hud.detach();
     this.banner.hide();
-    // Null after abort so a resumed continuation fails the identity check in handleCipherAsk
-    // instead of calling repaint() and re-creating the HUD after teardown.
-    this.cipherAbort?.abort();
-    this.cipherAbort = null;
+    // reset() disowns the turn, so a resumed continuation fails the uplink's identity
+    // check instead of calling repaint() and re-creating the HUD after teardown.
+    this.cipherUplink?.reset(this.cipherSession);
     this.restoreVim();
   }
 
@@ -382,117 +382,43 @@ export default class NeuroVimPlugin extends Plugin {
     this.repaint();
   }
 
-  /** One-shot CIPHER debrief stream for a completed run. Mirrors handleCipherAsk's
-   *  resolve+retry, but standalone (no chat session state). Returns the outcome; the
-   *  Result modal renders tokens via onToken and the final outcome. */
+  /** The uplink, built on first use. Knowledge assembly walks the whole cheatsheet
+   *  and the quick-reference note — not worth doing at load. */
+  private uplink(): CipherUplink {
+    this.cipherUplink ??= new CipherUplink(
+      new CorePortAdapter(this.cipherClient, this.endpointResolver, {
+        configured: () => isLlmConfigured(this.settings),
+        forEndpoint: (ep) => ({
+          model: effectiveModel(ep, this.settings.llmModel),
+          suppressThinking: this.settings.llmSuppressThinking,
+        }),
+      }),
+      buildKnowledge(quickReference(ENTRIES)),
+      () => this.repaint(),
+    );
+    return this.cipherUplink;
+  }
+
+  /** One-shot CIPHER debrief for a completed run. The Result modal renders tokens
+   *  via onToken and the final result. */
   private async runDebrief(
     trace: RunTrace,
     onToken: (t: string) => void,
     signal: AbortSignal,
-  ): Promise<StreamOutcome> {
-    if (!isLlmConfigured(this.settings)) {
-      return { ok: false, kind: 'network', detail: 'CIPHER uplink not configured', partial: '' };
-    }
-    this.cipherKnowledge ??= buildKnowledge();
+  ): Promise<LlmResult> {
     const m = this.missions.find((x) => x.mission_id === trace.mission_id);
-    const messages = buildDebriefMessages({
-      knowledge: this.cipherKnowledge,
-      mission: m
-        ? { id: m.mission_id, title: m.title, category: m.category, why: m.why, parKeystrokes: m.par_keystrokes }
-        : null,
-      trace,
-    });
-    const runStream = (endpoint: EndpointConfig): Promise<StreamOutcome> =>
-      this.cipherClient.stream(
-        { endpoint, model: effectiveModel(endpoint, this.settings.llmModel), suppressThinking: this.settings.llmSuppressThinking },
-        messages,
-        onToken,
-        signal,
-      );
-
-    const endpoint = await this.endpointResolver.resolve();
-    let outcome: StreamOutcome = endpoint === null
-      ? { ok: false, kind: 'network', detail: 'no endpoint reachable', partial: '' }
-      : await runStream(endpoint);
-
-    if (endpoint !== null && !outcome.ok && outcome.kind === 'network') {
-      this.endpointResolver.invalidate();
-      const fresh = await this.endpointResolver.resolve();
-      if (fresh !== null) outcome = await runStream(fresh);
-    }
-    return outcome;
+    const mission: MissionContext | null = m
+      ? {
+          id: m.mission_id, title: m.title, category: m.category,
+          why: m.why, parKeystrokes: m.par_keystrokes,
+        }
+      : null;
+    return this.uplink().debrief(trace, mission, onToken, signal);
   }
 
-  /** One CIPHER chat turn: append the question, stream the answer into the session. */
+  /** One CIPHER chat turn. Choreography and the stale-turn guard live in the core. */
   private async handleCipherAsk(question: string): Promise<void> {
-    if (this.cipherSession.busy || !isLlmConfigured(this.settings)) return;
-    this.cipherKnowledge ??= buildKnowledge();
-    const history = this.cipherSession.historyForPrompt();
-    this.cipherSession.append({ role: 'user', text: question });
-    this.cipherSession.busy = true;
-    this.cipherSession.streaming = '';
-    // Capture this turn's controller locally: `this.cipherAbort` may be reassigned
-    // (new turn) or nulled (reset) by the time our await resolves.
-    const myAbort = new AbortController();
-    this.cipherAbort = myAbort;
-    this.repaint();
-    const messages = buildChatMessages({
-      knowledge: this.cipherKnowledge,
-      mission: this.cipherSession.mission,
-      history,
-      question,
-    });
-    const runStream = async (endpoint: EndpointConfig): Promise<StreamOutcome> =>
-      this.cipherClient.stream(
-        { endpoint, model: effectiveModel(endpoint, this.settings.llmModel), suppressThinking: this.settings.llmSuppressThinking },
-        messages,
-        (t) => {
-          // Stale stream from a reset/superseded turn — don't write into the new turn's state.
-          if (this.cipherAbort !== myAbort) return;
-          // The 500ms repaint tick picks this up — no extra render plumbing.
-          this.cipherSession.streaming = (this.cipherSession.streaming ?? '') + t;
-        },
-        myAbort.signal,
-      );
-
-    const endpoint = await this.endpointResolver.resolve();
-    let outcome: StreamOutcome = endpoint === null
-      ? { ok: false, kind: 'network', detail: 'no endpoint reachable', partial: '' }
-      : await runStream(endpoint);
-
-    // A network failure may just mean the cached endpoint moved (host slept, network
-    // changed). Re-resolve once and retry — never twice, or a dead uplink stalls the turn.
-    // Retry on any freshly resolved endpoint, including the same one: the fresh ping just
-    // proved it answers, so the failure was transient. (Guarding on `fresh !== endpoint`
-    // would disable the retry entirely for a single-endpoint list — the common case.)
-    // If nothing resolves, `fresh` is null and the original failure stands.
-    // `endpoint !== null` excludes the case where the *first* resolve already came back
-    // null (nothing in the list was reachable at all — resolve() deliberately doesn't cache
-    // that). Retrying there would re-ping every endpoint a second time for a failure that
-    // was never transient, doubling the wait (up to ~5s per endpoint) before "Signal lost".
-    // The retry is for a resolved endpoint that broke mid-request, not for a list that was
-    // already unreachable.
-    if (endpoint !== null && !outcome.ok && outcome.kind === 'network' && this.cipherAbort === myAbort) {
-      this.endpointResolver.invalidate();
-      const fresh = await this.endpointResolver.resolve();
-      if (fresh !== null) outcome = await runStream(fresh);
-    }
-
-    // Only the current turn may mutate session state after its await — a reset or a
-    // newer ask already owns `cipherSession`/`cipherAbort` if the identity check fails.
-    if (this.cipherAbort !== myAbort) return;
-
-    if (outcome.ok) {
-      this.cipherSession.append({ role: 'assistant', text: outcome.content });
-    } else if (outcome.kind === 'aborted' && outcome.partial) {
-      this.cipherSession.append({ role: 'assistant', text: `${outcome.partial} — signal cut` });
-    } else if (outcome.kind !== 'aborted') {
-      this.cipherSession.append({ role: 'error', text: 'Signal lost. Check your uplink.', detail: outcome.detail });
-    }
-    this.cipherSession.streaming = null;
-    this.cipherSession.busy = false;
-    this.cipherAbort = null;
-    this.repaint();
+    await this.uplink().ask(this.cipherSession, question);
   }
 
   private async activateView(): Promise<void> {
@@ -581,12 +507,10 @@ export default class NeuroVimPlugin extends Plugin {
               busy: this.cipherSession.busy,
               missionTitle: this.cipherSession.mission?.title ?? null,
               onAsk: (q) => void this.handleCipherAsk(q),
-              // onAbort leaves cipherAbort set: the killed turn still owns the identity check
-              // and must append its partial "— signal cut" answer into the live session.
-              onAbort: () => this.cipherAbort?.abort(),
-              // onReset wipes the session, so the killed turn must NOT be allowed to append
-              // into it — null the controller to fail its identity check in handleCipherAsk.
-              onReset: () => { this.cipherAbort?.abort(); this.cipherAbort = null; this.cipherSession.reset(); this.repaint(); },
+              // CUT keeps the turn's identity so it still lands its partial "— signal cut";
+              // RST disowns it so it cannot append into the cleared channel. See CipherUplink.
+              onAbort: () => this.cipherUplink?.abort(),
+              onReset: () => this.cipherUplink?.reset(this.cipherSession),
             }
           : null,
         activeTab: this.hubTab,

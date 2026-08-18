@@ -1,4 +1,4 @@
-import type { ChatEntry } from './llm/chatSession';
+import type { ChatEntry } from '@neurovim/core';
 
 export interface CipherChatProps {
   entries: readonly ChatEntry[];
