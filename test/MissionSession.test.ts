@@ -184,3 +184,42 @@ describe('MissionSession unverified runs', () => {
     expect(getData().completed_missions).toContain('M-01');
   });
 });
+
+describe('MissionSession trace recording', () => {
+  it('records the keystrokes it is given a key for, timed off the session clock', async () => {
+    const { session, clock } = makeSession();
+    await session.start('M-01');
+    clock.at += 40;
+    session.metrics.addKeystroke('d');
+    clock.at += 60;
+    session.metrics.addKeystroke('w');
+    // A counted-but-not-recorded key: main.ts omits the argument for keystrokes typed in
+    // another editor, so counting keeps the wider scope than recording.
+    session.metrics.addKeystroke();
+
+    expect(session.metrics.getEvents()).toEqual([{ k: 'd', t: 40 }, { k: 'w', t: 100 }]);
+    expect(session.metrics.getKeystrokes()).toBe(3);
+  });
+
+  it('drops the recorded events on end — the trace must be read BEFORE end()', async () => {
+    const { session } = makeSession();
+    await session.start('M-01');
+    session.metrics.addKeystroke('d');
+    expect(session.metrics.getEvents()).toHaveLength(1);
+
+    // The hazard this pins down: end() resets the tracker, and since the recorder was
+    // merged into it, that now clears the events too. main.ts:handleSubmit snapshots
+    // above its end() call for exactly this reason — reading after it ships every trace
+    // with an empty events array, and nothing else in the suite would notice.
+    session.end();
+    expect(session.metrics.getEvents()).toEqual([]);
+  });
+
+  it('starts each attempt from an empty trace', async () => {
+    const { session } = makeSession();
+    await session.start('M-01');
+    session.metrics.addKeystroke('d');
+    await session.reset();
+    expect(session.metrics.getEvents()).toEqual([]);
+  });
+});
