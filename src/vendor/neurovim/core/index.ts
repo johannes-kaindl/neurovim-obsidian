@@ -18,6 +18,7 @@ export * from './ports/StoragePort';
 export * from './ports/ContentPort';
 export * from './ports/VimModeSource';
 export * from './ports/UiHost';
+export * from './ports/LlmPort';
 
 // ── Engine (game logic) ──────────────────────────────────────
 export * from './engine/MetricsTracker';
@@ -28,6 +29,12 @@ export * from './engine/ProgressionEngine';
 export * from './engine/GlitchEngine';
 export * from './engine/ParTier';
 export * from './engine/GuidanceEngine';
+
+// ── LLM uplink (game-facing half; transport lives in the consumer) ──
+export * from './llm/cipherPrompt';
+export * from './llm/debriefPrompt';
+export * from './llm/ChatSession';
+export * from './llm/CipherUplink';
 
 // ── Data ─────────────────────────────────────────────────────
 export * from './data/chapters';
