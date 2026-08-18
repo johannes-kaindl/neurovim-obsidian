@@ -325,14 +325,13 @@ export default class NeuroVimPlugin extends Plugin {
     const res = await this.session.submit();
     const cm = this.missionEditorView();
     if (res.ok) {
-      // Read the trace BEFORE end(): MissionSession.end() resets the tracker, and since the
-      // recorder was merged into it, resetting now also drops the events.
-      const events = this.session.metrics.getEvents();
       if (cm) clearHighlight(cm);
       this.hint = null;
       this.revealedLines = [];
       this.highlighted = '';
-      this.session.end();
+      // end() hands the trace out as it tears the run down — the tracker holds the events
+      // and resetting it drops them, so this is the last moment they exist.
+      const events = this.session.end();
       this.restoreVim();
       this.cipherSession.setMission(null);
 

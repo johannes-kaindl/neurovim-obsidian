@@ -1,7 +1,7 @@
 import {
   MissionEngine, MetricsTracker, ProgressionEngine, getDivergentLines,
 } from '@neurovim/core';
-import type { PluginData, RunResult, DiffResult, MissionRecord } from '@neurovim/core';
+import type { PluginData, RunResult, DiffResult, MissionRecord, TraceEvent } from '@neurovim/core';
 import type { BundledContent } from './content/BundledContent';
 import type { ClockPort } from './vendor/kit-obsidian/clock';
 import { RunTimer } from './RunTimer';
@@ -212,7 +212,13 @@ export class MissionSession {
     return null;
   }
 
-  end(): void {
+  /** Ends the run and hands back its keystroke trace. Returning it rather than leaving it
+   *  to be fetched is deliberate: `metrics.reset()` below clears the events, so a caller
+   *  reading them afterwards would silently get an empty array. Taking the snapshot out
+   *  through the same call that destroys it removes the ordering hazard instead of
+   *  documenting it. */
+  end(): TraceEvent[] {
+    const events = this.metrics.getEvents();
     this._state = 'idle';
     this._pausedAt = null;
     this._id = null;
@@ -221,6 +227,7 @@ export class MissionSession {
     this._solution = '';
     this.metrics.reset();
     this.timer.reset();
+    return events;
   }
 }
 

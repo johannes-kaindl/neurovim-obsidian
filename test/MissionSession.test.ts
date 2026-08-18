@@ -201,17 +201,17 @@ describe('MissionSession trace recording', () => {
     expect(session.metrics.getKeystrokes()).toBe(3);
   });
 
-  it('drops the recorded events on end — the trace must be read BEFORE end()', async () => {
-    const { session } = makeSession();
+  it('hands the trace back from end(), then clears it', async () => {
+    const { session, clock } = makeSession();
     await session.start('M-01');
+    clock.at += 25;
     session.metrics.addKeystroke('d');
-    expect(session.metrics.getEvents()).toHaveLength(1);
 
-    // The hazard this pins down: end() resets the tracker, and since the recorder was
-    // merged into it, that now clears the events too. main.ts:handleSubmit snapshots
-    // above its end() call for exactly this reason — reading after it ships every trace
-    // with an empty events array, and nothing else in the suite would notice.
-    session.end();
+    // end() both returns the events and destroys them, so a caller cannot read them too
+    // late — the value comes out through the very call that clears them. Before this,
+    // handleSubmit had to snapshot above its end() call, and reading one line lower
+    // shipped every trace with an empty events array: a mistake nothing would have caught.
+    expect(session.end()).toEqual([{ k: 'd', t: 25 }]);
     expect(session.metrics.getEvents()).toEqual([]);
   });
 
