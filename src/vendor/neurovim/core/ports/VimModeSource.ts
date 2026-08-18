@@ -2,7 +2,7 @@
  * VimModeSource — Vim mode and action event source (ADR-001 §P2 / Decisions D1).
  *
  * Decouples game logic + audio feedback from the question of WHERE the Vim editor runs.
- * - adapter-obsidian: `MarkdownView.editor.cm.on('vim-mode-change')` (from VimModeWatcher.ts)
+ * - vim-dojo (Obsidian): `MarkdownView.editor.cm.on('vim-mode-change')` (from its VimModeWatcher)
  *   + keystroke classification (from CommandListener.ts).
  * - adapter-web:      CodeMirror 6 + `@replit/codemirror-vim` (emits the same
  *   'vim-mode-change' event). Regex flavor parity: see experiments/vim-regex-findings.md (D1).

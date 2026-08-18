@@ -4,11 +4,15 @@
  *  global is never called directly from a tested module. Mirrors
  *  AudioEngine's own optional-injection style (contextFactory). */
 export interface ClockPort {
+  /** Wall-clock milliseconds. Injected so elapsed time and trace timestamps
+   *  are deterministic under test without patching globals. */
+  now(): number;
   setTimeout(fn: () => void, ms: number): number;
   clearTimeout(id: number): void;
 }
 
 export const realClock: ClockPort = {
+  now: () => Date.now(),
   setTimeout: (fn, ms) => window.setTimeout(fn, ms),
   clearTimeout: (id) => window.clearTimeout(id),
 };

@@ -3,7 +3,7 @@
  *
  * Re-exports: state schema (types), ports, game logic (engine), data (data),
  * utils, web audio (audio) and Preact UI (views). NEVER depends on `obsidian` —
- * platform specifics come through the ports that adapter-obsidian / adapter-web
+ * platform specifics come through the ports that vim-dojo / adapter-web
  * implement. ADR-001 §Decisions.
  *
  * Note: The ports (StoragePort/ContentPort/VimModeSource/UiHost) are implemented by
@@ -21,6 +21,8 @@ export * from './ports/UiHost';
 
 // ── Engine (game logic) ──────────────────────────────────────
 export * from './engine/MetricsTracker';
+export * from './engine/RunTrace';
+export * from './engine/TraceStore';
 export * from './engine/MissionEngine';
 export * from './engine/ProgressionEngine';
 export * from './engine/GlitchEngine';

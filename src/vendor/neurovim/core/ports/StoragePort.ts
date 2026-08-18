@@ -2,7 +2,7 @@
  * StoragePort — persistence abstraction (ADR-001 §P3 / Decisions D5).
  *
  * Encapsulates loading/saving the persistent player state (`PluginData`).
- * - adapter-obsidian: `plugin.loadData()` / `plugin.saveData()` (→ data.json)
+ * - vim-dojo (Obsidian): `plugin.loadData()` / `plugin.saveData()` (→ data.json)
  * - adapter-web:      IndexedDB (+ one-time data.json import for legacy users)
  *
  * Kept generic (`<T>`) so that partial states (e.g. audio settings)

@@ -1,8 +1,8 @@
 {
   "source": "neurovim-standalone",
-  "tag": "v0.2.4",
-  "sha": "8f3c15a898f5ac78c295811745c4b143020232d1",
-  "version": "0.2.4",
+  "tag": "v0.2.5",
+  "sha": "aa02df73858e8b174fa6b69c97f64c2dc0836947",
+  "version": "0.2.5",
   "vendored": "@neurovim/core (packages/core/src), @neurovim/content (frontmatter.ts, index.ts + generated)",
   "note": "Verbatim snapshot. Never hand-edit. Re-pin via `npm run vendor`."
 }
