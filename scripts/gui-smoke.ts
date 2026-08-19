@@ -417,6 +417,191 @@ async function checkReader(cdp: Cdp): Promise<void> {
   `);
 }
 
+
+// --- R3: CIPHER-Uplink — die Naht, die `main.ts` selbst nicht bewacht ---------
+
+/**
+ * Warum dieser Abschnitt existiert: Seit Slice A (2026-08-18) kommen Prompt-Bau,
+ * Chat-Session und Turn-Choreografie aus `@neurovim/core`; hier unten bleibt die
+ * **Verdrahtung** — `uplink()` baut `CorePortAdapter` aus `isLlmConfigured(settings)`
+ * und `effectiveModel(ep, settings.llmModel)`. Wäre sie falsch, blieben alle Kern- und
+ * Adapter-Tests trotzdem grün: die bekommen ihre Settings vom Test, nicht vom Plugin.
+ * `main.ts` hat keine Test-Naht — genau diese Lücke blieb nach der Trace-Rückportierung
+ * schon einmal offen.
+ *
+ * **Der Transport wird gestubbt, nicht das Modell befragt.** Geprüft wird die
+ * Verdrahtung, nicht die Antwortqualität — dafür gibt es `scripts/debrief-lab.mjs`.
+ * Ein Stub macht den Lauf reproduzierbar und unabhängig davon, ob gerade ein lokaler
+ * Endpunkt läuft. Gepatcht wird nur im Speicher; `saveSettings` läuft hier nie, also
+ * bleibt `data.json` unberührt.
+ */
+async function checkCipherUplink(cdp: Cdp): Promise<void> {
+  if (!(await selectTab(cdp, "UPLINK"))) {
+    skipped("R3 CIPHER-Uplink", "UPLINK-Tab nicht gefunden");
+    return;
+  }
+
+  // Transport + Endpunkt-Auflösung durch einen kontrollierten Stub ersetzen. Der Stub
+  // streamt ein Stück, wartet, und richtet sich dann danach, ob abgebrochen wurde —
+  // damit ist CUT überhaupt erst beobachtbar (ein sofort fertiger Stream wäre vorbei,
+  // bevor der Knopf existiert).
+  const patched = await cdp.evaluate<boolean>(`
+    const p = app.plugins.plugins[${JSON.stringify(PLUGIN_ID)}];
+    if (!p || !p.cipherClient || !p.endpointResolver) return false;
+    window.__nvSmokeRestore = {
+      stream: p.cipherClient.stream.bind(p.cipherClient),
+      resolve: p.endpointResolver.resolve.bind(p.endpointResolver),
+      invalidate: p.endpointResolver.invalidate.bind(p.endpointResolver),
+      endpoints: p.settings.llmEndpoints,
+      model: p.settings.llmModel,
+    };
+    // Konfiguriert-Gate erfüllen, ohne die echten Werte zu speichern.
+    p.settings.llmEndpoints = [{ url: 'http://nv-smoke.invalid:1234', apiKey: '', model: 'stub' }];
+    p.settings.llmModel = 'stub';
+    p.endpointResolver.resolve = async () => ({ url: 'http://nv-smoke.invalid:1234', apiKey: '', model: 'stub' });
+    p.endpointResolver.invalidate = () => {};
+    p.cipherClient.stream = async (cfg, messages, onToken, signal) => {
+      window.__nvSmokeSawModel = cfg && cfg.model;
+      onToken('Use d');
+      for (let i = 0; i < 40 && !signal.aborted; i++) {
+        await new Promise((r) => setTimeout(r, 100));
+      }
+      if (signal.aborted) {
+        return { ok: false, kind: 'aborted', detail: 'stream aborted', partial: 'Use d' };
+      }
+      onToken('w.');
+      return { ok: true, content: 'Use dw.' };
+    };
+    // Einen etwaigen zuvor gebauten Uplink verwerfen, damit er den Stub sieht.
+    p.cipherUplink = null;
+    return true;
+  `);
+
+  if (!patched) {
+    skipped("R3 CIPHER-Uplink", "cipherClient/endpointResolver nicht am Plugin gefunden");
+    return;
+  }
+
+  try {
+    // --- R3-1: CUT behält das Teilergebnis und gibt die Eingabe frei ---------
+    await cdp.evaluate(`
+      const input = document.querySelector('.nv-uplink-input');
+      input.value = 'wie loesche ich ein Wort?';
+      input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+      return true;
+    `);
+
+    const streaming = await pollUntil<boolean>(
+      cdp,
+      "return Boolean(document.querySelector('.nv-uplink-cursor')) && Boolean(document.querySelector('.nv-btn-abort'));",
+      8_000,
+      200,
+    );
+    if (!streaming) {
+      record("R3-1 CUT behält das Teilergebnis", false,
+        "Stream startete nicht (kein Cursor / kein CUT-Knopf) — Verdrahtung von uplink() prüfen");
+      return;
+    }
+
+    // Der Modellname muss aus den Settings durch den Adapter beim Client ankommen.
+    const model = await cdp.evaluate<string | null>("return window.__nvSmokeSawModel ?? null;");
+    record(
+      "R3-0 Modellwahl erreicht den Transport",
+      model === "stub",
+      model === "stub" ? "cfg.model === 'stub'" : `cfg.model war ${JSON.stringify(model)} statt 'stub'`,
+    );
+
+    await cdp.evaluate(`
+      document.querySelector('.nv-btn-abort').click();
+      await new Promise((r) => setTimeout(r, 1500));
+      return true;
+    `);
+
+    const afterCut = await cdp.evaluate<{ text: string; inputEnabled: boolean; busyBtn: boolean }>(`
+      const lines = [...document.querySelectorAll('.nv-uplink-line.nv-uplink-assistant .nv-uplink-text')];
+      const input = document.querySelector('.nv-uplink-input');
+      return {
+        text: lines.length ? lines[lines.length - 1].textContent.trim() : '',
+        inputEnabled: Boolean(input) && !input.disabled,
+        busyBtn: Boolean(document.querySelector('.nv-btn-abort')),
+      };
+    `);
+
+    // Beides zusammen ist der Prüfpunkt: Wäre CUT wie RST gebaut (Turn enteignet), fiele
+    // der gekillte Turn durch seinen Identitätscheck — das Teilergebnis ginge verloren
+    // UND `busy` bliebe hängen, die Eingabe also gesperrt.
+    const cutOk = afterCut.text.includes("signal cut") && afterCut.inputEnabled && !afterCut.busyBtn;
+    record(
+      "R3-1 CUT behält das Teilergebnis und gibt die Eingabe frei",
+      cutOk,
+      cutOk
+        ? `"${afterCut.text}", Eingabe wieder frei`
+        : `Text=${JSON.stringify(afterCut.text)}, Eingabe frei=${afterCut.inputEnabled}, CUT noch da=${afterCut.busyBtn}`,
+    );
+
+    // --- R3-2: RST leert den Kanal ------------------------------------------
+    await cdp.evaluate(`
+      document.querySelector('.nv-btn-reset').click();
+      await new Promise((r) => setTimeout(r, 800));
+      return true;
+    `);
+    const afterReset = await cdp.evaluate<number>(
+      "return document.querySelectorAll('.nv-uplink-line').length;",
+    );
+    record(
+      "R3-2 RST leert den Kanal",
+      afterReset === 0,
+      afterReset === 0 ? "keine Zeilen mehr im Log" : `${afterReset} Zeile(n) blieben stehen`,
+    );
+
+    // --- R3-3: ein voller Turn landet als Antwort ----------------------------
+    await cdp.evaluate(`
+      const input = document.querySelector('.nv-uplink-input');
+      input.value = 'zweite Frage';
+      input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+      return true;
+    `);
+    const answered = await pollUntil<boolean>(
+      cdp,
+      `return [...document.querySelectorAll('.nv-uplink-assistant .nv-uplink-text')]
+         .some((e) => e.textContent.includes('Use dw.'));`,
+      10_000,
+      300,
+    );
+    const roles = await cdp.evaluate<string[]>(`
+      return [...document.querySelectorAll('.nv-uplink-line')].map((l) =>
+        l.classList.contains('nv-uplink-user') ? 'user'
+        : l.classList.contains('nv-uplink-error') ? 'error' : 'assistant');
+    `);
+    record(
+      "R3-3 ein voller Turn landet als Antwort",
+      answered && roles.join(",") === "user,assistant",
+      answered ? `Zeilen: ${roles.join(", ")}` : "Antwort 'Use dw.' erschien nicht",
+    );
+  } finally {
+    // Stub zurückbauen. Der Kanal bleibt geleert — das ist Sitzungszustand, nichts
+    // Persistiertes (ChatSession wird bewusst nicht gespeichert).
+    await cdp
+      .evaluate(`
+        const p = app.plugins.plugins[${JSON.stringify(PLUGIN_ID)}];
+        const r = window.__nvSmokeRestore;
+        if (p && r) {
+          p.cipherClient.stream = r.stream;
+          p.endpointResolver.resolve = r.resolve;
+          p.endpointResolver.invalidate = r.invalidate;
+          p.settings.llmEndpoints = r.endpoints;
+          p.settings.llmModel = r.model;
+          p.cipherUplink = null;
+          p.cipherSession.reset();
+        }
+        delete window.__nvSmokeRestore;
+        delete window.__nvSmokeSawModel;
+        return true;
+      `)
+      .catch(() => undefined);
+  }
+}
+
 // --- Hauptlauf ---------------------------------------------------------------
 
 function arg(name: string, fallback?: string): string | undefined {
@@ -475,6 +660,7 @@ async function main(): Promise<void> {
     await checkCollapse(cdp);
     await checkCardAlignment(cdp);
     await checkReader(cdp);
+    await checkCipherUplink(cdp);
   } catch (err) {
     if (err instanceof PreconditionError) {
       console.error(`\n⛔ Abbruch — Voraussetzung nicht erfüllt:\n   ${err.message}\n`);

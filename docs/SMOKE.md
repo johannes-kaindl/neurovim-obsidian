@@ -80,3 +80,29 @@ Material für die spätere Kit-Extraktion (Dach-`AGENTS.md`, Extraktions-Schwell
   paperless-storage). Kandidat für die Brücke, sobald ein zweites Repo ihn braucht.
 - Neu: **`--reload`**. In `3d-codeblocks` steht das Neuladen nur als Snippet in der Anleitung;
   als Schalter im Treiber ist es bei jeder Gegenprobe einen Handgriff weniger.
+
+## R3 — CIPHER-Uplink
+
+Seit Slice A (2026-08-18) kommen Prompt-Bau, Chat-Session und Turn-Choreografie aus
+`@neurovim/core`. Hier unten bleibt die **Verdrahtung** (`uplink()` baut den
+`CorePortAdapter` aus den Settings) — und die hat in `main.ts` keine Test-Naht: Wäre sie
+falsch, blieben alle Kern- und Adapter-Tests grün, weil die ihre Settings vom Test
+bekommen statt vom Plugin.
+
+Der Treiber **stubbt den Transport**, statt ein Modell zu befragen: geprüft wird die
+Verdrahtung, nicht die Antwortqualität (dafür `scripts/debrief-lab.mjs`). Damit läuft der
+Abschnitt auch ohne erreichbaren LLM-Endpunkt. Gepatcht wird nur im Speicher — `data.json`
+bleibt unberührt, der Stub wird im `finally` zurückgebaut.
+
+| Prüfpunkt | Was er misst |
+|---|---|
+| R3-0 Modellwahl erreicht den Transport | `effectiveModel(ep, settings.llmModel)` kommt als `cfg.model` beim Client an |
+| R3-1 CUT behält das Teilergebnis und gibt die Eingabe frei | Der abgebrochene Turn behält seine Identität, hängt `— signal cut` an und räumt `busy` ab |
+| R3-2 RST leert den Kanal | Der enteignete Turn schreibt nicht mehr in den geleerten Verlauf |
+| R3-3 ein voller Turn landet als Antwort | Genau zwei Zeilen: `user`, `assistant` |
+
+**R3-1 ist der eigentliche Punkt.** CUT und RST sehen im Code fast gleich aus, sind aber
+zwei Operationen: CUT lässt dem gekillten Turn die Identität (er räumt auf und zeigt sein
+Teilergebnis), RST enteignet ihn. Wer beides zu einer Methode zusammenzieht, strandet
+`busy` auf `true` und verwirft den Teiltext — beim Umzug in den Kern ist genau das
+passiert und nur an einem klemmenden Test aufgefallen.
