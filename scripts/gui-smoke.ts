@@ -575,8 +575,8 @@ async function checkCipherUplink(cdp: Cdp): Promise<void> {
     `);
     record(
       "R3-3 ein voller Turn landet als Antwort",
-      answered && roles.join(",") === "user,assistant",
-      answered ? `Zeilen: ${roles.join(", ")}` : "Antwort 'Use dw.' erschien nicht",
+      answered === true && roles.join(",") === "user,assistant",
+      answered === true ? `Zeilen: ${roles.join(", ")}` : "Antwort 'Use dw.' erschien nicht",
     );
   } finally {
     // Stub zurückbauen. Der Kanal bleibt geleert — das ist Sitzungszustand, nichts
