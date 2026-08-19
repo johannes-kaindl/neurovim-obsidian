@@ -30,6 +30,7 @@
  */
 
 import { execFileSync } from "node:child_process";
+import { readFileSync } from "node:fs";
 
 import { Cdp, attachTo, closeExtraLeaves, pollUntil } from "../../tools/obsidian-cdp/cdp.js";
 
@@ -645,6 +646,24 @@ async function main(): Promise<void> {
         await new Promise((r) => setTimeout(r, 1200));
         return true;
       `);
+      // Gemessen 2026-08-19: `disablePlugin`/`enablePlugin` laedt zwar `main.js` neu,
+      // liest `manifest.json` aber NICHT — die gemeldete Version bleibt die vom
+      // App-Start. Die Nummer taugt deshalb nicht als Beleg dafuer, welcher Stand
+      // laeuft. Was sie kann: den Unterschied sichtbar machen, damit niemand sie
+      // faelschlich als Beleg nimmt.
+      const loaded = await cdp.evaluate<string>(
+        `return app.plugins.manifests[${JSON.stringify(PLUGIN_ID)}]?.version ?? '?';`,
+      );
+      const onDisk = JSON.parse(readFileSync("manifest.json", "utf8")).version;
+      if (loaded !== onDisk) {
+        console.log(
+          `   ⚠️  Manifest-Version: Obsidian meldet ${loaded}, deployt ist ${onDisk}.\n`
+          + `      Der Code AUS main.js ist neu geladen; nur das Manifest bleibt bis zum\n`
+          + `      naechsten Obsidian-Neustart auf dem alten Stand. Kein Befund am Plugin.`,
+        );
+      } else {
+        console.log(`   Neu geladen: ${PLUGIN_ID} ${loaded}`);
+      }
     }
     collapsedBefore = await cdp.evaluate<unknown>(
       `return JSON.parse(JSON.stringify(app.plugins.plugins[${JSON.stringify(PLUGIN_ID)}].settings.uiCollapsed || {}));`,

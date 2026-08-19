@@ -106,3 +106,14 @@ zwei Operationen: CUT lässt dem gekillten Turn die Identität (er räumt auf un
 Teilergebnis), RST enteignet ihn. Wer beides zu einer Methode zusammenzieht, strandet
 `busy` auf `true` und verwirft den Teiltext — beim Umzug in den Kern ist genau das
 passiert und nur an einem klemmenden Test aufgefallen.
+
+### Gotcha — die gemeldete Plugin-Version nach `--reload`
+
+`disablePlugin`/`enablePlugin` lädt `main.js` neu, liest `manifest.json` aber **nicht**:
+`app.plugins.manifests[id].version` bleibt bis zum nächsten Obsidian-Neustart auf dem
+Stand vom App-Start. Gemessen 2026-08-19 (deployt 0.8.0, gemeldet 0.7.5).
+
+Die Nummer taugt deshalb **nicht** als Beleg dafür, welcher Code läuft. Der Treiber
+vergleicht sie seit dem mit der `manifest.json` im Repo und meldet den Unterschied als
+Hinweis statt als Befund. Wer die Manifest-Version tatsächlich prüfen will (etwa nach
+einem `minAppVersion`-Wechsel), braucht einen echten Neustart.
