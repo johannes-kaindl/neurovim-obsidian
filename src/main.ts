@@ -25,7 +25,7 @@ import { XhrSseTransport } from './llm/XhrSseTransport';
 import { CorePortAdapter } from './llm/CorePortAdapter';
 import { EndpointResolver } from './llm/endpointResolver';
 import { probeEndpoint } from './llm/endpointProbe';
-import { effectiveModel, type EndpointConfig } from './vendor/kit/endpoint_config';
+import { effectiveModel } from './vendor/kit/endpoint_config';
 import { DEFAULT_SETTINGS, isLlmConfigured, mergeStoredSettings, type VimDojoSettings } from './settings';
 import {
   buildRunTrace, TraceStore, CipherUplink, ChatSession, buildKnowledge, quickReference,
