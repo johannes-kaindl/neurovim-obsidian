@@ -5,6 +5,8 @@ All notable changes to this project are documented here. Format loosely follows
 
 ## [Unreleased]
 
+## [0.8.0] — 2026-08-19
+
 ### Changed
 - **The CIPHER uplink now comes from `@neurovim/core`.** Prompt building, the chat
   session and the turn choreography moved upstream behind the new `LlmPort`; this
