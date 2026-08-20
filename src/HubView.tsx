@@ -58,7 +58,7 @@ function TabBar(p: { active: HubTab; uplinkVisible: boolean; onSelect: (t: HubTa
           role="tab"
           aria-selected={p.active === t.id}
           onClick={() => p.onSelect(t.id)}
-        >{t.label}</button>
+        ><span class="nv-tab-label">{t.label}</span></button>
       ))}
     </div>
   );

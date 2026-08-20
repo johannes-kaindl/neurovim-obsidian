@@ -363,12 +363,28 @@
   background: transparent; border: none; border-bottom: 2px solid transparent;
   color: var(--nv-text-dim); font-family: inherit; font-size: 0.8em; letter-spacing: 0.12em;
   padding: 4px 8px; cursor: pointer; box-shadow: none;
+  /* `1 1 auto`, NICHT `flex: 1`: die Kurzform waere `1 1 0%` und hoebe das
+     flex-wrap: wrap oben wieder auf (UI-STANDARD.md §4). Der Zuwachs gegenueber
+     dem CSS-Default `0 1 auto` ist das flex-grow — die Tabs fuellen ihre Zeile. */
+  flex: 1 1 auto;
   /* min-width:0 lets a tab shrink below its label width, so the row breaks at a
      tab boundary instead of pushing past the pane edge (vault-rag pattern). */
   min-width: 0;
 }
 .nv-root .nv-nexus .nv-tabs .nv-tab:hover { color: var(--nv-text); }
 .nv-root .nv-nexus .nv-tabs .nv-tab.is-active { color: var(--nv-accent); border-bottom-color: var(--nv-accent); }
+/* Vierte Zutat der Umbruch-Norm: nackter Text kann nicht ellipsieren, das Label
+   braucht ein eigenes Element (src/HubView.tsx, TabBar). Vier-Klassen-Kette aus
+   demselben Grund wie im Block darueber — Obsidians eigene <button>-Regeln.
+   `display: block` ist hier NICHT optional, auch wenn UI-STANDARD §4 nur die drei
+   overflow-Deklarationen nennt: `overflow` greift an einem nicht-ersetzten INLINE-Kasten
+   gar nicht. Das Kit kommt ohne aus, weil sein `.okit-hub-tab` `display: flex` ist und
+   den Label-Span damit zum (blockifizierten) Flex-Item macht — `.nv-tab` ist hier ein
+   gewoehnlicher <button>. Ohne die Zeile waere die Regel ein toter Haken. Auch kein
+   `inline-block`: das schrumpft auf Inhaltsbreite und ellipsiert deshalb nie. */
+.nv-root .nv-nexus .nv-tabs .nv-tab .nv-tab-label {
+  display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
 
 /* ── NEXUS home ──────────────────────────────────────────────── */
 .nv-nexus-home { display: flex; flex-direction: column; gap: 0.9em; }
