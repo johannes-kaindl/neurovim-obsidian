@@ -180,7 +180,13 @@ async function checkTabWrap(cdp: Cdp): Promise<void> {
       // Zweite Defektform: mit min-width:0 laufen die Tabs nicht ueber, sie SCHRUMPFEN
       // und schneiden ihr Label ab. Fuer den Spieler ist beides derselbe Schaden —
       // der Tab ist nicht lesbar. Also beides messen.
-      if (b.scrollWidth > b.clientWidth + 1) clipped.push(b.textContent.trim());
+      // Gemessen wird das Element, das TATSAECHLICH clippt: seit der Umbruch-Norm haengt
+      // overflow:hidden am Label-Span, nicht am Button. Am Button gemessen waeren
+      // scrollWidth und clientWidth danach immer gleich — der Pruefpunkt waere blind
+      // fuer genau den Defekt, den die Ellipse erzeugt. Fallback auf den Button, damit
+      // die Messung auch ohne Span (aeltere Fassung) noch etwas misst.
+      const m = b.querySelector('.nv-tab-label') || b;
+      if (m.scrollWidth > m.clientWidth + 1) clipped.push(b.textContent.trim());
     }
     if (split.setSize && sizeBefore) split.setSize(sizeBefore);
     await new Promise((r) => setTimeout(r, 300));

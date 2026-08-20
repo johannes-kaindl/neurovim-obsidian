@@ -16,7 +16,13 @@ KIT="${KIT_DIR:-../obsidian-kit}"
 VER=$(node -p "require('$KIT/package.json').version")
 # Pin auf den TAG, nicht auf HEAD: das Kit bekommt nach einem Release weitere Commits
 # (README u. ae.), ein HEAD-Pin zeigt dann auf einen Stand, den es als Release nicht gibt.
-SHA=$(git -C "$KIT" rev-parse --short "$VER") || {
+# `^{commit}` ist NICHT optional: ../tools/release/release.mjs taggt annotiert
+# (`git tag -a`, release.mjs:117), und `rev-parse --short <annotierter Tag>` liefert die SHA
+# des TAG-OBJEKTS, nicht die des Commits. Im Kit sind 0.1.0/0.2.0/0.12.0/0.13.0 bereits
+# annotiert (Gegenprobe 0.13.0: Tag-Objekt 137732f vs. Commit 80abae9) — 0.27.0 ist nur
+# zufaellig leichtgewichtig. Ohne die Peelung schriebe der naechste Kit-Sprung eine SHA in
+# VENDOR.json, die in `git log` des Kits gar nicht vorkommt. Praezedenz: obsidian-paperize.
+SHA=$(git -C "$KIT" rev-parse --short "$VER^{commit}") || {
   echo "sync-kit: Kit-Tag $VER existiert nicht — erst taggen, dann vendorieren" >&2; exit 1; }
 
 stamp() { # stamp <vendored-file> <kit-relative-path>
