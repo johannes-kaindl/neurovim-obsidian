@@ -5,6 +5,17 @@ All notable changes to this project are documented here. Format loosely follows
 
 ## [Unreleased]
 
+### Added
+- **Mastery tiers (gold/silver/bronze) after a run** — but only for missions somebody
+  wrote a par for. The result modal shows a tier badge with that par, and the mission
+  list marks your best run with a small diamond in its tier colour.
+
+  Missions without an authored par show no tier at all, and that is deliberate: the
+  fallback formula computes a gold threshold from difficulty alone, which for many
+  missions lands below the number of characters the solution requires you to type —
+  measured against real runs, it would report failure at something unreachable. About
+  six of 54 missions carry a par today; the rest stay unjudged until one is written.
+
 ## [0.8.0] — 2026-08-19
 
 ### Changed
