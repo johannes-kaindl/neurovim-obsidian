@@ -153,6 +153,22 @@ vim-dojo **never** touches files outside the configured mission folder. Critical
   (`$VAULT/…`, `~/…`, repo-relative). Provenance as repo name + `file:line` is welcome.
   Gate: `scripts/check-no-abs-paths.mjs` (part of `npm test`).
 
+## UI-Abweichungen
+
+- **hub** — Grund: Preact/JSX-Frontend, das den Hub bei jedem 500-ms-Tick neu rendert und
+  Tabs per bedingtem Rendern wechselt; `buildHubInto` ist imperativ und lebt vom
+  mount-once-Umblenden per `is-hidden`. Der Kit-Modulkopf schliesst dieses Repo namentlich
+  aus (`obsidian-kit/src/obsidian/hub.ts`). Dazu zwei repo-eigene Gruende: `.nv-tabs`/`.nv-tab`
+  sind Vertrag von `scripts/gui-smoke.ts` und `scripts/shots.ts` (neun Fundstellen) — ein
+  Wechsel auf `okit-hub-*` macht Pruefpunkte und Aufnahme-Rezept gleichzeitig blind; und
+  `HUB_CSS` bringt Theme-Variablen mit, die dem CRT-Schema (`--nv-*`) widersprechen, das als
+  comply-or-explain-Ausnahme dieses Repos ohnehin dokumentiert ist. Das **Verhalten** der Norm
+  ist uebernommen: `a8452b1` setzt alle vier Zutaten aus `UI-STANDARD.md` §4, inklusive eines
+  eigenen Label-Elements, das ellipsiert. `effectiveTab` kann zudem etwas, das das Kit nicht
+  kann — einen Tab abfangen, der zur Laufzeit verschwindet (UPLINK gibt es nur bei
+  konfiguriertem LLM).
+  — gilt-solange: `src/HubView.tsx` enthaelt `preact`
+
 ## Dach-Kontext (obsidian-plugins)
 
 This repo lives under the coordination umbrella `<code-workspace>/obsidian-plugins/`.
