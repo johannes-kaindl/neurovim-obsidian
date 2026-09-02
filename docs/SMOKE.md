@@ -71,6 +71,14 @@ Merksatz: **den Schaden messen, nicht die Regel, die ihn beheben soll.**
 
 ## Durchläufe
 
+⚠️ **Zahlen vor dem 2026-09-02 sind mit Vorbehalt zu lesen.** Bis dahin verbuchte `skipped()`
+einen übersprungenen Prüfpunkt als bestandenen (`passed: true`), und die Schlusszeile meldete
+`N/N grün` — ein Punkt, der nichts gemessen hat, war in der Zahl nicht von einem unterscheidbar,
+der gehalten hat. Wie viele der „8/8" vom 16.08. tatsächlich gemessen wurden, ist rückwirkend
+**nicht mehr feststellbar**. Seit `scripts/gui-smoke.ts` drei Zustände kennt, lautet die Bilanz
+`X grün · Y übersprungen · Z rot (von N)` und listet die Gründe; der Exit-Code bleibt bei Skips
+grün, weil ein Skip kein Fehlschlag ist — nur kein Erfolg.
+
 | Datum | Obsidian | Ergebnis | Gegenprobe |
 |---|---|---|---|
 | 2026-08-16 | 1.13.7 | **8/8** | **3/8** mit ausgebauten Fixes — R2-1/R2-3/R2-4/R2-5 rot mit dem historischen Symptom (Tabs abgeschnitten; Modal `rgb(40,42,55)` gegen Hub `rgb(8,18,12)`; 5 Textzeilen auf 13 gerenderten; Abzeichen 80px gegen 11px). Die drei R2-2-Punkte blieben grün — korrekt, ihr Code war nicht Teil der Gegenprobe. |

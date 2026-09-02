@@ -60,19 +60,23 @@ const CRT_ACCENT = "rgb(69, 255, 138)";
 
 interface Check {
   name: string;
-  passed: boolean;
+  /** Drei Zustände, nicht zwei: ein übersprungener Prüfpunkt hat NICHTS gemessen und
+   *  darf deshalb weder als grüner noch als roter gezählt werden. Vorher trug er
+   *  `passed: true` — dann meldet der Lauf "N/N grün", während der Punkt, wegen dessen
+   *  er gefahren wurde, stillschweigend ausfiel. */
+  status: "gruen" | "rot" | "uebersprungen";
   detail: string;
 }
 
 const checks: Check[] = [];
 
 function record(name: string, passed: boolean, detail: string): void {
-  checks.push({ name, passed, detail });
+  checks.push({ name, status: passed ? "gruen" : "rot", detail });
   console.log(`${passed ? "✅" : "❌"} ${name} — ${detail}`);
 }
 
 function skipped(name: string, reason: string): void {
-  checks.push({ name, passed: true, detail: `übersprungen: ${reason}` });
+  checks.push({ name, status: "uebersprungen", detail: `übersprungen: ${reason}` });
   console.log(`⏭️  ${name} — übersprungen: ${reason}`);
 }
 
@@ -501,7 +505,10 @@ async function checkCipherUplink(cdp: Cdp): Promise<void> {
   `);
 
   if (!patched) {
-    skipped("R3 CIPHER-Uplink", "cipherClient/endpointResolver nicht am Plugin gefunden");
+    // KEIN skipped(): dass cipherClient/endpointResolver nicht am Plugin hängen, ist
+    // genau die Verdrahtungsänderung in main.ts, für die dieser Abschnitt existiert.
+    // Als Skip gemeldet würde R3 sich in seinem eigenen Fehlerfall selbst bestätigen.
+    record("R3 CIPHER-Uplink", false, "cipherClient/endpointResolver nicht am Plugin gefunden");
     return;
   }
 
@@ -732,9 +739,18 @@ async function main(): Promise<void> {
     cdp?.close();
   }
 
-  const passed = checks.filter((c) => c.passed).length;
-  console.log(`\n${passed}/${checks.length} Prüfpunkte grün`);
-  if (passed !== checks.length) process.exitCode = 1;
+  const gruen = checks.filter((c) => c.status === "gruen").length;
+  const rot = checks.filter((c) => c.status === "rot").length;
+  const uebersprungen = checks.filter((c) => c.status === "uebersprungen");
+  console.log(
+    `\n${gruen} grün · ${uebersprungen.length} übersprungen · ${rot} rot (von ${checks.length} Prüfpunkten)`,
+  );
+  // Die Gründe gehören in die Schlusszeile, nicht nur ins Protokoll: wer nur das Ende
+  // liest, soll sehen, WAS ungemessen blieb — ein Punkt, der jedes Mal übersprungen wird,
+  // sieht in der Historie sonst aus wie einer, der jedes Mal hält.
+  for (const c of uebersprungen) console.log(`   ⏭️  ${c.name} — ${c.detail}`);
+  // Ein Skip ist kein Fehlschlag, nur kein Erfolg — der Exit-Code bleibt daran grün.
+  if (rot > 0) process.exitCode = 1;
 }
 
 void main();
