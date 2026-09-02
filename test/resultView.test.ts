@@ -86,3 +86,41 @@ describe('buildResultView', () => {
     expect(v.rows.every((r) => !r.newBest)).toBe(true);
   });
 });
+
+describe('buildResultView — mastery tier', () => {
+  it('awards a tier when the mission carries an authored par', () => {
+    const v = buildResultView(makeResult({ keystrokes: 20 }), false, 22);
+    expect(v.tier).toBe('gold');
+    expect(v.par).toBe(22);
+  });
+
+  // That a computed par never reaches this function is masteryTier.ts's job, and is
+  // tested there. Here the contract is only: no par, no verdict.
+  it('withholds the tier when no par was authored for the mission', () => {
+    const v = buildResultView(makeResult({ keystrokes: 20 }), false, null);
+    expect(v.tier).toBeNull();
+    expect(v.par).toBeNull();
+  });
+
+  // Keystrokes deliberately > 0: today `unverified` means exactly `keystrokes === 0`
+  // (MissionSession.ts), so a zero-keystroke fixture would be caught by tierFor's own
+  // guard and prove nothing about this one. This pins the invariant itself — an
+  // unverified run is never judged — so it keeps holding if `unverified` ever comes to
+  // mean something else, such as an aborted run.
+  it('withholds the tier on an unverified run but still names the par', () => {
+    const v = buildResultView(makeResult({ keystrokes: 20 }), true, 22);
+    expect(v.tier).toBeNull();
+    expect(v.par).toBe(22);
+  });
+
+  it('stays tierless when no par information is passed at all', () => {
+    const v = buildResultView(makeResult({ keystrokes: 20 }));
+    expect(v.tier).toBeNull();
+    expect(v.par).toBeNull();
+  });
+
+  it('grades a slow run down rather than withholding the tier', () => {
+    const v = buildResultView(makeResult({ keystrokes: 30 }), false, 22);
+    expect(v.tier).toBe('silver'); // 30 <= 22 * 1.5
+  });
+});

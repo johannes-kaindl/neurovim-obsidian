@@ -31,6 +31,10 @@ export interface MissionFrontmatter {
   summary?: string;
   /** Authored CIPHER "why this skill matters" line. Optional; GuidanceEngine falls back to guideWhyFor. */
   why?: string;
+  /** Provenance stamp for machine-generated drills, e.g. "MissionGenerator/1".
+   *  Absent on authored content — that asymmetry is the point: once a draft has
+   *  been moved into the SSOT, this is the only thing that still says so. */
+  generated_by?: string;
 }
 
 // ── Run result & records ─────────────────────────────────────

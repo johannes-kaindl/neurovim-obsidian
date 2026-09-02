@@ -35,6 +35,8 @@ export * from './llm/cipherPrompt';
 export * from './llm/debriefPrompt';
 export * from './llm/ChatSession';
 export * from './llm/CipherUplink';
+export * from './llm/kataPrompt';
+export * from './llm/MissionGenerator';
 
 // ── Data ─────────────────────────────────────────────────────
 export * from './data/chapters';

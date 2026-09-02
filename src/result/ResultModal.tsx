@@ -93,6 +93,14 @@ function ResultApp({ view, runDebrief, onClose }: { view: ResultView; runDebrief
           <Row row={row} />
         ))}
       </div>
+      {view.tier && (
+        <div class={`nv-result-tier nv-tier-${view.tier}`}>
+          ◆ {view.tier.toUpperCase()} — PAR {view.par}
+        </div>
+      )}
+      {!view.tier && view.par !== null && (
+        <div class="nv-result-par">PAR {view.par}</div>
+      )}
       {view.unverified && (
         <div class="nv-result-unverified">
           UNVERIFIED — no keystrokes recorded, not saved as a best

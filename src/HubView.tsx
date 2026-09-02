@@ -8,6 +8,7 @@ import type { HudRenderProps } from './HudMount';
 import type { ColorScheme } from './settings';
 import { CipherChat, type CipherChatProps } from './CipherChat';
 import { effectiveTab, type HubTab } from './hubTabs';
+import { bestTier } from './masteryTier';
 import { nextMission } from './nextMission';
 import { parseWelcomeBlocks } from './welcomeBlocks';
 import { filterCheatsheet } from './filterCheatsheet';
@@ -90,6 +91,9 @@ function MissionsTab(p: HubProps) {
       {p.missions.map((m) => {
         const unlocked = p.data.unlocked.includes(m.mission_id);
         const done = p.data.completed_missions.includes(m.mission_id);
+        // Null for every mission without an authored par — most of them today. Absence
+        // is the point: an empty slot says nothing, a computed tier would say something false.
+        const tier = bestTier(m, p.data.missions[m.mission_id]);
         return (
           <button
             class={`nv-mission ${unlocked ? '' : 'is-locked'} ${done ? 'is-done' : ''}`}
@@ -98,7 +102,10 @@ function MissionsTab(p: HubProps) {
           >
             <span class="nv-mission-id">{m.mission_id}</span>
             <span class="nv-mission-title">{m.title}</span>
-            <span class="nv-mission-xp">{done ? '✓' : `+${m.xp_reward}`}</span>
+            <span class="nv-mission-meta">
+              {tier && <span class={`nv-mission-tier nv-tier-${tier}`} title={`Best run: ${tier}`}>◆</span>}
+              <span class="nv-mission-xp">{done ? '✓' : `+${m.xp_reward}`}</span>
+            </span>
           </button>
         );
       })}

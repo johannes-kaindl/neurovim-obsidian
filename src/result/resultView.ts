@@ -1,4 +1,4 @@
-import type { RunResult } from '@neurovim/core';
+import { tierFor, type RunResult, type Tier } from '@neurovim/core';
 
 export interface DeltaView {
   arrow: '▲' | '▼';
@@ -19,6 +19,11 @@ export interface ResultView {
   xp: number;
   /** Run without a single keystroke — shown as such, never recorded as a best. */
   unverified: boolean;
+  /** Mastery tier for this run. null whenever the mission has no authored par:
+   *  the difficulty formula's guess is not a standard to judge anyone against. */
+  tier: Tier;
+  /** The authored par this run was measured against; null when none exists. */
+  par: number | null;
 }
 
 /** Sub-minute → "0.7s" (one decimal); >= 1 min → "M:SS". */
@@ -38,12 +43,22 @@ function delta(raw: number, betterWhenNegative: boolean, magnitude: string): Del
   return { arrow: good ? '▲' : '▼', magnitude, good };
 }
 
-/** Pure: turn a RunResult into a presentation-ready view-model. No Obsidian/Preact/DOM. */
-export function buildResultView(r: RunResult, unverified = false): ResultView {
+/** Pure: turn a RunResult into a presentation-ready view-model. No Obsidian/Preact/DOM.
+ *
+ *  `par` is an AUTHORED par or null — see `masteryTier.ts`, which owns that distinction.
+ *  Passing a computed par here would be a bug: this function would dutifully judge the
+ *  run against a number nobody stands behind. */
+export function buildResultView(
+  r: RunResult,
+  unverified = false,
+  authoredPar: number | null = null,
+): ResultView {
   return {
     title: r.mission_id,
     xp: r.xp_earned,
     unverified,
+    par: authoredPar,
+    tier: authoredPar !== null && !unverified ? tierFor(r.keystrokes, authoredPar) : null,
     rows: [
       {
         label: 'TIME',

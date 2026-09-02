@@ -15,6 +15,11 @@
   --nv-submit-bg: #164a2c;
   --nv-submit-fg: #7dffab;
   --nv-danger: #ff6b6b;
+  /* Metal is metal: these three stay fixed in both schemes because no theme token
+     names gold, silver or bronze. Deliberate exception to the mixing rule above. */
+  --nv-tier-gold: #ffd24a;
+  --nv-tier-silver: #cfd8dc;
+  --nv-tier-bronze: #cd7f32;
 }
 .nv-native {
   --nv-accent: var(--text-accent);
@@ -29,6 +34,9 @@
   --nv-submit-bg: var(--interactive-accent);
   --nv-submit-fg: var(--text-on-accent);
   --nv-danger: var(--text-error, #e05252);
+  --nv-tier-gold: #ffd24a;
+  --nv-tier-silver: #a8b3b8;
+  --nv-tier-bronze: #b5722c;
 }
 
 /* ── NEXUS pane ───────────────────────────────────────────────────── */
@@ -59,6 +67,13 @@
 .nv-root .nv-nexus .nv-mission-id { color: var(--nv-accent); font-weight: 600; }
 .nv-root .nv-nexus .nv-mission .nv-mission-title { color: var(--nv-text); white-space: normal; overflow-wrap: anywhere; }
 .nv-mission-xp { color: var(--nv-text-dim); }
+/* Third grid column stays ONE child: the row is `auto 1fr auto`, so a fourth element
+   would wrap into a second row instead of sitting beside the XP. */
+.nv-root .nv-nexus .nv-mission-meta { display: flex; align-items: center; gap: 6px; }
+.nv-root .nv-nexus .nv-mission-tier { font-size: 0.85em; line-height: 1; }
+.nv-root .nv-nexus .nv-mission-tier.nv-tier-gold { color: var(--nv-tier-gold); }
+.nv-root .nv-nexus .nv-mission-tier.nv-tier-silver { color: var(--nv-tier-silver); }
+.nv-root .nv-nexus .nv-mission-tier.nv-tier-bronze { color: var(--nv-tier-bronze); }
 
 /* ── Mission-control HUD (shared by floating box + sidebar block) ───── */
 .nv-hud { font-family: var(--font-monospace); color: var(--nv-text); }
@@ -190,6 +205,20 @@
   color: var(--nv-danger); border: 1px solid var(--nv-danger); background: var(--nv-panel);
   font-size: 0.72em; letter-spacing: 0.06em; padding: 5px 10px; border-radius: 4px;
   width: 100%; text-align: center;
+}
+.nv-result .nv-result-tier {
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  font-size: 0.78em; letter-spacing: 0.12em; font-weight: 700;
+  border: 1px solid currentColor; background: var(--nv-panel);
+  padding: 5px 12px; border-radius: 4px; width: 100%; text-align: center;
+}
+.nv-result .nv-tier-gold { color: var(--nv-tier-gold); }
+.nv-result .nv-tier-silver { color: var(--nv-tier-silver); }
+.nv-result .nv-tier-bronze { color: var(--nv-tier-bronze); }
+/* Par without a tier: information, not a verdict — so it stays in the dim text
+   colour and gets no border of its own. */
+.nv-result .nv-result-par {
+  color: var(--nv-text-dim); font-size: 0.7em; letter-spacing: 0.08em;
 }
 .nv-result .nv-result-actions { margin-top: 6px; }
 /* EXPERIMENT (2026-07-15): !important → maximum real-DOM-chain specificity

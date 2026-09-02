@@ -29,6 +29,20 @@ export function resolvePar(input: { parOverride?: number | null; difficulty?: nu
     : defaultParKeystrokes(input.difficulty);
 }
 
+/** Where a resolved par came from. `computed` means nobody authored one for this
+ *  mission — the difficulty formula guessed it, and a consumer may choose not to judge
+ *  a run against a guess. */
+export type ParSource = 'authored' | 'computed';
+
+/** Like `resolvePar`, but says whether the par was authored or merely computed. */
+export function resolveParInfo(
+  input: { parOverride?: number | null; difficulty?: number | null },
+): { par: number; source: ParSource } {
+  return input.parOverride && input.parOverride > 0
+    ? { par: input.parOverride, source: 'authored' }
+    : { par: defaultParKeystrokes(input.difficulty), source: 'computed' };
+}
+
 /** Tier for a keystroke count against a par. null = completed but no tier. */
 export function tierFor(keystrokes: number, par: number): Tier {
   if (keystrokes <= 0 || par <= 0) return null;

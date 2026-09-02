@@ -17,6 +17,7 @@ import { PausedBanner } from './PausedBanner';
 import { isMissionEditorKeystroke } from './keystrokeCounter';
 import { NeuroVimSettingTab } from './SettingsTab';
 import { buildResultView } from './result/resultView';
+import { authoredPar } from './masteryTier';
 import { ResultModal } from './result/ResultModal';
 import { BriefingModal } from './briefing/BriefingModal';
 import { LoreModal } from './lore/LoreModal';
@@ -337,6 +338,9 @@ export default class NeuroVimPlugin extends Plugin {
 
       const m = this.missions.find((x) => x.mission_id === res.result.mission_id);
       const par = m?.par_keystrokes ?? null;
+      // Only an authored par earns a verdict — see masteryTier.ts. The trace keeps the raw
+      // override above either way, because it records what was configured, not what we judged.
+      const judgedPar = m ? authoredPar(m) : null;
       const trace = buildRunTrace(res.result, events, par, new Date().toISOString());
       if (this.settings.recordTraces) void this.traceStore?.append(trace);
 
@@ -344,7 +348,7 @@ export default class NeuroVimPlugin extends Plugin {
         ? (onToken: (t: string) => void, signal: AbortSignal) => this.runDebrief(trace, onToken, signal)
         : null;
 
-      new ResultModal(this.app, buildResultView(res.result, res.unverified), this.settings.colorScheme, runDebrief).open();
+      new ResultModal(this.app, buildResultView(res.result, res.unverified, judgedPar), this.settings.colorScheme, runDebrief).open();
     } else {
       // Reveal every line that is wrong right now. The repaint at the end of this method
       // draws them and then clears them one by one as they get corrected — drawing here
