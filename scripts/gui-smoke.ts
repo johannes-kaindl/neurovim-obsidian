@@ -57,7 +57,7 @@ import { execFileSync } from "node:child_process";
 import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
-import { Cdp, attachTo, closeExtraLeaves, pollUntil } from "../../tools/obsidian-cdp/cdp.js";
+import { Cdp, attachTo, closeExtraLeaves, pollUntil, setAppConfig, setPluginSetting } from "../../tools/obsidian-cdp/cdp.js";
 import { buildHerkunft, buildVault, requireEigenerBuild, stagingVaultDir } from "../../tools/obsidian-cdp/vault.js";
 
 const PLUGIN_ID = "neurovim";
@@ -595,6 +595,64 @@ async function checkMasteryTier(cdp: Cdp, vault: string | undefined): Promise<vo
     `Zeile mit Chip ${Math.round(rows.par.height)}px, ohne ${Math.round(rows.noPar.height)}px; `
       + `Chip/XP-Oberkante Δ${Math.round(Math.abs(rows.par.chipTop - rows.par.xpTop))}px`
       + (inCell ? "" : "; Chip ragt aus der Meta-Zelle"),
+  );
+
+  // --- R4-4: die Tier-Farben sind in beiden Schemata und beiden Themes lesbar ------
+  // Gold/Silber/Bronze sind feste Hex-Werte (kein Theme-Token heißt Gold). Ob Silber auf
+  // hellem Grund noch lesbar ist, hatte niemand gesehen — hier wird es gerechnet: WCAG-
+  // Kontrast der drei Variablen gegen den tatsächlich gemalten Hintergrund der
+  // Missionszeile, in allen vier Kombinationen aus Farbschema (crt/native) und Obsidian-
+  // Theme (dunkel/hell). Schwelle 3:1 (grafische UI-Elemente). Gemessen wird der
+  // gerenderte Wert, nicht das Stylesheet; Theme und Schema werden danach zurückgestellt.
+  const before = await cdp.evaluate<{ theme: string; scheme: string }>(`
+    const p = app.plugins.plugins[${JSON.stringify(PLUGIN_ID)}];
+    return { theme: app.vault.getConfig('theme') || 'obsidian', scheme: p.settings.colorScheme };
+  `);
+  const combos: string[] = [];
+  let worst = Infinity;
+  try {
+    for (const theme of ["obsidian", "moonstone"] as const) {
+      await setAppConfig(cdp, "theme", theme);
+      for (const scheme of ["crt", "native"] as const) {
+        await setPluginSetting(cdp, PLUGIN_ID, "colorScheme", scheme);
+        // Der Hub rendert im 500-ms-Takt, der Renderer drosselt Timer auf 1 Hz.
+        const ok = await pollUntil<boolean>(
+          cdp,
+          `return Boolean(document.querySelector('.nv-root.nv-${scheme} .nv-mission'));`,
+          5_000,
+          250,
+        );
+        if (!ok) { combos.push(`${theme}/${scheme}: Hub nicht im Schema gerendert`); worst = 0; continue; }
+        const r = await cdp.evaluate<Record<string, number>>(`
+          const row = document.querySelector('.nv-root .nv-mission');
+          const toRgb = (c) => { const m = c.match(/[\\d.]+/g) || []; return m.slice(0, 3).map(Number); };
+          const lum = ([r, g, b]) => { const f = (v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; }; return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b); };
+          const contrast = (a, b) => { const [x, y] = [lum(a), lum(b)].sort((p, q) => q - p); return (x + 0.05) / (y + 0.05); };
+          // gemalter Hintergrund: erster Vorfahr mit deckender Farbe, sonst body
+          let el = row, bg = null;
+          while (el && !bg) { const c = getComputedStyle(el).backgroundColor; if (c && !/rgba\\(.*, 0\\)$/.test(c) && c !== 'transparent') bg = toRgb(c); el = el.parentElement; }
+          if (!bg) bg = toRgb(getComputedStyle(document.body).backgroundColor);
+          const cs = getComputedStyle(row);
+          const out = {};
+          for (const t of ['gold', 'silver', 'bronze']) {
+            const probe = document.createElement('span'); probe.style.color = cs.getPropertyValue('--nv-tier-' + t).trim();
+            row.appendChild(probe); out[t] = Math.round(contrast(toRgb(getComputedStyle(probe).color), bg) * 10) / 10; probe.remove();
+          }
+          return out;
+        `);
+        const minHere = Math.min(r.gold, r.silver, r.bronze);
+        worst = Math.min(worst, minHere);
+        combos.push(`${theme === "moonstone" ? "hell" : "dunkel"}/${scheme}: Au ${r.gold} · Ag ${r.silver} · Cu ${r.bronze}`);
+      }
+    }
+  } finally {
+    await setPluginSetting(cdp, PLUGIN_ID, "colorScheme", before.scheme).catch(() => undefined);
+    await setAppConfig(cdp, "theme", before.theme).catch(() => undefined);
+  }
+  record(
+    "R4-4 Tier-Farben lesbar in allen vier Schema/Theme-Kombinationen",
+    worst >= 3,
+    `${combos.join(" | ")} — schwächster Kontrast ${worst}:1${worst >= 3 ? "" : " (unter 3:1)"}`,
   );
 
   // --- R4-3: das Result-Modal trägt Badge und Par nach einem echten Lauf ------------

@@ -5,6 +5,11 @@ All notable changes to this project are documented here. Format loosely follows
 
 ## [Unreleased]
 
+### Fixed
+- **Tier colours readable on light themes.** With the native colour scheme on a light
+  Obsidian theme, gold measured 1.3:1 and silver 2.0:1 against the pane — invisible in
+  practice. Light-theme native now uses darker metals of the same hue; CRT is unchanged.
+
 ### Added
 - **Mastery tiers (gold/silver/bronze) after a run** — but only for missions somebody
   wrote a par for. The result modal shows a tier badge with that par, and the mission

@@ -38,6 +38,14 @@
   --nv-tier-silver: #a8b3b8;
   --nv-tier-bronze: #b5722c;
 }
+/* Light theme, native scheme: the metals above sit on a near-white ground here and drop
+   to 1.3:1 (gold) and 2.0:1 (silver) — measured 2026-09-03 by gui-smoke R4-4. Darker
+   metals keep the hue and clear 3:1; CRT paints its own dark ground and needs nothing. */
+.theme-light .nv-native {
+  --nv-tier-gold: #8a6d00;
+  --nv-tier-silver: #5f6b70;
+  --nv-tier-bronze: #8a4b12;
+}
 
 /* ── NEXUS pane ───────────────────────────────────────────────────── */
 .nv-root {

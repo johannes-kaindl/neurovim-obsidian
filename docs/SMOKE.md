@@ -157,6 +157,7 @@ und öffnet den Vault über den Pfad-URI als weiteres Fenster der laufenden Inst
 | R4-1 Chip nur bei autorisiertem Par | KATA-12 trägt `nv-tier-gold`, M-01 (kein autorisiertes Par) trägt keinen Chip |
 | R4-2 Chip bricht die Missionszeile nicht um | Chip und XP-Feld haben dieselbe Oberkante, die Zeile mit Chip ist nicht höher als eine ohne, der Chip liegt innerhalb der Meta-Zelle — gemessen, nicht die Klasse |
 | R4-3 Result-Modal trägt Badge und Par | Echter Lauf: 18 Keydowns im Capture-Pfad, Lösung per `vault.modify` (denn `submit()` liest die Notiz aus dem Vault, nicht aus dem Editor), dann `◆ GOLD — PAR 22` im Modal |
+| R4-4 Tier-Farben lesbar in allen vier Schema/Theme-Kombinationen | WCAG-Kontrast der drei Farbvariablen gegen den gemalten Zeilenhintergrund, je Theme (dunkel/hell) × Schema (crt/native), Schwelle 3:1; Theme und Schema werden danach zurückgestellt. Erster Lauf: hell/native Gold **1,3:1**, Silber **2,0:1** — der Befund, den die Task als „hat niemand gesehen" führte; behoben mit dunkleren Metallen unter `.theme-light .nv-native` |
 
 ### Gotcha — eine Gegenprobe im Speicher überlebt den Lauf
 
