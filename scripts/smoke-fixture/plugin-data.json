@@ -1,0 +1,12 @@
+{
+  "missions": {
+    "KATA-12": { "best_time_ms": 31000, "best_keystrokes": 20, "best_ks_per_min": 38.7, "runs": 1, "last_run": "2026-09-01" }
+  },
+  "total_xp": 10,
+  "streak_current": 0,
+  "streak_last_date": "",
+  "unlocked": ["M-01", "M-02", "M-03", "M-04", "KATA-01", "KATA-12"],
+  "completed_missions": ["KATA-12"],
+  "onboarded": true,
+  "vimPrimerSeen": true
+}

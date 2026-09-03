@@ -131,6 +131,48 @@ Teilergebnis), RST enteignet ihn. Wer beides zu einer Methode zusammenzieht, str
 `busy` auf `true` und verwirft den Teiltext — beim Umzug in den Kern ist genau das
 passiert und nur an einem klemmenden Test aufgefallen.
 
+## R4 — Wertungs-Anzeige (ParTier), nur im Staging-Vault
+
+Die Tier-Anzeige aus `073f4db` ist durch Unit-Tests gedeckt, aber keiner sieht, wie sie
+**sitzt**. Zwei Risiken waren nur am Code belegt: die Missionszeile ist ein Grid mit drei
+Spalten und der Chip hängt in der dritten Zelle — ob er dort bleibt, entscheidet das
+Rendering; und das Badge im Result-Modal erscheint nur nach einem Lauf mit Tastenanschlägen
+(0 Anschläge → UNVERIFIED → kein Urteil), also nur nach einem echten Durchlauf.
+
+Der Abschnitt braucht einen Spielstand mit gespielter Par-Mission. Im Arbeits-Vault gibt es
+den nicht, und dessen `data.json` ist der echte Spielstand — daran wird nichts präpariert.
+Deshalb läuft R4 **nur im Staging-Vault** und wird sonst als übersprungen geführt:
+
+```bash
+npm run build && npm run smoke:gui -- --setup    # Vault aus docs/images/fixture + Seed
+npm run smoke:gui -- --vault vim-dojo --reload
+```
+
+`--setup` baut `$STAGING_VAULTS_DIR/vim-dojo` per `buildVault`, schreibt danach
+`scripts/smoke-fixture/plugin-data.json` als Spielstand (KATA-12 mit Bestwert 20 bei Par 22 → Gold)
+und öffnet den Vault über den Pfad-URI als weiteres Fenster der laufenden Instanz.
+
+| Prüfpunkt | Was er misst |
+|---|---|
+| R4-1 Chip nur bei autorisiertem Par | KATA-12 trägt `nv-tier-gold`, M-01 (kein autorisiertes Par) trägt keinen Chip |
+| R4-2 Chip bricht die Missionszeile nicht um | Chip und XP-Feld haben dieselbe Oberkante, die Zeile mit Chip ist nicht höher als eine ohne, der Chip liegt innerhalb der Meta-Zelle — gemessen, nicht die Klasse |
+| R4-3 Result-Modal trägt Badge und Par | Echter Lauf: 18 Keydowns im Capture-Pfad, Lösung per `vault.modify` (denn `submit()` liest die Notiz aus dem Vault, nicht aus dem Editor), dann `◆ GOLD — PAR 22` im Modal |
+
+### Gotcha — eine Gegenprobe im Speicher überlebt den Lauf
+
+Die R4-Gegenproben mutieren das laufende Plugin (`p.missions`, `p.data.missions`), nicht
+die Dateien. Wer die Sabotage im Treiber zurückbaut und **ohne `--reload`** neu fährt, misst
+weiter den mutierten Zustand — gemessen 2026-09-03: der „saubere" Lauf nach der Gegenprobe
+meldete dieselben drei roten Punkte, weil KATA-12 im Speicher noch ohne Par und M-01 noch
+mit Par 40 stand. **Nach jeder Gegenprobe mit In-Memory-Mutation ist `--reload` Pflicht.**
+
+Zweite Lehre aus derselben Runde: die erste R4-3-Gegenprobe blieb **grün**, obwohl das Par
+entfernt war — der Prüfpunkt fand ein Result-Modal aus dem vorigen Lauf (drei standen noch,
+zwei mit Badge). Das Result-Modal hat keinen Obsidian-Schließknopf, sein Ausgang ist
+`.nv-btn-nexus`; der Treiber schließt jetzt vor dem Lauf alle Result-Modale über diesen Knopf
+und bricht ab, wenn eines stehen bleibt. Ein Prüfpunkt, der „ein Modal mit Badge" sucht, muss
+vorher wissen, dass keines da ist.
+
 ### Gotcha — der Renderer drosselt Timer auf 1 Hz, auch mit Fokus
 
 Der Stub des ersten Entwurfs hielt den Stream mit einer Schleife aus 40 × `setTimeout(100)`

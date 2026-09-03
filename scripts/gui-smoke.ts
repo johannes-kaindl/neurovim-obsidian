@@ -41,16 +41,24 @@
  * npm run smoke:gui -- --vault 10_Pallas --port 9222
  * ```
  *
+ * Abschnitt R4 (Wertungs-Anzeige) läuft nur im Staging-Vault, weil er einen geseedeten
+ * Bestwert auf einer Par-Mission braucht — gegen 10_Pallas wird er übersprungen:
+ *
+ * ```bash
+ * npm run build && npm run smoke:gui -- --setup   # baut + öffnet $STAGING_VAULTS_DIR/vim-dojo
+ * npm run smoke:gui -- --vault vim-dojo --reload
+ * ```
+ *
  * ⚠️ Chromium drosselt nicht-fokussierte Fenster: ohne Fokus bleibt die View leer und man
  * debuggt ein Phantom. `main()` holt das Fenster deshalb aktiv nach vorn.
  */
 
 import { execFileSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 import { Cdp, attachTo, closeExtraLeaves, pollUntil } from "../../tools/obsidian-cdp/cdp.js";
-import { buildHerkunft, requireEigenerBuild } from "../../tools/obsidian-cdp/vault.js";
+import { buildHerkunft, buildVault, requireEigenerBuild, stagingVaultDir } from "../../tools/obsidian-cdp/vault.js";
 
 const PLUGIN_ID = "neurovim";
 /** src/HubView.tsx: VIEW_TYPE_NEUROVIM */
@@ -440,22 +448,27 @@ async function checkReader(cdp: Cdp): Promise<void> {
     const pre = modal && modal.querySelector('.nv-lore-body pre');
     if (!pre) return { found: false, textLines: 0, renderedLines: 0, copyHidden: false };
     const copy = modal.querySelector('.copy-code-button');
-    const cs = getComputedStyle(pre);
-    let lh = parseFloat(cs.lineHeight);
-    if (!isFinite(lh)) lh = parseFloat(cs.fontSize) * 1.2;
+    // Gerenderte Zeilen = Zeilenboxen des Textes (Range-Rects nach Oberkante gruppiert),
+    // NICHT scrollHeight/lineHeight: die Scrollhöhe enthält die horizontale Scrollleiste —
+    // also genau den Beweis, dass der Block scrollt statt umzubrechen — und meldete im
+    // Staging-Vault 13 Zeilen für 11 (gemessen 2026-09-03: 11 Zeilenboxen, 248 px bei
+    // 19,5 px Zeilenhöhe, Scrollleiste ~33 px). Ein umgebrochener Rahmen hat dagegen
+    // wirklich mehr Zeilenboxen als Zeilenumbrüche.
     const text = pre.textContent.replace(/\\n$/, '');
+    const range = document.createRange();
+    range.selectNodeContents(pre.querySelector('code') || pre);
+    const tops = new Set([...range.getClientRects()].map((r) => Math.round(r.top)));
     return {
       found: true,
       textLines: text.split('\\n').length,
-      renderedLines: Math.round(pre.scrollHeight / lh),
+      renderedLines: tops.size,
       copyHidden: !copy || getComputedStyle(copy).display === 'none',
     };
   `);
   if (!ascii || !ascii.found) {
     skipped("R2-4 ASCII-Rahmen brechen nicht um", "dieses Artefakt enthält keinen Code-Block");
   } else {
-    // 1 Zeile Toleranz für Padding-Rundung.
-    const ok = ascii.renderedLines <= ascii.textLines + 1;
+    const ok = ascii.renderedLines === ascii.textLines;
     record(
       "R2-4 ASCII-Rahmen brechen nicht um",
       ok,
@@ -479,6 +492,200 @@ async function checkReader(cdp: Cdp): Promise<void> {
 }
 
 
+// --- R4: Wertungs-Anzeige (ParTier) — nur im Staging-Vault ------------------------
+
+const STAGING_VAULT = "vim-dojo";
+/** Mission mit autorisiertem Par (22) und gespieltem Bestwert (20 → Gold) im Fixture. */
+const PAR_MISSION = "KATA-12";
+/** Mission ohne autorisiertes Par — darf NIE einen Chip tragen, egal was gespielt wurde. */
+const NO_PAR_MISSION = "M-01";
+
+/**
+ * `--setup`: Staging-Vault aus dem getrackten Fixture bauen und den Spielstand seeden.
+ * `buildVault` entfernt `data.json` absichtlich (Auslieferungszustand); der Seed kommt
+ * danach aus `scripts/smoke-fixture/plugin-data.json`, damit der Vault einen Bestwert auf einer
+ * Par-Mission trägt — im Arbeits-Vault gibt es den nicht, und dessen `data.json` ist der
+ * echte Spielstand, an dem nichts präpariert wird.
+ */
+function setupStagingVault(): void {
+  const vaultDir = stagingVaultDir(STAGING_VAULT);
+  const log = buildVault({
+    repoRoot: process.cwd(),
+    vaultDir,
+    fixtureDir: join(process.cwd(), "docs/images/fixture"),
+    pluginId: PLUGIN_ID,
+  });
+  log.forEach((l) => console.log(`   ${l}`));
+  const seed = join(process.cwd(), "scripts/smoke-fixture/plugin-data.json");
+  writeFileSync(join(vaultDir, ".obsidian", "plugins", PLUGIN_ID, "data.json"), readFileSync(seed));
+  console.log(`   Spielstand geseedet aus scripts/smoke-fixture/plugin-data.json (${PAR_MISSION} gespielt)`);
+  // Ein frisch gebauter Vault ist Obsidian unbekannt; der Pfad-URI öffnet ihn als weiteres
+  // Fenster der laufenden Instanz und registriert ihn dabei (Dach-AGENTS, 2026-09-01).
+  const uri = `obsidian://open?path=${encodeURIComponent(join(vaultDir, "Welcome.md"))}`;
+  execFileSync("open", [uri]);
+  console.log(`\n✅ Vault gebaut und geöffnet: ${vaultDir}\n   Dann: npm run smoke:gui -- --vault ${STAGING_VAULT}`);
+}
+
+/**
+ * Die Tier-Anzeige aus `073f4db` ist durch Unit-Tests gedeckt, aber keiner sieht, wie sie
+ * SITZT. Zwei Risiken, beide nur am Code belegt: die Missionszeile ist ein Grid mit drei
+ * Spalten, der Chip hängt in der dritten Zelle — ob er dort bleibt oder eine Zeile
+ * aufmacht, entscheidet das Rendering; und das Result-Modal zeigt das Badge nur nach einem
+ * echten Lauf mit Tastenanschlägen (0 Anschläge → UNVERIFIED → kein Urteil).
+ *
+ * Läuft nur im Staging-Vault: dort liegt der geseedete Bestwert. Im Arbeits-Vault wäre
+ * „kein Chip" korrekt und der Punkt bestätigte sich selbst.
+ */
+async function checkMasteryTier(cdp: Cdp, vault: string | undefined): Promise<void> {
+  if (vault !== STAGING_VAULT) {
+    skipped("R4 Wertungs-Anzeige", `läuft nur im Staging-Vault "${STAGING_VAULT}" (--setup, dann --vault ${STAGING_VAULT})`);
+    return;
+  }
+  if (!(await selectTab(cdp, "MISSIONS"))) {
+    record("R4 Wertungs-Anzeige", false, "MISSIONS-Tab nicht gefunden");
+    return;
+  }
+
+  // --- R4-1: Chip nur dort, wo jemand ein Par autorisiert hat ---------------------
+  const rows = await cdp.evaluate<{
+    par: { found: boolean; chip: string | null; height: number; chipTop: number; xpTop: number; metaRight: number; chipRight: number } | null;
+    noPar: { found: boolean; chip: string | null; height: number } | null;
+  }>(`
+    const row = (id) => [...document.querySelectorAll('.nv-mission')]
+      .find((r) => r.querySelector('.nv-mission-id')?.textContent.trim() === id);
+    const measure = (r) => {
+      if (!r) return null;
+      const chip = r.querySelector('.nv-mission-tier');
+      const xp = r.querySelector('.nv-mission-xp');
+      const meta = r.querySelector('.nv-mission-meta');
+      const b = (e) => e ? e.getBoundingClientRect() : { top: 0, right: 0, height: 0 };
+      return {
+        found: true,
+        chip: chip ? chip.className : null,
+        height: r.getBoundingClientRect().height,
+        chipTop: b(chip).top, xpTop: b(xp).top, metaRight: b(meta).right, chipRight: b(chip).right,
+      };
+    };
+    return { par: measure(row(${JSON.stringify(PAR_MISSION)})), noPar: measure(row(${JSON.stringify(NO_PAR_MISSION)})) };
+  `);
+  if (!rows.par || !rows.noPar) {
+    record("R4-1 Chip nur bei autorisiertem Par", false,
+      `Missionszeilen nicht gefunden (${PAR_MISSION}: ${Boolean(rows.par)}, ${NO_PAR_MISSION}: ${Boolean(rows.noPar)})`);
+    return;
+  }
+  const chipOk = rows.par.chip !== null && rows.par.chip.includes("nv-tier-gold") && rows.noPar.chip === null;
+  record(
+    "R4-1 Chip nur bei autorisiertem Par",
+    chipOk,
+    chipOk
+      ? `${PAR_MISSION} trägt nv-tier-gold, ${NO_PAR_MISSION} trägt keinen Chip`
+      : `${PAR_MISSION}: ${rows.par.chip ?? "kein Chip"} · ${NO_PAR_MISSION}: ${rows.noPar.chip ?? "kein Chip"}`,
+  );
+
+  // --- R4-2: der Chip bleibt in seiner Zelle — gemessen an Höhe und Zeile ----------
+  // Ein umgebrochenes Grid-Kind stünde eine Zeile tiefer als das XP-Feld und machte die
+  // Zeile höher als eine ohne Chip. Beides wird gemessen, nicht die Klasse.
+  const sameLine = Math.abs(rows.par.chipTop - rows.par.xpTop) < 2;
+  const notTaller = rows.par.height <= rows.noPar.height + 1;
+  const inCell = rows.par.chipRight <= rows.par.metaRight + 1;
+  const gridOk = rows.par.chip !== null && sameLine && notTaller && inCell;
+  record(
+    "R4-2 Chip bricht die Missionszeile nicht um",
+    gridOk,
+    `Zeile mit Chip ${Math.round(rows.par.height)}px, ohne ${Math.round(rows.noPar.height)}px; `
+      + `Chip/XP-Oberkante Δ${Math.round(Math.abs(rows.par.chipTop - rows.par.xpTop))}px`
+      + (inCell ? "" : "; Chip ragt aus der Meta-Zelle"),
+  );
+
+  // --- R4-3: das Result-Modal trägt Badge und Par nach einem echten Lauf ------------
+  // Ein echter Lauf, weil das Badge an `unverified` hängt: die Tastenanschläge kommen als
+  // Keydown im Capture-Pfad an (so zählt das Plugin), der Text als Datei-Schreibvorgang,
+  // denn `submit()` liest die Notiz aus dem Vault, nicht aus dem Editor.
+  const KEYS = 18; // < par 22 → Gold
+  try {
+    // Kein Result-Modal darf vor dem Lauf offen sein — sonst misst der Prüfpunkt ein
+    // liegen gebliebenes Modal (mit Badge) statt des neuen. Gemessen 2026-09-03: die
+    // Gegenprobe (Par entfernt) blieb GRÜN, weil das Modal des vorigen Laufs noch stand.
+    const stale = await cdp.evaluate<number>(`
+      // Das Result-Modal hat keinen Obsidian-Schließknopf; sein Ausgang ist der eigene
+      // Knopf „ZURÜCK ZUM NEXUS" (.nv-btn-nexus). Ein Klick schließt EIN Modal — daher die
+      // Schleife, gemessen 2026-09-03 an drei liegen gebliebenen Modalen.
+      for (let i = 0; i < 10 && document.querySelector('.nv-result-modal'); i++) {
+        const b = document.querySelector('.nv-result-modal .nv-btn-nexus');
+        if (b) b.click(); else document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', code: 'Escape', keyCode: 27, bubbles: true }));
+        await new Promise((r) => setTimeout(r, 250));
+      }
+      return document.querySelectorAll('.nv-result-modal').length;
+    `);
+    if (stale > 0) {
+      record("R4-3 Result-Modal trägt Badge und Par", false, `${stale} Result-Modal(e) ließen sich vor dem Lauf nicht schließen`);
+      return;
+    }
+    const started = await cdp.evaluate<boolean>(`
+      const p = app.plugins.plugins[${JSON.stringify(PLUGIN_ID)}];
+      await p.beginMission(${JSON.stringify(PAR_MISSION)});
+      await new Promise((r) => setTimeout(r, 800));
+      return p.session.state === 'active' && Boolean(p.missionEditorView());
+    `);
+    if (!started) {
+      record("R4-3 Result-Modal trägt Badge und Par", false, "Mission startete nicht (kein aktiver Editor)");
+      return;
+    }
+    const typed = await cdp.evaluate<number>(`
+      const p = app.plugins.plugins[${JSON.stringify(PLUGIN_ID)}];
+      const cm = p.missionEditorView();
+      for (let i = 0; i < ${KEYS}; i++) {
+        cm.contentDOM.dispatchEvent(new KeyboardEvent('keydown', { key: 'j', bubbles: true }));
+      }
+      return p.session.metrics.getResult(0).keystrokes;
+    `);
+    await cdp.evaluate(`
+      const p = app.plugins.plugins[${JSON.stringify(PLUGIN_ID)}];
+      const doc = await p.content.getMission(${JSON.stringify(PAR_MISSION)});
+      const f = app.vault.getAbstractFileByPath(p.session.notePath);
+      await app.vault.modify(f, doc.solution);
+      await new Promise((r) => setTimeout(r, 300));
+      await p.handleSubmit();
+      return true;
+    `);
+    const modal = await pollUntil<{ tier: string | null; text: string } | null>(
+      cdp,
+      `const m = document.querySelector('.nv-result-modal'); if (!m) return null;
+       const t = m.querySelector('.nv-result-tier');
+       return { tier: t ? t.className : null, text: t ? t.textContent.trim() : '' };`,
+      8_000,
+      200,
+    );
+    const modalOk = Boolean(modal) && modal!.tier !== null && modal!.tier.includes("nv-tier-gold") && modal!.text.includes("PAR 22");
+    record(
+      "R4-3 Result-Modal trägt Badge und Par",
+      modalOk,
+      !modal ? `kein Result-Modal (gezählte Anschläge: ${typed})`
+        : modalOk ? `"${modal.text}" nach ${typed} gezählten Anschlägen`
+        : `Badge ${modal.tier ?? "fehlt"}, Text "${modal.text}", Anschläge ${typed}`,
+    );
+  } finally {
+    // Modal schließen, einen hängen gebliebenen Lauf beenden, Missionsnotiz zumachen.
+    await cdp.evaluate(`
+      const p = app.plugins.plugins[${JSON.stringify(PLUGIN_ID)}];
+      // Das Result-Modal hat keinen Obsidian-Schließknopf; sein Ausgang ist der eigene
+      // Knopf „ZURÜCK ZUM NEXUS" (.nv-btn-nexus). Ein Klick schließt EIN Modal — daher die
+      // Schleife, gemessen 2026-09-03 an drei liegen gebliebenen Modalen.
+      for (let i = 0; i < 10 && document.querySelector('.nv-result-modal'); i++) {
+        const b = document.querySelector('.nv-result-modal .nv-btn-nexus');
+        if (b) b.click(); else document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', code: 'Escape', keyCode: 27, bubbles: true }));
+        await new Promise((r) => setTimeout(r, 250));
+      }
+      if (p.session.activeMissionId) { p.session.end(); p.restoreVim(); p.repaint(); }
+      for (const leaf of app.workspace.getLeavesOfType('markdown')) {
+        if (leaf.view?.file?.path?.startsWith(p.settings.missionFolder)) leaf.detach();
+      }
+      return true;
+    `).catch(() => undefined);
+  }
+}
+
+
 // --- R3: CIPHER-Uplink — die Naht, die `main.ts` selbst nicht bewacht ---------
 
 /**
@@ -497,11 +704,9 @@ async function checkReader(cdp: Cdp): Promise<void> {
  * bleibt `data.json` unberührt.
  */
 async function checkCipherUplink(cdp: Cdp): Promise<void> {
-  if (!(await selectTab(cdp, "UPLINK"))) {
-    skipped("R3 CIPHER-Uplink", "UPLINK-Tab nicht gefunden");
-    return;
-  }
-
+  // Erst stubben, DANN den Tab wählen: UPLINK gibt es nur bei konfiguriertem LLM, und der
+  // Stub konfiguriert eines. So läuft der Abschnitt auch im Staging-Vault, der keinen
+  // Endpunkt kennt (bis 2026-09-03 wurde er dort übersprungen).
   // Transport + Endpunkt-Auflösung durch einen kontrollierten Stub ersetzen. Der Stub
   // streamt ein Stück, wartet, und richtet sich dann danach, ob abgebrochen wurde —
   // damit ist CUT überhaupt erst beobachtbar (ein sofort fertiger Stream wäre vorbei,
@@ -553,6 +758,17 @@ async function checkCipherUplink(cdp: Cdp): Promise<void> {
     // genau die Verdrahtungsänderung in main.ts, für die dieser Abschnitt existiert.
     // Als Skip gemeldet würde R3 sich in seinem eigenen Fehlerfall selbst bestätigen.
     record("R3 CIPHER-Uplink", false, "cipherClient/endpointResolver nicht am Plugin gefunden");
+    return;
+  }
+  // Der Hub rendert im 500-ms-Takt; der Tab braucht einen Tick, um aufzutauchen.
+  const tabShown = await pollUntil<boolean>(
+    cdp,
+    "return [...document.querySelectorAll('.nv-tabs .nv-tab')].some((b) => b.textContent.trim() === 'UPLINK');",
+    5_000,
+    250,
+  );
+  if (!tabShown || !(await selectTab(cdp, "UPLINK"))) {
+    record("R3 CIPHER-Uplink", false, "UPLINK-Tab erschien trotz gestubbter Konfiguration nicht");
     return;
   }
 
@@ -695,6 +911,10 @@ function arg(name: string, fallback?: string): string | undefined {
 }
 
 async function main(): Promise<void> {
+  if (process.argv.includes("--setup")) {
+    setupStagingVault();
+    return;
+  }
   const port = Number(arg("port", "9222"));
   const vault = arg("vault");
 
@@ -763,6 +983,7 @@ async function main(): Promise<void> {
     await checkCollapse(cdp);
     await checkCardAlignment(cdp);
     await checkReader(cdp);
+    await checkMasteryTier(cdp, vault);
     await checkCipherUplink(cdp);
   } catch (err) {
     if (err instanceof PreconditionError) {
