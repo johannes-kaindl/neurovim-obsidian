@@ -47,8 +47,10 @@
 
 import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
+import { join } from "node:path";
 
 import { Cdp, attachTo, closeExtraLeaves, pollUntil } from "../../tools/obsidian-cdp/cdp.js";
+import { buildHerkunft, requireEigenerBuild } from "../../tools/obsidian-cdp/vault.js";
 
 const PLUGIN_ID = "neurovim";
 /** src/HubView.tsx: VIEW_TYPE_NEUROVIM */
@@ -109,6 +111,38 @@ async function requireEnvironment(cdp: Cdp, vault: string | undefined): Promise<
     `return app.plugins.manifests[${JSON.stringify(PLUGIN_ID)}]?.version ?? '?';`,
   );
   console.log(`   Vault "${name}", Plugin ${PLUGIN_ID} ${version}`);
+
+  // Läuft dieser Lauf gegen den eigenen Stand? Die Versionszeile darüber ist dafür
+  // strukturell blind: Store-Build und Repo-Build tragen dieselbe Nummer, und dieses Plugin
+  // läuft im Vault unter der ID `neurovim`, was die Zuordnung zusätzlich verdeckt. Am
+  // 2026-08-30 standen dachweit 69 von 150 grünen Prüfpunkten auf einem Build, der nicht
+  // belegt der Repo-Stand war. Der Pfad kommt aus der LAUFENDEN Instanz, nicht aus
+  // `stagingVaultDir(...)`: `--vault` dockt an ein beliebiges Fenster an, geprüft wird,
+  // was gemessen wird. Der main.js-Guard ist zentral und wird importiert; das
+  // styles.css-Gegenstück darunter ist
+  // uebernommen aus local-image-generator/scripts/gui-smoke.ts (e6fbb53), 2026-09-03 (via json_viewer).
+  const vaultInfo = await cdp.evaluate<{ basePath: string; configDir: string }>(
+    "return { basePath: app.vault.adapter.basePath, configDir: app.vault.configDir };",
+  );
+  const pluginDir = join(vaultInfo.basePath, vaultInfo.configDir, "plugins", PLUGIN_ID);
+  requireEigenerBuild(join(pluginDir, "main.js"), join(process.cwd(), "main.js"));
+  // Dieselbe Frage für `styles.css` — der zentrale Guard kennt nur `main.js`, R2-1/R2-3
+  // messen aber gerendertes CSS (Tab-Geometrie, gemalte Reader-Farbe). Ein altes
+  // Stylesheet neben frischer main.js erschiene dort als Plugin-Befund statt als
+  // Deploy-Fehler.
+  const css = buildHerkunft(join(pluginDir, "styles.css"), join(process.cwd(), "styles.css"));
+  if (css.art === "fehlt") {
+    throw new PreconditionError(`Im Vault liegt kein styles.css: ${css.pfad}\nZuerst deployen.`);
+  }
+  if (css.art === "fremd") {
+    const z = (n: number) => n.toLocaleString("de-DE");
+    throw new PreconditionError(
+      `Das styles.css im Vault ist nicht der gebaute Repo-Stand: ${css.pfad}\n`
+      + `  im Vault: ${z(css.bytes)} Bytes · gebaut: ${z(css.erwarteteBytes)} Bytes\n`
+      + "R2-1/R2-3 messen gerendertes CSS. Zuerst deployen, dann erneut laufen.",
+    );
+  }
+  console.log("   Build im Vault = Repo-Stand (main.js + styles.css sha1-gleich)");
 }
 
 /** Öffnet den Hub in der rechten Sidebar und wartet, bis er gezeichnet ist. */
@@ -487,18 +521,28 @@ async function checkCipherUplink(cdp: Cdp): Promise<void> {
     p.settings.llmModel = 'stub';
     p.endpointResolver.resolve = async () => ({ url: 'http://nv-smoke.invalid:1234', apiKey: '', model: 'stub' });
     p.endpointResolver.invalidate = () => {};
-    p.cipherClient.stream = async (cfg, messages, onToken, signal) => {
+    // Der Stub haelt den Stream offen, bis der Treiber ihn freigibt (R3-3) oder die
+    // Oberflaeche ihn abbricht (R3-1). KEINE Timer-Schleife: Obsidians Renderer drosselt
+    // setTimeout auf 1 Hz (gemessen 2026-09-03, 7 Ticks in 6 s bei 100 ms Soll, mit und
+    // ohne Fokus) — 40 × 100 ms wurden so zu 40 s, und R3-3 lief rot, obwohl die Antwort
+    // spaeter korrekt landete. Ein Treiber-Befund, kein Plugin-Befund.
+    p.cipherClient.stream = (cfg, messages, onToken, signal) => new Promise((resolve) => {
       window.__nvSmokeSawModel = cfg && cfg.model;
       onToken('Use d');
-      for (let i = 0; i < 40 && !signal.aborted; i++) {
-        await new Promise((r) => setTimeout(r, 100));
-      }
+      const finish = () => {
+        onToken('w.');
+        resolve({ ok: true, content: 'Use dw.' });
+      };
+      window.__nvSmokeRelease = finish;
       if (signal.aborted) {
-        return { ok: false, kind: 'aborted', detail: 'stream aborted', partial: 'Use d' };
+        resolve({ ok: false, kind: 'aborted', detail: 'stream aborted', partial: 'Use d' });
+        return;
       }
-      onToken('w.');
-      return { ok: true, content: 'Use dw.' };
-    };
+      signal.addEventListener('abort', () => {
+        window.__nvSmokeRelease = null;
+        resolve({ ok: false, kind: 'aborted', detail: 'stream aborted', partial: 'Use d' });
+      }, { once: true });
+    });
     // Einen etwaigen zuvor gebauten Uplink verwerfen, damit er den Stub sieht.
     p.cipherUplink = null;
     return true;
@@ -591,7 +635,16 @@ async function checkCipherUplink(cdp: Cdp): Promise<void> {
       input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
       return true;
     `);
-    const answered = await pollUntil<boolean>(
+    // Erst wenn der Stub den zweiten Turn haelt, darf er ihn beenden — sonst gaebe die
+    // Freigabe den ERSTEN (laengst abgebrochenen) Turn frei oder liefe ins Leere.
+    const held = await pollUntil<boolean>(
+      cdp,
+      "return typeof window.__nvSmokeRelease === 'function' && Boolean(document.querySelector('.nv-btn-abort'));",
+      8_000,
+      200,
+    );
+    if (held) await cdp.evaluate("window.__nvSmokeRelease(); window.__nvSmokeRelease = null; return true;");
+    const answered = held && await pollUntil<boolean>(
       cdp,
       `return [...document.querySelectorAll('.nv-uplink-assistant .nv-uplink-text')]
          .some((e) => e.textContent.includes('Use dw.'));`,
@@ -606,7 +659,8 @@ async function checkCipherUplink(cdp: Cdp): Promise<void> {
     record(
       "R3-3 ein voller Turn landet als Antwort",
       answered === true && roles.join(",") === "user,assistant",
-      answered === true ? `Zeilen: ${roles.join(", ")}` : "Antwort 'Use dw.' erschien nicht",
+      !held ? "zweiter Turn startete nicht (kein Stub-Halt / kein CUT-Knopf)"
+        : answered === true ? `Zeilen: ${roles.join(", ")}` : "Antwort 'Use dw.' erschien nicht",
     );
   } finally {
     // Stub zurückbauen. Der Kanal bleibt geleert — das ist Sitzungszustand, nichts
@@ -626,6 +680,7 @@ async function checkCipherUplink(cdp: Cdp): Promise<void> {
         }
         delete window.__nvSmokeRestore;
         delete window.__nvSmokeSawModel;
+        delete window.__nvSmokeRelease;
         return true;
       `)
       .catch(() => undefined);

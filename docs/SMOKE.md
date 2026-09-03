@@ -131,6 +131,21 @@ Teilergebnis), RST enteignet ihn. Wer beides zu einer Methode zusammenzieht, str
 `busy` auf `true` und verwirft den Teiltext — beim Umzug in den Kern ist genau das
 passiert und nur an einem klemmenden Test aufgefallen.
 
+### Gotcha — der Renderer drosselt Timer auf 1 Hz, auch mit Fokus
+
+Der Stub des ersten Entwurfs hielt den Stream mit einer Schleife aus 40 × `setTimeout(100)`
+offen. Gemessen 2026-09-03 im ersten Live-Lauf des Abschnitts: **7 Ticks in 6 s** statt 60,
+mit und ohne `osascript activate` — Obsidians Renderer fährt `setTimeout` in diesem Fenster
+mit einer Sekunde Mindestabstand. Aus 4 s wurden 40 s, R3-3 lief nach 10 s rot, und die
+Antwort `Use dw.` landete Minuten später korrekt im Kanal. **Ein Treiber-Befund, kein
+Plugin-Befund** — und ohne die Sondierung wäre er als einer gelesen worden.
+
+Der Stub hält den Stream seither ohne Timer: er bleibt in einem Promise stehen, bis der
+Treiber ihn über `window.__nvSmokeRelease()` freigibt (R3-3) oder das `AbortSignal` feuert
+(R3-1). Was in der Oberfläche passiert, bestimmt so allein der Prüfpunkt, nicht die Uhr des
+Renderers. Merksatz für jeden weiteren Stub: **ein Stub, der auf Zeit wartet, misst die
+Timer-Rate des Hosts mit.**
+
 ### Gotcha — die gemeldete Plugin-Version nach `--reload`
 
 `disablePlugin`/`enablePlugin` lädt `main.js` neu, liest `manifest.json` aber **nicht**:
