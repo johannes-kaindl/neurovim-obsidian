@@ -26,20 +26,54 @@ CODE_KIT="${CODE_KIT_DIR:-../../code-kit}"
 [ -d "$CODE_KIT/src/ts" ] || { echo "code-kit nicht gefunden unter $CODE_KIT (CODE_KIT_DIR setzen)" >&2; exit 1; }
 [ -d "$KIT/src/pure" ] || { echo "sync-kit: Kit nicht gefunden unter $KIT (KIT_DIR setzen)" >&2; exit 1; }
 
-VER=$(node -p "require('$KIT/package.json').version")
-CODE_VER=$(node -p "require('$CODE_KIT/package.json').version")
+# Die Version kommt aus dem PIN, nicht aus der package.json des Arbeitsstands
+# (CORE-META-22, umgestellt 2026-09-07). Der Kopf dieses Skripts hatte die zweite
+# Haelfte der Regel bereits sauber verstanden — die ^{commit}-Peelung ist unten
+# ausfuehrlich begruendet —, aber `VER` las den Arbeitsstand des Nachbar-Repos.
+# Gemessen am 2026-09-07: VENDOR.json pinnt 0.27.0, das Kit-Arbeitsverzeichnis
+# stand auf 0.31.0. Ein Routinelauf waere also vier Minor-Versionen gesprungen,
+# ohne dass jemand einen Sprung beauftragt haette — und der Stempel haette ihn
+# korrekt gepeelt beglaubigt.
+KIT_REF=${KIT_REF:-0.27.0}
+CODE_KIT_REF=${CODE_KIT_REF:-0.5.0}
+
+for paar in "$KIT|$KIT_REF" "$CODE_KIT|$CODE_KIT_REF"; do
+  repo=${paar%%|*}; ref=${paar##*|}
+  git -C "$repo" rev-parse --verify --quiet "$ref^{commit}" >/dev/null \
+    || { echo "sync-kit: Ref '$ref' existiert nicht in $repo (KIT_REF/CODE_KIT_REF setzen)" >&2; exit 1; }
+done
+
+VER=$(git -C "$KIT" describe --tags --abbrev=0 "$KIT_REF")
+CODE_VER=$(git -C "$CODE_KIT" describe --tags --abbrev=0 "$CODE_KIT_REF")
 
 # Ein pures Modul kann in drei Schichten liegen. Statt fester Zuordnung wird gesucht — die
 # naechste Umschichtung soll dieses Skript nicht wieder toeten, sondern nur einen anderen
 # Fundort ergeben. Ausgabe: <pfad>|<quelle>|<quell-relativer-pfad>|<version>
 quelle_fuer() {
   for kandidat in \
-    "$KIT/src/pure/$1.ts|obsidian-kit|src/pure/$1.ts|$VER" \
-    "$CODE_KIT/src/ts/pure/$1.ts|code-kit|src/ts/pure/$1.ts|$CODE_VER" \
-    "$CODE_KIT/src/ts/web/$1.ts|code-kit|src/ts/web/$1.ts|$CODE_VER"; do
-    if [ -f "${kandidat%%|*}" ]; then printf '%s\n' "$kandidat"; return 0; fi
+    "$KIT|obsidian-kit|src/pure/$1.ts|$VER|$KIT_REF" \
+    "$CODE_KIT|code-kit|src/ts/pure/$1.ts|$CODE_VER|$CODE_KIT_REF" \
+    "$CODE_KIT|code-kit|src/ts/web/$1.ts|$CODE_VER|$CODE_KIT_REF"; do
+    k_repo=$(printf '%s' "$kandidat" | cut -d'|' -f1)
+    k_pfad=$(printf '%s' "$kandidat" | cut -d'|' -f3)
+    k_ref=$(printf '%s' "$kandidat" | cut -d'|' -f5)
+    if git -C "$k_repo" cat-file -e "$k_ref:$k_pfad" 2>/dev/null; then
+      printf '%s\n' "$kandidat"; return 0
+    fi
   done
   return 1
+}
+
+# vendor_aus_ref <ziel> <repo> <ref> <quell-pfad>
+# Schreibt ERST nach .tmp: `git show ... > ziel` legt die Datei an, BEVOR git show
+# laeuft — fehlt die Quelle, bleibt ein Stummel liegen, der wie ein Vendoring aussieht.
+vendor_aus_ref() {
+  git -C "$2" show "$3:$4" > "$1.tmp" || {
+    rm -f "$1.tmp"
+    echo "sync-kit: $4 fehlt in $2@$3 — nichts geschrieben." >&2
+    exit 1
+  }
+  mv "$1.tmp" "$1"
 }
 # Pin auf den TAG, nicht auf HEAD: das Kit bekommt nach einem Release weitere Commits
 # (README u. ae.), ein HEAD-Pin zeigt dann auf einen Stand, den es als Release nicht gibt.
@@ -49,8 +83,7 @@ quelle_fuer() {
 # annotiert (Gegenprobe 0.13.0: Tag-Objekt 137732f vs. Commit 80abae9) — 0.27.0 ist nur
 # zufaellig leichtgewichtig. Ohne die Peelung schriebe der naechste Kit-Sprung eine SHA in
 # VENDOR.json, die in `git log` des Kits gar nicht vorkommt. Praezedenz: obsidian-paperize.
-SHA=$(git -C "$KIT" rev-parse --short "$VER^{commit}") || {
-  echo "sync-kit: Kit-Tag $VER existiert nicht — erst taggen, dann vendorieren" >&2; exit 1; }
+SHA=$(git -C "$KIT" rev-parse --short "$KIT_REF^{commit}")
 
 stamp() { # stamp <vendored-file> <quell-relativer-pfad> [<quelle> <version>]
   quelle=${3:-obsidian-kit}
@@ -126,27 +159,29 @@ done
 
 for m in $PURE_MODULE; do
   fund=$(quelle_fuer "$m")
-  pfad=$(printf '%s' "$fund" | cut -d'|' -f1)
+  q_repo=$(printf '%s' "$fund" | cut -d'|' -f1)
   quelle=$(printf '%s' "$fund" | cut -d'|' -f2)
   rel=$(printf '%s' "$fund" | cut -d'|' -f3)
   ver=$(printf '%s' "$fund" | cut -d'|' -f4)
-  cp "$pfad" "src/vendor/kit/$m.ts"
+  q_ref=$(printf '%s' "$fund" | cut -d'|' -f5)
+  vendor_aus_ref "src/vendor/kit/$m.ts" "$q_repo" "$q_ref" "$rel"
   stamp "src/vendor/kit/$m.ts" "$rel" "$quelle" "$ver"
   echo "vendored $quelle@$ver/$rel"
 done
 
 # Ausnahme 1 (s. Kopf): think-splitter.ts -> think.ts.
 ts_fund=$(quelle_fuer think-splitter)
-ts_pfad=$(printf '%s' "$ts_fund" | cut -d'|' -f1)
+ts_repo=$(printf '%s' "$ts_fund" | cut -d'|' -f1)
 ts_quelle=$(printf '%s' "$ts_fund" | cut -d'|' -f2)
 ts_rel=$(printf '%s' "$ts_fund" | cut -d'|' -f3)
 ts_ver=$(printf '%s' "$ts_fund" | cut -d'|' -f4)
-cp "$ts_pfad" src/vendor/kit/think.ts
+ts_ref=$(printf '%s' "$ts_fund" | cut -d'|' -f5)
+vendor_aus_ref src/vendor/kit/think.ts "$ts_repo" "$ts_ref" "$ts_rel"
 stamp src/vendor/kit/think.ts "$ts_rel" "$ts_quelle" "$ts_ver"
 echo "vendored $ts_quelle@$ts_ver/$ts_rel -> think.ts"
 
 for m in clock collapsible endpoint-list model-picker; do
-  cp "$KIT/src/obsidian/$m.ts" "src/vendor/kit-obsidian/$m.ts"
+  vendor_aus_ref "src/vendor/kit-obsidian/$m.ts" "$KIT" "$KIT_REF" "src/obsidian/$m.ts"
   relayer "src/vendor/kit-obsidian/$m.ts"   # Ausnahme 2 (s. Kopf) — no-op fuer clock/collapsible
   stamp "src/vendor/kit-obsidian/$m.ts" "src/obsidian/$m.ts"
   echo "vendored obsidian-kit@$VER/obsidian/$m.ts"
