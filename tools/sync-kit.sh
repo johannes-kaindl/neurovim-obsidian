@@ -180,9 +180,9 @@ vendor_aus_ref src/vendor/kit/think.ts "$ts_repo" "$ts_ref" "$ts_rel"
 stamp src/vendor/kit/think.ts "$ts_rel" "$ts_quelle" "$ts_ver"
 echo "vendored $ts_quelle@$ts_ver/$ts_rel -> think.ts"
 
-for m in clock collapsible endpoint-list model-picker; do
+for m in clock collapsible endpoint-list model-picker folder-suggest settings_walker; do
   vendor_aus_ref "src/vendor/kit-obsidian/$m.ts" "$KIT" "$KIT_REF" "src/obsidian/$m.ts"
-  relayer "src/vendor/kit-obsidian/$m.ts"   # Ausnahme 2 (s. Kopf) — no-op fuer clock/collapsible
+  relayer "src/vendor/kit-obsidian/$m.ts"   # Ausnahme 2 (s. Kopf) — no-op fuer clock/collapsible/folder-suggest/settings_walker
   stamp "src/vendor/kit-obsidian/$m.ts" "src/obsidian/$m.ts"
   echo "vendored obsidian-kit@$VER/obsidian/$m.ts"
 done
@@ -202,8 +202,8 @@ cat > src/vendor/kit-obsidian/VENDOR.json <<JSON
   "source": "obsidian-kit",
   "version": "$VER",
   "sha": "$SHA",
-  "vendored": "obsidian/clock.ts, obsidian/collapsible.ts, obsidian/endpoint-list.ts, obsidian/model-picker.ts",
-  "note": "Verbatim snapshot. Never hand-edit. Re-vendor via tools/sync-kit.sh. collapsible.ts has no consumer in src/, checked by test/vendorKit.test.ts only. endpoint-list.ts and model-picker.ts carry ONE mechanical deviation from verbatim: kit-internal imports of ../pure/* are rewritten to ../kit/* to match this repo's vendor layout (obsidian-kit's src/obsidian + src/pure become kit-obsidian + kit here). Reproduce that rewrite on every re-vendor; nothing else may differ. Same fix precedented in markdown-presentation's VENDOR.json at the same sha."
+  "vendored": "obsidian/clock.ts, obsidian/collapsible.ts, obsidian/endpoint-list.ts, obsidian/model-picker.ts, obsidian/folder-suggest.ts, obsidian/settings_walker.ts",
+  "note": "Verbatim snapshot. Never hand-edit. Re-vendor via tools/sync-kit.sh. collapsible.ts has no consumer in src/, checked by test/vendorKit.test.ts only. endpoint-list.ts and model-picker.ts carry ONE mechanical deviation from verbatim: kit-internal imports of ../pure/* are rewritten to ../kit/* to match this repo's vendor layout (obsidian-kit's src/obsidian + src/pure become kit-obsidian + kit here). Reproduce that rewrite on every re-vendor; nothing else may differ. Same fix precedented in markdown-presentation's VENDOR.json at the same sha. folder-suggest.ts and settings_walker.ts have no ../pure/ imports, so relayer() is a no-op for both (same as clock/collapsible) — settings_walker.ts imports ./folder-suggest, both must stay vendored together."
 }
 JSON
 echo "VENDOR.json → $VER ($SHA)"

@@ -10,6 +10,17 @@ export class ItemView {}
 export class App {}
 export class PluginSettingTab { constructor(_app?: unknown, _plugin?: unknown) {} }
 export class Setting { constructor(_containerEl: unknown) {} }
+// Minimal stand-in so src/vendor/kit-obsidian/folder-suggest.ts can be imported at all
+// (class-extends-undefined otherwise crashes at module load, before any test even runs) —
+// nothing in this repo's tests exercises the suggest dropdown itself.
+export abstract class AbstractInputSuggest<T> {
+  constructor(protected app: unknown, protected inputEl: unknown) {}
+  abstract getSuggestions(query: string): T[] | Promise<T[]>;
+  abstract renderSuggestion(value: T, el: unknown): void;
+  selectSuggestion(_value: T): void {}
+  open(): void {}
+  close(): void {}
+}
 export function normalizePath(p: string): string {
   return p.replace(/\\/g, '/').replace(/\/+/g, '/');
 }

@@ -1,7 +1,8 @@
 import { App, PluginSettingTab, Setting } from 'obsidian';
-import type { SettingControl, SettingDefinition, SettingDefinitionGroup, SettingDefinitionItem } from 'obsidian';
+import type { SettingDefinitionGroup, SettingDefinitionItem } from 'obsidian';
 import type NeuroVimPlugin from './main';
 import { buildEndpointList, type EndpointListStrings } from './vendor/kit-obsidian/endpoint-list';
+import { renderSettingDefinitions, refreshSettingsTab, settingBodyHost } from './vendor/kit-obsidian/settings_walker';
 import { createModelListCache } from './vendor/kit/model-list-cache';
 import { resolveActiveEndpointConfig, type EndpointConfig } from './vendor/kit/endpoint_config';
 import { normalizeEndpoint } from './vendor/kit/endpoint';
@@ -60,10 +61,9 @@ export class NeuroVimSettingTab extends PluginSettingTab {
    *  and contextLength would stay null until the user happened to edit a row. Reset in hide(),
    *  so the next tab-open probes afresh. */
   private hasReconnectedThisOpen = false;
-  // Cleanup functions a render-hatch may return (the declarative render contract; on 1.13
-  // the framework runs them before tearing a row down). The imperative fallback must honor
-  // the same contract — runRowCleanups() runs them before each rebuild and on hide().
-  private rowCleanups: Array<() => void> = [];
+  // The kit walker bundles every render-hatch cleanup from one renderSettingDefinitions()
+  // call into a single function — run it before the next rebuild and on hide().
+  private cleanupPrevious: () => void = () => {};
 
   constructor(app: App, private readonly plugin: NeuroVimPlugin) { super(app, plugin); }
 
@@ -172,93 +172,28 @@ export class NeuroVimSettingTab extends PluginSettingTab {
   // ── Imperative fallback (Obsidian < 1.13) ───────────────────────────────
   // On 1.13+ the host calls getSettingDefinitions() and display() is never called; on
   // ≤1.12 getSettingDefinitions is not a render path, so the host calls display() instead.
-  // renderImperative() reads the SAME structure and draws it with the classic Setting API —
-  // one truth, no second definition tree.
+  // renderImperative() reads the SAME structure and draws it with the kit's walker (classic
+  // Setting API) — one truth, no second definition tree, no second copy of the walker.
   display(): void { this.renderImperative(); }
 
   private renderImperative(): void {
     // Run last pass's cleanups before tearing the rows down (mirrors the 1.13 framework
     // contract) — a hatch that returned a cleanup must have it invoked before its DOM goes.
-    this.runRowCleanups();
+    this.cleanupPrevious();
     this.containerEl.empty();
-    for (const item of this.getSettingDefinitions()) this.renderDefinitionItem(this.containerEl, item);
-  }
-
-  /** Runs and clears all collected row cleanups, guarded so one throwing cleanup can't
-   *  abort the rest (which would leave later rows leaking or the old UI duplicated). */
-  private runRowCleanups(): void {
-    for (const c of this.rowCleanups) {
-      try { c(); } catch { /* cleanup is best-effort — one failure must not block the rest */ }
-    }
-    this.rowCleanups = [];
+    this.cleanupPrevious = renderSettingDefinitions(this.containerEl, this.getSettingDefinitions(), this, this.app);
   }
 
   /** Re-render the tab. On 1.13 the declarative framework exposes update(); on the <1.13
-   *  fallback that method doesn't exist → run renderImperative() again. The cast to an
-   *  anonymous type keeps `obsidianmd/no-unsupported-api` blind to SettingTab.update (1.13-only). */
+   *  fallback that method doesn't exist → renderSettingsTab falls back to renderImperative(). */
   private refreshUi(): void {
-    const self = this as unknown as { update?: () => void };
-    if (typeof self.update === 'function') self.update();
-    else this.renderImperative();
-  }
-
-  private renderDefinitionItem(containerEl: HTMLElement, item: SettingDefinitionItem): void {
-    if ((item as SettingDefinitionGroup).type === 'group') {
-      const g = item as SettingDefinitionGroup;
-      if (g.heading) new Setting(containerEl).setName(g.heading).setHeading();
-      for (const sub of g.items ?? []) this.renderDefinitionItem(containerEl, sub);
-      return;
-    }
-    const def = item as SettingDefinition & { render?: unknown; action?: unknown; control?: SettingControl };
-    const s = new Setting(containerEl);
-    if (def.name) s.setName(def.name);
-    if (def.desc) s.setDesc(def.desc);
-    if (typeof def.render === 'function') {
-      const cleanup = (def.render as (s: Setting) => void | (() => void))(s);
-      if (typeof cleanup === 'function') this.rowCleanups.push(cleanup);
-      return;
-    }
-    if (typeof def.action === 'function') {
-      const action = def.action;
-      s.addButton((b) => b.setButtonText(def.name).onClick(() => action(s.settingEl, 0)));
-      return;
-    }
-    if (def.control) this.renderControl(s, def.name, def.control);
-    // empty: name/desc only (already set)
-  }
-
-  /** Draws a single declarative control with the classic Setting API (fallback path). */
-  private renderControl(s: Setting, name: string, c: SettingControl): void {
-    const key = c.key;
-    const cur = this.getControlValue(key);
-    const save = (v: unknown): void => { void this.setControlValue(key, v); };
-    switch (c.type) {
-      case 'toggle':
-        s.addToggle((t) => t.setValue(cur as boolean).onChange(save));
-        break;
-      case 'dropdown':
-        s.addDropdown((d) => { for (const [k, v] of Object.entries(c.options)) d.addOption(k, v); d.setValue(cur as string).onChange(save); });
-        break;
-      case 'text':
-      default:
-        s.addText((t) => t.setPlaceholder((c as { placeholder?: string }).placeholder ?? '').setValue(cur as string).onChange(save));
-        break;
-    }
-  }
-
-  /** Turns the Setting row the API hands us into a neutral block container: render hatches
-   *  that draw several rows must not sit inside the two-column .setting-item. Empties
-   *  settingEl → the hatch redraws any name/desc it needs. */
-  private hostFor(setting: Setting): HTMLElement {
-    setting.settingEl.empty();
-    setting.settingEl.removeClass('setting-item');
-    return setting.settingEl;
+    refreshSettingsTab(this, () => this.renderImperative());
   }
 
   // ── CIPHER render hatches (stateful rows) ────────────────────────────────
 
   private renderCipherIntro = (setting: Setting): void => {
-    const host = this.hostFor(setting);
+    const host = settingBodyHost(setting);
     host.createEl('p', {
       text:
         'Ask CIPHER for Vim advice via any OpenAI-compatible endpoint (LM Studio, Ollama, ' +
@@ -275,7 +210,7 @@ export class NeuroVimSettingTab extends PluginSettingTab {
   };
 
   private renderEndpointList = (setting: Setting): void => {
-    const host = this.hostFor(setting);
+    const host = settingBodyHost(setting);
     // Bootstrap: buildEndpointList reaches reconnect() ONLY through its own commit chains (url/
     // apiKey/model blur, trash, "Use first", preset) — its "Test all" button merely re-renders.
     // Without this kick-off, a freshly opened tab would leave activeEndpointUrl null (every row
@@ -334,7 +269,7 @@ export class NeuroVimSettingTab extends PluginSettingTab {
   };
 
   private renderContext = (setting: Setting): void => {
-    const host = this.hostFor(setting);
+    const host = settingBodyHost(setting);
     if (this.contextLength !== null) {
       host.createDiv({
         text: `Context: ${this.contextLength.toLocaleString('en-US')} tokens`,
@@ -344,7 +279,7 @@ export class NeuroVimSettingTab extends PluginSettingTab {
   };
 
   private renderThinking = (setting: Setting): void => {
-    const host = this.hostFor(setting);
+    const host = settingBodyHost(setting);
     // The toggle must reason about the model the REQUEST will use: main.ts asks with the
     // active endpoint's own model — there is no global fallback any more (0.9.0). Look the
     // active entry up FRESH in the list (the kit's own applyRole does the same, for the same
@@ -384,7 +319,7 @@ export class NeuroVimSettingTab extends PluginSettingTab {
     // Latch down with the cache: the next tab-open must re-probe which endpoint is active, for
     // the same reason the cache is dropped — the world may have changed while settings were shut.
     this.hasReconnectedThisOpen = false;
-    this.runRowCleanups();
+    this.cleanupPrevious();
     super.hide();
   }
 }
