@@ -169,6 +169,16 @@ vim-dojo **never** touches files outside the configured mission folder. Critical
   konfiguriertem LLM).
   — gilt-solange: `src/HubView.tsx` enthaelt `preact`
 
+- **stream-area** — Grund: `src/result/ResultModal.tsx` rendert den CIPHER-Debrief per
+  Preact/JSX (`h`/`render`) und kann `buildStreamArea` (ein DOM-bauendes Kit-Modul) strukturell
+  nicht konsumieren — dieselbe Lage wie beim Hub-Baustein. Nicht-Adoption ist laut
+  `UI-STANDARD.md` §8 hier zulässig, nicht säumig. Die zwei Wirt-Eigenschaften, die kein Modul
+  liefert, sind trotzdem übernommen: `.nv-result-body` bekommt `max-height`/`overflow-y: auto`
+  (`70vh`, Muster wie `.nv-briefing-body`/`.nv-lore-body`), damit die Aktionsleiste bei langem
+  Debrief-Text nicht unterläuft. Das zweite Kriterium (fokussiertes Tipp-Feld übersteht einen
+  Repaint) trifft hier nicht zu — der Debrief-Bereich ist reine Ausgabe, kein Eingabefeld.
+  — gilt-solange: `src/result/ResultModal.tsx` enthaelt `preact`
+
 ## Dach-Kontext (obsidian-plugins)
 
 This repo lives under the coordination umbrella `<code-workspace>/obsidian-plugins/`.

@@ -183,6 +183,10 @@
 .nv-result .nv-result-body {
   font-family: var(--font-monospace); color: var(--nv-text);
   display: flex; flex-direction: column; align-items: center; gap: 10px; text-align: center;
+  /* The CIPHER debrief above the action bar streams unbounded-length text — cap the body
+     and let IT scroll (same house pattern as .nv-briefing-body/.nv-lore-body) so the
+     "ZURÜCK ZUM NEXUS" button stays reachable instead of being pushed past the modal edge. */
+  max-height: 70vh; overflow-y: auto;
 }
 .nv-result .nv-result-title {
   color: var(--nv-accent); font-size: 1.3em; font-weight: 700; letter-spacing: 0.14em;

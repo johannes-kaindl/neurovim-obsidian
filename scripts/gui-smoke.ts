@@ -722,6 +722,59 @@ async function checkMasteryTier(cdp: Cdp, vault: string | undefined): Promise<vo
         : modalOk ? `"${modal.text}" nach ${typed} gezählten Anschlägen`
         : `Badge ${modal.tier ?? "fehlt"}, Text "${modal.text}", Anschläge ${typed}`,
     );
+
+    // --- R4-5: Aktionsleiste bleibt bei langem Debrief-Text erreichbar ---------------
+    // Wirt-Eigenschaft aus der UI-Adoption-Task "stream-area" (kein Kit-Modul liefert sie):
+    // der Debrief-Bereich streamt unbegrenzt langen Text VOR der Aktionsleiste im DOM
+    // (ResultApp in ResultModal.tsx) — ohne eigenen Scroll-Container würde der
+    // „ZURÜCK ZUM NEXUS"-Knopf aus dem sichtbaren Modal-Bereich geschoben. Echtes
+    // CIPHER-Streaming braucht Netzwerk/LLM (dafür gibt es scripts/debrief-lab.mjs) — hier
+    // wird nur die Geometrie geprüft: Text synthetisch einsetzen, Knopf-Bounding-Rect gegen
+    // die sichtbare Modal-Fläche vergleichen.
+    if (modal) {
+      // Gegenprobe gefahren (2026-09-12), zwei Fehlschläge vor dieser Fassung:
+      // (1) Ein Vergleich gegen `.nv-result-body` selbst bleibt IMMER grün — der
+      //     Flex-Container wächst mit dem Text mit, der Knopf sitzt also immer an dessen
+      //     eigenem unteren Rand, ob sichtbar oder nicht.
+      // (2) `getBoundingClientRect()` OHNE zu scrollen bleibt bei überlaufendem Inhalt IMMER
+      //     rot, selbst mit korrektem `overflow-y: auto` — das Rect misst die Layout-Position
+      //     in der (ungescrollten) Flow-Reihenfolge, nicht die durch Clipping sichtbare.
+      // Die tragende Messung: den Scroll-Container tatsächlich ans Ende scrollen, DANACH
+      // messen, ob der Knopf innerhalb von dessen eigener (geclippter) Fläche liegt — das
+      // ist exakt das, was ein Mensch mit einem Scrollbalken auch täte.
+      const geo = await cdp.evaluate<{ btnBottom: number; boxBottom: number; scrollable: boolean } | null>(`
+        const btn = document.querySelector('.nv-result-modal .nv-btn-nexus');
+        const body = document.querySelector('.nv-result-modal .nv-result-body');
+        if (!btn || !body) return null;
+        // Synthetischer Debrief-Text statt eines echten Streams (der braucht Netzwerk/LLM,
+        // dafür gibt es scripts/debrief-lab.mjs) — mit Leerzeichen, sonst bricht 'pre-wrap'
+        // nicht um (Gegenprobe 2026-09-12: ein zusammenhaengender String ohne Spatien blaeht
+        // die Hoehe kaum auf, weil nichts umbricht).
+        let stream = document.querySelector('.nv-result-modal .nv-debrief-stream');
+        if (!stream) {
+          stream = document.createElement('div');
+          stream.className = 'nv-debrief-stream';
+          body.insertBefore(stream, body.querySelector('.nv-result-actions'));
+        }
+        stream.textContent = 'lorem ipsum '.repeat(400);
+        await new Promise((r) => setTimeout(r, 50));
+        const scrollable = body.scrollHeight > body.clientHeight;
+        body.scrollTop = body.scrollHeight;
+        await new Promise((r) => setTimeout(r, 50));
+        const boxRect = body.getBoundingClientRect();
+        const btnRect = btn.getBoundingClientRect();
+        return { btnBottom: btnRect.bottom, boxBottom: boxRect.bottom, scrollable };
+      `);
+      record(
+        "R4-5 Aktionsleiste bleibt bei langem Debrief-Text erreichbar",
+        Boolean(geo) && geo!.scrollable && geo!.btnBottom <= geo!.boxBottom + 1,
+        !geo ? "Result-Modal-Struktur nicht gefunden"
+          : !geo.scrollable ? "kein Scroll-Container — Textmenge hat den Body nicht überlaufen lassen"
+          : `nach Scroll ans Ende: Knopf-Unterkante ${geo.btnBottom.toFixed(0)} vs. Box-Unterkante ${geo.boxBottom.toFixed(0)}`,
+      );
+    } else {
+      skipped("R4-5 Aktionsleiste bleibt bei langem Debrief-Text erreichbar", "kein Result-Modal aus R4-3");
+    }
   } finally {
     // Modal schließen, einen hängen gebliebenen Lauf beenden, Missionsnotiz zumachen.
     await cdp.evaluate(`
