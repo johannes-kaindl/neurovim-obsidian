@@ -97,6 +97,8 @@ each section remembers whether you left it open or closed.
 ### Missions
 
 - **Mission folder** — where throwaway mission notes are created (default `_neurovim/`).
+- **Hide mission folder** — hides it in the file explorer (display only; the folder still
+  exists and still syncs). Off by default.
 - **Auto Vim mode** — turn Obsidian's Vim mode on while a mission is active and restore
   your previous setting when it ends. Note that this changes your *global* editor Vim
   setting for the duration.

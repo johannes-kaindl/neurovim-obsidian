@@ -96,6 +96,9 @@ export class NeuroVimSettingTab extends PluginSettingTab {
     else if (key === 'llmModel') s.llmModel = (value as string).trim();
     else s[key] = value;
     await this.plugin.saveSettings();
+    // Both the folder path and the toggle change what the explorer should show — re-derive
+    // the adopted stylesheet from the (possibly just-changed) current settings either way.
+    if (key === 'missionFolder' || key === 'hideMissionFolder') this.plugin.applyMissionFolderVisibility();
   }
 
   getSettingDefinitions(): SettingDefinitionItem[] {
@@ -107,6 +110,9 @@ export class NeuroVimSettingTab extends PluginSettingTab {
       { name: 'Mission folder',
         desc: 'Where throwaway mission notes are materialized. Safe to delete anytime — deleting a note or the whole folder loses no progress (XP/best times live in the plugin).',
         control: { type: 'text', key: 'missionFolder', placeholder: '_neurovim/' } },
+      { name: 'Hide mission folder',
+        desc: 'Hide the mission folder in the file explorer (display only — the folder still exists and still syncs).',
+        control: { type: 'toggle', key: 'hideMissionFolder' } },
       { name: 'Auto Vim mode',
         desc: "Turn Obsidian's Vim mode on while a mission is active and restore your previous setting when it ends. Changes your global editor Vim setting for the duration.",
         control: { type: 'toggle', key: 'autoVim' } },

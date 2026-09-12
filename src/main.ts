@@ -16,6 +16,7 @@ import { StatusBarItem } from './StatusBarItem';
 import { PausedBanner } from './PausedBanner';
 import { isMissionEditorKeystroke } from './keystrokeCounter';
 import { NeuroVimSettingTab } from './SettingsTab';
+import { applyFolderVisibility, removeFolderVisibility } from './obsidian/folder-visibility';
 import { buildResultView } from './result/resultView';
 import { authoredPar } from './masteryTier';
 import { ResultModal } from './result/ResultModal';
@@ -138,6 +139,8 @@ export default class NeuroVimPlugin extends Plugin {
     }, { capture: true });
 
     this.addSettingTab(new NeuroVimSettingTab(this.app, this));
+    this.applyMissionFolderVisibility();
+    this.register(removeFolderVisibility);
     this.tick = window.setInterval(() => { this.syncPresence(); this.repaint(); }, 500);
     // Only auto-open the pane on startup if the user opted in (default off) — otherwise the
     // pane still opens on demand via the ribbon icon or the "Open NeuroVim" command.
@@ -266,6 +269,18 @@ export default class NeuroVimPlugin extends Plugin {
     this.endpointResolver.invalidate();
     await this.persist();
     this.repaint();
+  }
+
+  /** Re-derives the adopted stylesheet from the CURRENT settings — safe to call after either
+   *  the toggle or the folder path changes, and once on load. Not `activeDocument`: since
+   *  Obsidian 1.13 the settings window is a separate document, so a toggle flipped there would
+   *  target the wrong window. The file explorer always lives in the main workspace document. */
+  applyMissionFolderVisibility(): void {
+    applyFolderVisibility(
+      this.app.workspace.containerEl.ownerDocument,
+      this.settings.missionFolder.replace(/\/+$/, ''),
+      this.settings.hideMissionFolder,
+    );
   }
 
   /** Persist PluginData + settings under one data.json blob. */

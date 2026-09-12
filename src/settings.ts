@@ -5,6 +5,10 @@ export type ColorScheme = 'crt' | 'native';
 
 export interface VimDojoSettings {
   missionFolder: string;
+  /** Hides the mission folder in the file explorer (CSS-only — the folder still syncs and
+   *  still exists, only the nav row is suppressed). Off by default: a newly installed
+   *  plugin should not make a folder disappear without the user asking for it. */
+  hideMissionFolder: boolean;
   hudPlacement: HudPlacement;
   colorScheme: ColorScheme;
   autoVim: boolean;
@@ -23,6 +27,7 @@ export interface VimDojoSettings {
 
 export const DEFAULT_SETTINGS: VimDojoSettings = {
   missionFolder: '_neurovim/',
+  hideMissionFolder: false,
   hudPlacement: 'auto',
   colorScheme: 'crt',
   autoVim: false,

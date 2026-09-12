@@ -98,6 +98,8 @@ jede Gruppe merkt sich, ob du sie offen oder geschlossen gelassen hast.
 ### Missionen
 
 - **Mission folder** — wo Wegwerf-Missionsnotizen angelegt werden (Vorgabe `_neurovim/`).
+- **Hide mission folder** — blendet ihn im Datei-Explorer aus (nur die Anzeige; der Ordner
+  existiert weiter und synct weiter). Standardmäßig aus.
 - **Auto Vim mode** — schaltet Obsidians Vim-Modus ein, solange eine Mission läuft, und
   stellt deine vorherige Einstellung danach wieder her. Beachte: das ändert für diese Dauer
   deine *globale* Editor-Einstellung.

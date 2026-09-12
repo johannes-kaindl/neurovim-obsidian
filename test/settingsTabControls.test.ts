@@ -9,9 +9,14 @@ import { DEFAULT_SETTINGS, type VimDojoSettings } from '../src/settings';
 function makeTab(overrides: Partial<VimDojoSettings> = {}) {
   const settings: VimDojoSettings = { ...DEFAULT_SETTINGS, ...overrides };
   let saves = 0;
-  const plugin = { settings, saveSettings: async () => { saves += 1; } };
+  let visibilityCalls = 0;
+  const plugin = {
+    settings,
+    saveSettings: async () => { saves += 1; },
+    applyMissionFolderVisibility: () => { visibilityCalls += 1; },
+  };
   const tab = new NeuroVimSettingTab(new App() as never, plugin as never);
-  return { tab, settings, saves: () => saves };
+  return { tab, settings, saves: () => saves, visibilityCalls: () => visibilityCalls };
 }
 
 describe('SettingsTab declarative control layer', () => {
@@ -46,6 +51,17 @@ describe('SettingsTab declarative control layer', () => {
     expect(settings.missionFolder).toBe('_neurovim/');
     await tab.setControlValue('missionFolder', 'Drills/');
     expect(settings.missionFolder).toBe('Drills/');
+  });
+
+  it('re-derives folder visibility after either the folder or the hide toggle changes', async () => {
+    const { tab, visibilityCalls } = makeTab({ missionFolder: '_neurovim/', hideMissionFolder: false });
+    await tab.setControlValue('missionFolder', 'Drills/');
+    expect(visibilityCalls()).toBe(1);
+    await tab.setControlValue('hideMissionFolder', true);
+    expect(visibilityCalls()).toBe(2);
+    // An unrelated setting must not trigger a needless stylesheet re-derive.
+    await tab.setControlValue('autoVim', true);
+    expect(visibilityCalls()).toBe(2);
   });
 
   it('passes plain boolean/string settings straight through', async () => {

@@ -20,6 +20,10 @@ describe('LLM settings', () => {
     expect(DEFAULT_SETTINGS.uiCollapsed).toEqual({});
   });
 
+  it('does not hide the mission folder by default (visible unless opted in)', () => {
+    expect(DEFAULT_SETTINGS.hideMissionFolder).toBe(false);
+  });
+
   it('requires at least one endpoint and a model', () => {
     expect(isLlmConfigured({ llmEndpoints: [{ url: 'http://localhost:1234' }], llmModel: '' })).toBe(false);
     expect(isLlmConfigured({ llmEndpoints: [], llmModel: 'qwen3' })).toBe(false);
