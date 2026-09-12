@@ -4,7 +4,6 @@ import { DEFAULT_SETTINGS, isLlmConfigured, mergeStoredSettings } from '../src/s
 describe('LLM settings', () => {
   it('defaults to unconfigured (feature off)', () => {
     expect(DEFAULT_SETTINGS.llmEndpoints).toEqual([]);
-    expect(DEFAULT_SETTINGS.llmModel).toBe('');
     expect(isLlmConfigured(DEFAULT_SETTINGS)).toBe(false);
   });
 
@@ -24,26 +23,18 @@ describe('LLM settings', () => {
     expect(DEFAULT_SETTINGS.hideMissionFolder).toBe(false);
   });
 
-  it('requires at least one endpoint and a model', () => {
-    expect(isLlmConfigured({ llmEndpoints: [{ url: 'http://localhost:1234' }], llmModel: '' })).toBe(false);
-    expect(isLlmConfigured({ llmEndpoints: [], llmModel: 'qwen3' })).toBe(false);
-    expect(isLlmConfigured({ llmEndpoints: [{ url: 'http://localhost:1234' }], llmModel: 'qwen3' })).toBe(true);
+  it('requires at least one endpoint, each carrying its own model', () => {
+    expect(isLlmConfigured({ llmEndpoints: [{ url: 'http://localhost:1234' }] })).toBe(false);
+    expect(isLlmConfigured({ llmEndpoints: [] })).toBe(false);
+    expect(isLlmConfigured({ llmEndpoints: [{ url: 'http://localhost:1234', model: 'qwen3' }] })).toBe(true);
   });
 
-  it('counts a per-endpoint model override as configured, without any global model', () => {
-    // Regression: gating on a non-empty GLOBAL llmModel locked out exactly the setup the
-    // per-endpoint override exists for — the endpoint knows its model, the request would go
-    // through (main.ts sends effectiveModel(ep, llmModel)), yet CIPHER read as "off".
-    expect(isLlmConfigured({
-      llmEndpoints: [{ url: 'http://localhost:1234', model: 'qwen3' }],
-      llmModel: '',
-    })).toBe(true);
-  });
-
-  it('stays unconfigured when an endpoint has neither an override nor a global model', () => {
+  it('stays unconfigured when even one endpoint carries no model of its own', () => {
+    // There is no global fallback any more (model belongs on the endpoint row, per
+    // code-kit's effectiveModel deprecation) — a mixed list with one bare endpoint reads
+    // as unconfigured, same as before the migration.
     expect(isLlmConfigured({
       llmEndpoints: [{ url: 'http://a:1', model: 'qwen3' }, { url: 'http://b:2' }],
-      llmModel: '',
     })).toBe(false);
   });
 
@@ -86,6 +77,35 @@ describe('mergeStoredSettings — endpoint migration', () => {
 
   it('ignores an empty/whitespace legacy global key', () => {
     const settings = mergeStoredSettings({ llmEndpoints: ['http://a:1'], llmApiKey: '   ' });
+    expect(settings.llmEndpoints).toEqual([{ url: 'http://a:1' }]);
+  });
+
+  it('folds a legacy global llmModel onto every migrated endpoint without its own model, then drops the field', () => {
+    // pre-0.9.0 vim-dojo had one global `llmModel` — the per-endpoint EndpointConfig has no
+    // equivalent global field, so a plain merge would silently drop a configured model on
+    // upgrade and every endpoint would go from "configured" to "off" (isLlmConfigured requires
+    // a model on EVERY endpoint) without any signal.
+    const settings = mergeStoredSettings({
+      llmEndpoints: ['http://a:1', 'http://b:2'],
+      llmModel: 'qwen3-8b',
+    });
+    expect(settings.llmEndpoints).toEqual([
+      { url: 'http://a:1', model: 'qwen3-8b' },
+      { url: 'http://b:2', model: 'qwen3-8b' },
+    ]);
+    expect(Object.hasOwn(settings, 'llmModel')).toBe(false);
+  });
+
+  it('does not overwrite a per-endpoint model that already exists (post-migration data.json)', () => {
+    const settings = mergeStoredSettings({
+      llmEndpoints: [{ url: 'http://a:1', model: 'own-model' }],
+      llmModel: 'stale-global',
+    });
+    expect(settings.llmEndpoints).toEqual([{ url: 'http://a:1', model: 'own-model' }]);
+  });
+
+  it('ignores an empty/whitespace legacy global model', () => {
+    const settings = mergeStoredSettings({ llmEndpoints: ['http://a:1'], llmModel: '   ' });
     expect(settings.llmEndpoints).toEqual([{ url: 'http://a:1' }]);
   });
 

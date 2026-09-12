@@ -1,5 +1,5 @@
 import type { HudPlacement } from './hudPlacement';
-import { effectiveModel, migrateEndpointList, type EndpointConfig } from './vendor/kit/endpoint_config';
+import { migrateEndpointList, type EndpointConfig } from './vendor/kit/endpoint_config';
 
 export type ColorScheme = 'crt' | 'native';
 
@@ -14,11 +14,11 @@ export interface VimDojoSettings {
   autoVim: boolean;
   openPaneOnStartup: boolean;
   /** Ordered fallback list of OpenAI-compatible endpoints — the first reachable one
-   *  wins. Each entry may carry its own API key and model override; a bare
-   *  `{ url }` falls back to the global key-less/`llmModel` request. Empty = feature off. */
+   *  wins. Each entry carries its own model (and optionally its own API key) — a model
+   *  name only means something on the endpoint that reports it in `/v1/models`, so there
+   *  is deliberately no global fallback (removed in 0.9.0, see `foldLegacyModel`). Empty =
+   *  feature off. */
   llmEndpoints: EndpointConfig[];
-  /** Model id to request when an endpoint has no override, e.g. "qwen3-8b". Empty = feature off. */
-  llmModel: string;
   llmSuppressThinking: boolean;
   recordTraces: boolean;
   pausedBannerMinutes: number;
@@ -33,21 +33,18 @@ export const DEFAULT_SETTINGS: VimDojoSettings = {
   autoVim: false,
   openPaneOnStartup: false,
   llmEndpoints: [],
-  llmModel: '',
   llmSuppressThinking: true,
   recordTraces: true,
   pausedBannerMinutes: 5,
   uiCollapsed: {},
 };
 
-/** The CIPHER feature is on when there is at least one endpoint and EVERY endpoint would
- *  resolve to a non-empty model. Gating on the global `llmModel` alone locked out the setup
- *  the per-endpoint override exists for: a single endpoint carrying its own model and no
- *  global default is fully configured, yet read as "off". A strict generalization of the old
- *  check — with no overrides in play, `effectiveModel` is the global model for every entry. */
-export function isLlmConfigured(s: Pick<VimDojoSettings, 'llmEndpoints' | 'llmModel'>): boolean {
+/** The CIPHER feature is on when there is at least one endpoint and EVERY endpoint carries
+ *  its own non-empty model — there is no global fallback (see the `llmEndpoints` doc comment
+ *  on why: a model name is meaningless off the endpoint that reports it). */
+export function isLlmConfigured(s: Pick<VimDojoSettings, 'llmEndpoints'>): boolean {
   return s.llmEndpoints.length > 0
-    && s.llmEndpoints.every((ep) => effectiveModel(ep, s.llmModel).trim() !== '');
+    && s.llmEndpoints.every((ep) => (ep.model ?? '').trim() !== '');
 }
 
 /** Applies a legacy GLOBAL API key onto every migrated endpoint that doesn't already carry
@@ -62,6 +59,20 @@ function foldLegacyApiKey(eps: EndpointConfig[], legacyKey: string | undefined):
   return eps.map((cfg) => (cfg.apiKey ? cfg : { ...cfg, apiKey: key }));
 }
 
+/** Applies a legacy GLOBAL model onto every migrated endpoint that doesn't already carry its
+ *  own — pre-0.9.0 vim-dojo had one `llmModel` shared by every endpoint in the list; the
+ *  kit's per-endpoint EndpointConfig has no equivalent global field, so a plain merge would
+ *  silently drop a configured model on upgrade and every endpoint would go from "configured"
+ *  to "off" (isLlmConfigured requires a model on EVERY endpoint) without any signal. Same
+ *  shape as foldLegacyApiKey — kept separate because the two legacy fields migrate
+ *  independently (a data.json can carry one without the other). Pure — no Obsidian
+ *  dependency. */
+function foldLegacyModel(eps: EndpointConfig[], legacyModel: string | undefined): EndpointConfig[] {
+  const model = legacyModel?.trim();
+  if (!model) return eps;
+  return eps.map((cfg) => (cfg.model ? cfg : { ...cfg, model }));
+}
+
 /** Merge a raw `data.json` `__settings` blob onto the defaults, migrating both the 0.4.x
  *  single `llmEndpoint` field and the pre-0.8.0 global `llmApiKey` on the way in. Both legacy
  *  fields are destructured out of `rest` — spreading the source wholesale would carry them
@@ -69,9 +80,10 @@ function foldLegacyApiKey(eps: EndpointConfig[], legacyKey: string | undefined):
  *  re-seeding dead fields on every save. Pure — no Obsidian dependency — so main.ts's onload
  *  can stay a thin wrapper around it and the migration is testable without a plugin mock. */
 export function mergeStoredSettings(raw: unknown): VimDojoSettings {
-  const { llmEndpoint, llmApiKey, llmEndpoints, ...rest } = (raw ?? {}) as Partial<VimDojoSettings> & {
+  const { llmEndpoint, llmApiKey, llmModel, llmEndpoints, ...rest } = (raw ?? {}) as Partial<VimDojoSettings> & {
     llmEndpoint?: string;
     llmApiKey?: string;
+    llmModel?: string;
     llmEndpoints?: (string | EndpointConfig)[];
   };
   // migrateEndpointList (vendored from the kit) does not guard Array.isArray — a hand-edited or
@@ -84,7 +96,7 @@ export function mergeStoredSettings(raw: unknown): VimDojoSettings {
   return {
     ...DEFAULT_SETTINGS,
     ...rest,
-    llmEndpoints: foldLegacyApiKey(migrated, llmApiKey),
+    llmEndpoints: foldLegacyModel(foldLegacyApiKey(migrated, llmApiKey), llmModel),
     uiCollapsed: { ...DEFAULT_SETTINGS.uiCollapsed, ...rest.uiCollapsed },
   };
 }

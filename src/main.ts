@@ -27,7 +27,6 @@ import { XhrSseTransport } from './llm/XhrSseTransport';
 import { CorePortAdapter } from './llm/CorePortAdapter';
 import { EndpointResolver } from './llm/endpointResolver';
 import { probeEndpoint } from './llm/endpointProbe';
-import { effectiveModel } from './vendor/kit/endpoint_config';
 import { DEFAULT_SETTINGS, isLlmConfigured, mergeStoredSettings, type VimDojoSettings } from './settings';
 import {
   buildRunTrace, TraceStore, CipherUplink, ChatSession, buildKnowledge, quickReference,
@@ -408,7 +407,7 @@ export default class NeuroVimPlugin extends Plugin {
       new CorePortAdapter(this.cipherClient, this.endpointResolver, {
         configured: () => isLlmConfigured(this.settings),
         forEndpoint: (ep) => ({
-          model: effectiveModel(ep, this.settings.llmModel),
+          model: ep.model?.trim() ?? '',
           suppressThinking: this.settings.llmSuppressThinking,
         }),
       }),

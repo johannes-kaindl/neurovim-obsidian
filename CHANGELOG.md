@@ -9,6 +9,13 @@ All notable changes to this project are documented here. Format loosely follows
 - **Hide mission folder** setting — hides the mission folder in the file explorer
   (display only; the folder still exists and still syncs). Off by default.
 
+### Changed
+- **Removed the global CIPHER model setting.** Model now lives entirely on the endpoint
+  row (as it already did for overrides) — a model id only means something on the endpoint
+  that reports it, so "global model + per-row override" was the same information in two
+  places. Existing installs migrate automatically: a configured global model is copied
+  onto every endpoint that doesn't already have its own.
+
 ### Fixed
 - **Tier colours readable on light themes.** With the native colour scheme on a light
   Obsidian theme, gold measured 1.3:1 and silver 2.0:1 against the pane — invisible in

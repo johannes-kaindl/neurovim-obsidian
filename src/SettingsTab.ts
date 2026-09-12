@@ -3,7 +3,7 @@ import type { SettingControl, SettingDefinition, SettingDefinitionGroup, Setting
 import type NeuroVimPlugin from './main';
 import { buildEndpointList, type EndpointListStrings } from './vendor/kit-obsidian/endpoint-list';
 import { createModelListCache } from './vendor/kit/model-list-cache';
-import { effectiveModel, resolveActiveEndpointConfig, type EndpointConfig } from './vendor/kit/endpoint_config';
+import { resolveActiveEndpointConfig, type EndpointConfig } from './vendor/kit/endpoint_config';
 import { normalizeEndpoint } from './vendor/kit/endpoint';
 import type { EndpointStatus } from './vendor/kit/endpoint_diagnostics';
 import { endpointStatusEn, endpointWarningEn } from './llm/endpointText';
@@ -21,7 +21,10 @@ const ENDPOINT_STRINGS: EndpointListStrings = {
   ariaAdd: 'Add endpoint URL',
   ariaApiKey: (url) => `API key for ${url}`,
   ariaModel: (url) => `Model override for ${url}`,
-  emptyModelLabel: (globalModel) => `— use global model${globalModel ? ` (${globalModel})` : ''} —`,
+  // No global model any more (0.9.0) — the vendored kit still calls this with one (always
+  // empty, see the `globalModel` wiring below), hence the unused parameter stays typed but
+  // ignored rather than removed.
+  emptyModelLabel: () => '— no model set —',
   modelHint: (key) => (key === 'unreachable' ? 'Endpoint unreachable — last known value shown.'
     : key === 'no-list' ? 'Endpoint doesn’t report a model list — type the model id.' : ''),
   savedSuffix: '(saved)',
@@ -89,11 +92,6 @@ export class NeuroVimSettingTab extends PluginSettingTab {
       const n = Number.parseInt(String(value), 10);
       s.pausedBannerMinutes = Number.isFinite(n) && n >= 0 ? n : 5;
     }
-    // Same reason the old renderModel text field trimmed: a pasted model id keeps its
-    // surrounding whitespace, and " qwen3-8b" goes to the endpoint verbatim — an opaque
-    // model-not-found rather than a visible mistake. isLlmConfigured() trims before its
-    // emptiness test, so an all-whitespace value must not read as "configured" either.
-    else if (key === 'llmModel') s.llmModel = (value as string).trim();
     else s[key] = value;
     await this.plugin.saveSettings();
     // Both the folder path and the toggle change what the explorer should show — re-derive
@@ -150,13 +148,7 @@ export class NeuroVimSettingTab extends PluginSettingTab {
   private cipherGroup(): SettingDefinitionGroup {
     return { type: 'group', heading: 'CIPHER uplink (experimental)', items: [
       { name: 'CIPHER uplink', desc: 'Ask CIPHER for Vim advice via any OpenAI-compatible endpoint.', render: this.renderCipherIntro },
-      // The global model is what isLlmConfigured() gates the whole CIPHER feature on, and it is
-      // the fallback effectiveModel() hands every endpoint row that carries no override — so it
-      // needs an editor of its own. The old dynamic model dropdown moved into the endpoint rows
-      // (buildEndpointList draws one per row, fed by the model cache); what stays global is a
-      // plain string, hence a declarative text control rather than another render hatch.
-      { name: 'Model', desc: 'Default model id to request, e.g. qwen3-8b. Endpoint rows can override this individually.', control: { type: 'text', key: 'llmModel', placeholder: 'qwen3-8b' } },
-      { name: 'Endpoints', desc: 'Ordered fallback list — the first reachable one is used. Each row may set its own API key and model override.', render: this.renderEndpointList },
+      { name: 'Endpoints', desc: 'Ordered fallback list — the first reachable one is used. Each row sets its own model (and optionally its own API key).', render: this.renderEndpointList },
       { name: 'Context', desc: 'Context window of the selected model.', render: this.renderContext },
       { name: 'Model thinking', desc: 'Whether the model is asked not to think before answering.', render: this.renderThinking },
     ] };
@@ -173,7 +165,7 @@ export class NeuroVimSettingTab extends PluginSettingTab {
       (cfg) => probeEndpoint(cfg).then((r) => r.status.reachable),
     );
     this.activeEndpointUrl = active ? active.url : null;
-    const model = active ? effectiveModel(active, this.plugin.settings.llmModel) : '';
+    const model = active?.model?.trim() ?? '';
     this.contextLength = active && model ? await probeModelContext(active, model) : null;
   }
 
@@ -331,7 +323,10 @@ export class NeuroVimSettingTab extends PluginSettingTab {
           listModels: (): Promise<string[]> => probeOnce().then((r) => r.models),
         };
       },
-      globalModel: () => this.plugin.settings.llmModel,
+      // No global model any more (0.9.0) — the vendored kit's EndpointListOptions still
+      // requires this callback (obsidian-kit@0.27.0 predates the optional-globalModel
+      // change), so it stays wired but always answers empty.
+      globalModel: () => '',
       save: () => this.plugin.saveSettings(),
       reconnect: () => this.reconnect(),
       rerender: () => this.refreshUi(),
@@ -350,20 +345,17 @@ export class NeuroVimSettingTab extends PluginSettingTab {
 
   private renderThinking = (setting: Setting): void => {
     const host = this.hostFor(setting);
-    // The toggle must reason about the model the REQUEST will use: main.ts asks with
-    // effectiveModel(endpoint, llmModel), so a per-endpoint override — not the global model —
-    // decides whether the model is an always-on thinker. Look the active entry up FRESH in the
-    // list (the kit's own applyRole does the same, for the same reason: after a model commit
-    // only the list carries the new value) and compare normalized urls, since activeEndpointUrl
-    // comes back normalized from the resolver while the stored entry keeps whatever was typed.
-    // No active endpoint (nothing reachable, or the probe hasn't landed yet) → the global model,
-    // exactly as before.
+    // The toggle must reason about the model the REQUEST will use: main.ts asks with the
+    // active endpoint's own model — there is no global fallback any more (0.9.0). Look the
+    // active entry up FRESH in the list (the kit's own applyRole does the same, for the same
+    // reason: after a model commit only the list carries the new value) and compare
+    // normalized urls, since activeEndpointUrl comes back normalized from the resolver while
+    // the stored entry keeps whatever was typed. No active endpoint (nothing reachable, or
+    // the probe hasn't landed yet) → no model to reason about.
     const active = this.plugin.settings.llmEndpoints.find(
       (ep) => normalizeEndpoint(ep.url) === this.activeEndpointUrl,
     );
-    const model = active
-      ? effectiveModel(active, this.plugin.settings.llmModel)
-      : this.plugin.settings.llmModel;
+    const model = active?.model?.trim() ?? '';
     const think = thinkToggleState(model, this.plugin.settings.llmSuppressThinking);
     new Setting(host)
       .setName('Model thinking')
