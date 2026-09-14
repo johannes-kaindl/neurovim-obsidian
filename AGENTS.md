@@ -61,7 +61,7 @@ scripts/                — vendor-neurovim.mjs (release tooling is central, see
 ## Vendor model
 
 - `src/vendor/neurovim/` is a **pinned snapshot** from `neurovim-standalone` monorepo
-- Monorepo (`neurovim-standalone`, checked out at `../../neurovim-standalone` relative to this repo) is the **SSOT** for game logic
+- Monorepo (`neurovim-standalone`, checked out at `~/Projects/jkaindl/apps/neurovim`, override with `NEUROVIM_MONOREPO`) is the **SSOT** for game logic
 - Pin tracked in `src/vendor/neurovim/VENDOR.json` (commit SHA + version)
 - To sync: fix in monorepo → `npm run vendor` → verify → commit vendor + VENDOR.json
 - The script copies **every** top-level `.ts` of `packages/content/src` (plus `generated/`) —

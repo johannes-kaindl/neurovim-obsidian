@@ -45,8 +45,8 @@
  * Bestwert auf einer Par-Mission braucht — gegen 10_Pallas wird er übersprungen:
  *
  * ```bash
- * npm run build && npm run smoke:gui -- --setup   # baut + öffnet $STAGING_VAULTS_DIR/vim-dojo
- * npm run smoke:gui -- --vault vim-dojo --reload
+ * npm run build && npm run smoke:gui -- --setup   # baut + öffnet $STAGING_VAULTS_DIR/neurovim-obsidian
+ * npm run smoke:gui -- --vault neurovim-obsidian --reload
  * ```
  *
  * ⚠️ Chromium drosselt nicht-fokussierte Fenster: ohne Fokus bleibt die View leer und man
@@ -494,7 +494,7 @@ async function checkReader(cdp: Cdp): Promise<void> {
 
 // --- R4: Wertungs-Anzeige (ParTier) — nur im Staging-Vault ------------------------
 
-const STAGING_VAULT = "vim-dojo";
+const STAGING_VAULT = "neurovim-obsidian";
 /** Mission mit autorisiertem Par (22) und gespieltem Bestwert (20 → Gold) im Fixture. */
 const PAR_MISSION = "KATA-12";
 /** Mission ohne autorisiertes Par — darf NIE einen Chip tragen, egal was gespielt wurde. */

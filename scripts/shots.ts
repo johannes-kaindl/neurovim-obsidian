@@ -28,8 +28,8 @@
  * npm run shots -- --setup                 # Vault bauen, danach Obsidian NEU STARTEN
  * osascript -e 'quit app "Obsidian"'
  * open -a Obsidian --args --remote-debugging-port=9222
- * npm run shots -- --vault vim-dojo
- * npm run shots -- --vault vim-dojo --only hero
+ * npm run shots -- --vault neurovim-obsidian
+ * npm run shots -- --vault neurovim-obsidian --only hero
  * ```
  *
  * ⚠️ Der Aufnahme-Vault ist NICHT der Arbeits-Vault. Alles, was hier in ein Bild gerät,
@@ -284,7 +284,7 @@ const SHOTS: Shot[] = [
 
 async function main(): Promise<void> {
   if (process.argv.includes("--setup")) {
-    const vaultDir = stagingVaultDir("vim-dojo");
+    const vaultDir = stagingVaultDir("neurovim-obsidian");
     const log = buildVault({
       repoRoot: REPO_ROOT,
       vaultDir,
@@ -303,7 +303,7 @@ async function main(): Promise<void> {
   }
 
   const port = Number(arg("port", "9222"));
-  const vault = arg("vault", "vim-dojo");
+  const vault = arg("vault", "neurovim-obsidian");
   const only = arg("only");
 
   const cdp = await attachTo("workspace", port, vault);

@@ -145,10 +145,10 @@ Deshalb läuft R4 **nur im Staging-Vault** und wird sonst als übersprungen gef�
 
 ```bash
 npm run build && npm run smoke:gui -- --setup    # Vault aus docs/images/fixture + Seed
-npm run smoke:gui -- --vault vim-dojo --reload
+npm run smoke:gui -- --vault neurovim-obsidian --reload
 ```
 
-`--setup` baut `$STAGING_VAULTS_DIR/vim-dojo` per `buildVault`, schreibt danach
+`--setup` baut `$STAGING_VAULTS_DIR/neurovim-obsidian` per `buildVault`, schreibt danach
 `scripts/smoke-fixture/plugin-data.json` als Spielstand (KATA-12 mit Bestwert 20 bei Par 22 → Gold)
 und öffnet den Vault über den Pfad-URI als weiteres Fenster der laufenden Instanz.
 

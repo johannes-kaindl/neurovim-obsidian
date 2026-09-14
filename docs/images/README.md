@@ -95,12 +95,12 @@ npm run shots -- --setup          # Vault aus fixture/ bauen; danach Obsidian NE
 osascript -e 'quit app "Obsidian"'
 open -a Obsidian --args --remote-debugging-port=9222
 
-npm run shots -- --vault vim-dojo             # alle Bilder
-npm run shots -- --vault vim-dojo --only hero # ein einzelnes
+npm run shots -- --vault neurovim-obsidian             # alle Bilder
+npm run shots -- --vault neurovim-obsidian --only hero # ein einzelnes
 npm run shots:check                            # gegen den Standard prüfen
 ```
 
-Der Vault entsteht unter `$STAGING_VAULTS_DIR/vim-dojo` — die Variable ist Pflicht, ein
+Der Vault entsteht unter `$STAGING_VAULTS_DIR/neurovim-obsidian` — die Variable ist Pflicht, ein
 fest eingebauter Pfad wäre für jeden außer einer Person falsch. `check-no-abs-paths`
 (Teil von `npm test`) verbietet ihn auch in dieser Datei; der konkrete Ort steht deshalb
 im maintainer-lokalen Cockpit, nicht hier.
