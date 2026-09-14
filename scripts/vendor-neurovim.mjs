@@ -3,8 +3,9 @@
 import { cpSync, mkdirSync, rmSync, writeFileSync, readFileSync, existsSync, readdirSync } from 'node:fs';
 import { execSync } from 'node:child_process';
 import { join } from 'node:path';
+import { homedir } from 'node:os';
 
-const MONO = process.env.NEUROVIM_MONOREPO ?? '/Users/Shared/code/neurovim-standalone';
+const MONO = process.env.NEUROVIM_MONOREPO ?? join(homedir(), 'Projects/jkaindl/apps/neurovim');
 const OUT = 'src/vendor/neurovim';
 
 if (!existsSync(join(MONO, 'packages/core/src/index.ts'))) {

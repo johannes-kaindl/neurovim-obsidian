@@ -24,7 +24,7 @@
  * hing an Ollama, nicht am Port.
  *
  * ```bash
- * export STAGING_VAULTS_DIR=/Users/Shared/60_StagingVaults
+ * export STAGING_VAULTS_DIR="$HOME/Work/StagingVaults"
  * npm run shots -- --setup                 # Vault bauen, danach Obsidian NEU STARTEN
  * osascript -e 'quit app "Obsidian"'
  * open -a Obsidian --args --remote-debugging-port=9222

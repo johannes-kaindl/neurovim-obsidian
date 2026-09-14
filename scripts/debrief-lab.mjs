@@ -19,13 +19,13 @@
  *   node scripts/debrief-lab.mjs --list             # list samples and exit
  */
 import { readFileSync } from 'node:fs';
+import { homedir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve, join } from 'node:path';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const LAB = join(HERE, 'debrief-lab');
-const DEFAULT_DATA_JSON =
-  '/Users/Shared/10_ObsidianVaults/10_Pallas/.obsidian/plugins/neurovim/data.json';
+const DEFAULT_DATA_JSON = join(homedir(), 'Documents/Pallas/.obsidian/plugins/neurovim/data.json');
 
 // ── args ────────────────────────────────────────────────────────────────────
 function parseArgs(argv) {
