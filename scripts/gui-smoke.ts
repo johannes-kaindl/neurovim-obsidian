@@ -604,9 +604,15 @@ async function checkMasteryTier(cdp: Cdp, vault: string | undefined): Promise<vo
   // Missionszeile, in allen vier Kombinationen aus Farbschema (crt/native) und Obsidian-
   // Theme (dunkel/hell). Schwelle 3:1 (grafische UI-Elemente). Gemessen wird der
   // gerenderte Wert, nicht das Stylesheet; Theme und Schema werden danach zurückgestellt.
+  // Vorwert zusaetzlich als window-Global sichern (nicht nur hier im Node-Closure): ein
+  // SIGINT mitten in der Theme/Schema-Schleife trifft main()s Signal-Handler, der diese
+  // lokale `before`-Variable nicht sieht — ohne das Global bliebe ein abgebrochener Lauf im
+  // FALSCHEN Theme/Schema stehen, sichtbar fuer die ganze Obsidian-Instanz.
   const before = await cdp.evaluate<{ theme: string; scheme: string }>(`
     const p = app.plugins.plugins[${JSON.stringify(PLUGIN_ID)}];
-    return { theme: app.vault.getConfig('theme') || 'obsidian', scheme: p.settings.colorScheme };
+    const b = { theme: app.vault.getConfig('theme') || 'obsidian', scheme: p.settings.colorScheme };
+    window.__nvSmokeThemeBefore = b;
+    return b;
   `);
   const combos: string[] = [];
   let worst = Infinity;
@@ -648,6 +654,7 @@ async function checkMasteryTier(cdp: Cdp, vault: string | undefined): Promise<vo
   } finally {
     await setPluginSetting(cdp, PLUGIN_ID, "colorScheme", before.scheme).catch(() => undefined);
     await setAppConfig(cdp, "theme", before.theme).catch(() => undefined);
+    await cdp.evaluate(`delete window.__nvSmokeThemeBefore; return true;`).catch(() => undefined);
   }
   record(
     "R4-4 Tier-Farben lesbar in allen vier Schema/Theme-Kombinationen",
@@ -1032,6 +1039,57 @@ async function main(): Promise<void> {
   let cdp: Cdp | null = null;
   /** Vorwert außerhalb des try — er muss auch nach einem Abbruch zurückgestellt werden. */
   let collapsedBefore: unknown = null;
+  // Ein SIGINT mitten im Lauf ueberspringt die einzelnen `finally`-Bloecke in
+  // checkMasteryTier/checkCipherUplink NICHT im try/catch-Sinn, sondern beendet den
+  // Node-Prozess sofort, bevor sie je erreicht werden. Vier Zustandssorten ueberleben das
+  // sonst dauerhaft — bis zum naechsten Obsidian-Neustart, fuer die gesamte Instanz sichtbar:
+  //  · Theme/Farbschema (R4-4) haengt im falschen Kombinationszustand fest.
+  //  · Der CIPHER-Stub (R3) ersetzt `cipherClient`/`endpointResolver` dauerhaft — ein echter
+  //    Uplink-Aufruf landete beim gestubbten Fake-Client statt beim echten Server.
+  //  · Eine aktive Mission haelt Vim-Modus/Editor-Capture fest (globale Tastatur-Wirkung).
+  //  · `uiCollapsed` bleibt auf dem waehrend R2-2 gesetzten Testwert stehen.
+  // Alle vier Wiederherstellungen sind idempotent (jede prueft ihre Vorbedingung selbst), die
+  // Werte liegen als window-Globals (nicht als Node-Closures) — nur so erreicht sie ein
+  // Handler, der unabhaengig davon feuert, WELCHE Pruef-Funktion gerade lief.
+  let signalCleanupRunning = false;
+  const onAbortSignal = (signal: NodeJS.Signals): void => {
+    if (signalCleanupRunning || !cdp) return;
+    signalCleanupRunning = true;
+    const liveCdp = cdp;
+    void (async () => {
+      console.log(`\n\nAbbruch durch ${signal} — raeume Testzustand auf...`);
+      await liveCdp.evaluate(`
+        const p = app.plugins.plugins[${JSON.stringify(PLUGIN_ID)}];
+        const tb = window.__nvSmokeThemeBefore;
+        if (p && tb) { p.settings.colorScheme = tb.scheme; await p.saveSettings(); app.vault.setConfig('theme', tb.theme); app.workspace.trigger('css-change'); }
+        const r = window.__nvSmokeRestore;
+        if (p && r) {
+          p.cipherClient.stream = r.stream;
+          p.endpointResolver.resolve = r.resolve;
+          p.endpointResolver.invalidate = r.invalidate;
+          p.settings.llmEndpoints = r.endpoints;
+          p.settings.llmModel = r.model;
+          p.cipherUplink = null;
+          p.cipherSession.reset();
+        }
+        if (p && p.session && p.session.activeMissionId) { p.session.end(); p.restoreVim(); p.repaint(); }
+        for (const leaf of app.workspace.getLeavesOfType('markdown')) {
+          if (p && leaf.view?.file?.path?.startsWith(p.settings.missionFolder)) leaf.detach();
+        }
+        const cb = window.__nvSmokeCollapsedBefore;
+        if (p && cb) { p.settings.uiCollapsed = cb; await p.saveSettings?.(); }
+        app.workspace.detachLeavesOfType(${JSON.stringify(HUB_VIEW)});
+        delete window.__nvSmokeThemeBefore;
+        delete window.__nvSmokeRestore;
+        delete window.__nvSmokeSawModel;
+        delete window.__nvSmokeRelease;
+        delete window.__nvSmokeCollapsedBefore;
+        return true;
+      `).catch(() => { console.log("  ! Aufraeumen im Renderer fehlgeschlagen — Vault von Hand pruefen (Theme, Vim-Modus, UPLINK-Stub)"); });
+      liveCdp.close();
+      process.exit(130);
+    })();
+  };
   try {
     cdp = await attachTo("workspace", port, vault);
     if (!cdp) {
@@ -1041,6 +1099,8 @@ async function main(): Promise<void> {
         + `   osascript -e 'quit app "Obsidian"' && open -a Obsidian --args --remote-debugging-port=${port}`,
       );
     }
+    process.on("SIGINT", onAbortSignal);
+    process.on("SIGTERM", onAbortSignal);
     // Chromium drosselt nicht-fokussierte Fenster: ohne das ist das DOM leer und der
     // Lauf misst ein Phantom. Page.bringToFront reicht auf macOS nicht.
     try {
@@ -1080,8 +1140,36 @@ async function main(): Promise<void> {
         console.log(`   Neu geladen: ${PLUGIN_ID} ${loaded}`);
       }
     }
+    // C0 — ein liegen gebliebener CIPHER-Stub aus einem per Ctrl-C abgebrochenen Vorlauf
+    // (vor diesem Handler bzw. bei einem SIGKILL) waere sonst still UND gefaehrlich: wuerde
+    // R3 spaeter unbesehen ueber ihn druebersetzen, capturete es die STUB-Funktionen als
+    // "Original" und die Instanz bliebe bis zum Obsidian-Neustart permanent gestubbt. Deshalb
+    // hier aktiv zurueckbauen, nicht nur melden.
+    const staleStub = await cdp.evaluate<boolean>(`
+      const p = app.plugins.plugins[${JSON.stringify(PLUGIN_ID)}];
+      const r = window.__nvSmokeRestore;
+      if (!p || !r) return false;
+      p.cipherClient.stream = r.stream;
+      p.endpointResolver.resolve = r.resolve;
+      p.endpointResolver.invalidate = r.invalidate;
+      p.settings.llmEndpoints = r.endpoints;
+      p.settings.llmModel = r.model;
+      p.cipherUplink = null;
+      p.cipherSession.reset();
+      delete window.__nvSmokeRestore;
+      delete window.__nvSmokeSawModel;
+      delete window.__nvSmokeRelease;
+      return true;
+    `);
+    record(
+      "C0 Kein liegen gebliebener CIPHER-Stub aus einem abgebrochenen Vorlauf",
+      !staleStub,
+      staleStub ? "Stub aus einem Vorlauf gefunden und zurueckgebaut" : "kein Rest gefunden",
+    );
+
     collapsedBefore = await cdp.evaluate<unknown>(
-      `return JSON.parse(JSON.stringify(app.plugins.plugins[${JSON.stringify(PLUGIN_ID)}].settings.uiCollapsed || {}));`,
+      `const b = JSON.parse(JSON.stringify(app.plugins.plugins[${JSON.stringify(PLUGIN_ID)}].settings.uiCollapsed || {}));
+       window.__nvSmokeCollapsedBefore = b; return b;`,
     );
     await closeExtraLeaves(cdp);
     await openHub(cdp);
@@ -1124,6 +1212,10 @@ async function main(): Promise<void> {
         .catch(() => undefined);
     }
     cdp?.close();
+    // Abmelden, sonst haengt ein SPAETES Signal (nach normalem Abschluss, cdp schon zu) den
+    // Prozess in onAbortSignal an einer toten Verbindung auf.
+    process.off("SIGINT", onAbortSignal);
+    process.off("SIGTERM", onAbortSignal);
   }
 
   const gruen = checks.filter((c) => c.status === "gruen").length;
