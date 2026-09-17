@@ -18,14 +18,19 @@
  *   node scripts/debrief-lab.mjs --knowledge scripts/debrief-lab/knowledge.txt
  *   node scripts/debrief-lab.mjs --list             # list samples and exit
  */
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve, join } from 'node:path';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const LAB = join(HERE, 'debrief-lab');
-const DEFAULT_DATA_JSON = join(homedir(), 'Documents/Pallas/.obsidian/plugins/neurovim/data.json');
+// Arbeits-Vault aus der Umgebung, nicht hartkodiert (Dach-Konvention "ein Ort in der
+// Umgebung, kein Beispielort in der Doku") — der Fallback existiert nur fuer den Fall, dass
+// die Variable fehlt; readSettings() unten bricht ab, statt bei einem verschobenen Vault
+// still ein anderes (leeres) Ergebnis zu liefern.
+const VAULT = process.env.CODING_COCKPIT_VAULT ?? join(homedir(), 'Documents/Pallas');
+const DEFAULT_DATA_JSON = join(VAULT, '.obsidian/plugins/neurovim/data.json');
 
 // ── args ────────────────────────────────────────────────────────────────────
 function parseArgs(argv) {
@@ -42,12 +47,19 @@ const args = parseArgs(process.argv.slice(2));
 // ── config resolution (flags > data.json > fallback) ─────────────────────────
 function readSettings() {
   const path = args.opts.data ?? DEFAULT_DATA_JSON;
-  try {
-    const s = JSON.parse(readFileSync(path, 'utf8')).__settings ?? {};
-    return { endpoint: (s.llmEndpoints ?? [])[0], model: s.llmModel, apiKey: s.llmApiKey ?? '' };
-  } catch {
-    return {};
+  if (!existsSync(path)) {
+    // Vollstaendig per Flag versorgt (die dokumentierte "kein Obsidian nötig"-Nutzung aus dem
+    // Kopfkommentar) — data.json wird dann gar nicht gebraucht.
+    if (args.opts.endpoint && args.opts.model) return {};
+    console.error(
+      `FEHLER: Obsidian-Settings nicht gefunden unter ${path}\n` +
+      '  CODING_COCKPIT_VAULT setzen (aktueller Arbeits-Vault), --data <pfad> angeben,\n' +
+      '  oder --endpoint UND --model direkt uebergeben (dann wird data.json nicht gebraucht).',
+    );
+    process.exit(1);
   }
+  const s = JSON.parse(readFileSync(path, 'utf8')).__settings ?? {};
+  return { endpoint: (s.llmEndpoints ?? [])[0], model: s.llmModel, apiKey: s.llmApiKey ?? '' };
 }
 const settings = readSettings();
 const ENDPOINT = (args.opts.endpoint ?? settings.endpoint ?? 'http://localhost:1234').replace(/\/+$/, '');
