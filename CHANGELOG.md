@@ -21,6 +21,7 @@ All notable changes to this project are documented here. Format loosely follows
 - **Tier colours readable on light themes.** With the native colour scheme on a light
   Obsidian theme, gold measured 1.3:1 and silver 2.0:1 against the pane — invisible in
   practice. Light-theme native now uses darker metals of the same hue; CRT is unchanged.
+- `scripts/debrief-lab.mjs` read `llmEndpoints[0]` as a string, but the field carries objects (`{url, apiKey, model}`) since 0.9.0 — the default path without `--endpoint` threw a `TypeError` on a real `data.json`. The shape is now read by `scripts/debrief-settings.mjs` (with a unit test); the pre-0.9.0 string form still works.
 
 ### Added
 - **Mastery tiers (gold/silver/bronze) after a run** — but only for missions somebody
@@ -32,9 +33,6 @@ All notable changes to this project are documented here. Format loosely follows
   missions lands below the number of characters the solution requires you to type —
   measured against real runs, it would report failure at something unreachable. About
   six of 54 missions carry a par today; the rest stay unjudged until one is written.
-
-### Fixed
-- `scripts/debrief-lab.mjs` read `llmEndpoints[0]` as a string, but the field carries objects (`{url, apiKey, model}`) since 0.9.0 — the default path without `--endpoint` threw a `TypeError` on a real `data.json`. The shape is now read by `scripts/debrief-settings.mjs` (with a unit test); the pre-0.9.0 string form still works.
 
 ## [0.8.0] — 2026-08-19
 
