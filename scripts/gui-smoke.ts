@@ -1023,6 +1023,131 @@ async function checkCipherUplink(cdp: Cdp): Promise<void> {
 
 // --- Hauptlauf ---------------------------------------------------------------
 
+
+// --- R5 Endpunkt-Quelle (Welle 8) -------------------------------------------------------------
+// Der LLM Endpoint Manager wird als FAKE-API in den Plugin-Slot gelegt (Form-Pruefung
+// `isLlmEndpointManagerApi`), mit einer URL, die die lokale Liste nicht traegt — zwei verschiedene
+// Werte im Protokoll sind der Beleg, dass gemessen wurde. Zurueckgesetzt wird im `finally` UND im
+// Abbruch-Handler: ein liegen gebliebener Fake wuerde die echte Registrierung eines installierten
+// Managers ueberschreiben.
+const MGR_SLOT = "llm-endpoint-manager";
+const MGR_URL = "http://127.0.0.1:9313";
+const MGR_MODEL = "nv-fake-modell";
+
+const installiereManager = (cdp: Cdp): Promise<unknown> => cdp.evaluate(`
+  const plugins = app.plugins.plugins;
+  if (!("__nvVorherMgr" in window)) window.__nvVorherMgr = plugins[${JSON.stringify(MGR_SLOT)}];
+  const eintrag = { id: "fake1", label: "Fake-Endpunkt", defaultModel: ${JSON.stringify(MGR_MODEL)} };
+  const aufgeloest = { id: "fake1", label: "Fake-Endpunkt", config: { url: ${JSON.stringify(MGR_URL)} }, defaultModel: ${JSON.stringify(MGR_MODEL)} };
+  plugins[${JSON.stringify(MGR_SLOT)}] = { api: {
+    version: 1, list: () => [eintrag], get: () => eintrag,
+    resolve: async () => aufgeloest, materialize: async () => aufgeloest,
+    models: async () => [${JSON.stringify(MGR_MODEL)}],
+    importEndpoints: async () => ({ added: [], merged: [], skipped: [] }), on: () => () => {},
+  } };
+  return true;
+`);
+const entferneManager = (cdp: Cdp): Promise<unknown> => cdp.evaluate(`
+  if ("__nvVorherMgr" in window) {
+    const vorher = window.__nvVorherMgr;
+    if (vorher === undefined) delete app.plugins.plugins[${JSON.stringify(MGR_SLOT)}];
+    else app.plugins.plugins[${JSON.stringify(MGR_SLOT)}] = vorher;
+    delete window.__nvVorherMgr;
+  }
+  return true;
+`);
+const aufloesungNv = (cdp: Cdp): Promise<{ url: string | null; model: string | null }> => cdp.evaluate(`
+  const p = app.plugins.plugins[${JSON.stringify(PLUGIN_ID)}];
+  p.endpointResolver.invalidate();
+  const ep = await p.endpointResolver.resolve();
+  return { url: ep ? ep.url : null, model: ep ? (ep.model ?? null) : null };
+`);
+
+/** Misst den Endpunkt-Abschnitt im Einstellungen-Fenster (eigenes CDP-Target ab 1.13). */
+async function messeEinstellungenNv(
+  cdp: Cdp, port: number, vault: string | undefined,
+): Promise<{ baustein: boolean; zeilen: number } | null> {
+  await cdp.evaluate(`
+    app.setting.open();
+    app.setting.openTabById(${JSON.stringify(PLUGIN_ID)});
+    await new Promise((r) => setTimeout(r, 1500));
+    return true;
+  `);
+  const sicht = await attachTo("settings", port, vault).catch(() => null);
+  if (!sicht) { await cdp.evaluate(`app.setting.close(); return true;`).catch(() => undefined); return null; }
+  try {
+    return await sicht.evaluate(`
+      const wurzel = document.querySelector(".modal.mod-settings") ?? document.body;
+      return {
+        baustein: wurzel.textContent.includes("LLM Endpoint Manager"),
+        zeilen: wurzel.querySelectorAll(".okit-ep-row").length,
+      };
+    `);
+  } finally {
+    sicht.close?.();
+    await cdp.evaluate(`app.setting.close(); return true;`).catch(() => undefined);
+  }
+}
+
+async function checkEndpointSource(cdp: Cdp, port: number, vault: string | undefined): Promise<void> {
+  // Der Punkt stellt seinen Gegenstand selbst her: eine lokale Liste mit einem toten Endpunkt,
+  // unabhaengig davon, was der Vault gerade traegt. Der Vorwert liegt als window-Global, damit
+  // ihn auch der Abbruch-Handler zurueckstellen kann.
+  await cdp.evaluate(`
+    const p = app.plugins.plugins[${JSON.stringify(PLUGIN_ID)}];
+    if (!("__nvVorherEps" in window)) window.__nvVorherEps = JSON.parse(JSON.stringify(p.settings.llmEndpoints));
+    p.settings.llmEndpoints = [{ url: "http://127.0.0.1:9", model: "nv-lokal" }];
+    p.endpointResolver.invalidate();
+    return true;
+  `);
+  try {
+    await checkEndpointSourceMessung(cdp, port, vault);
+  } finally {
+    await cdp.evaluate(`
+      const p = app.plugins.plugins[${JSON.stringify(PLUGIN_ID)}];
+      if ("__nvVorherEps" in window) { p.settings.llmEndpoints = window.__nvVorherEps; delete window.__nvVorherEps; }
+      p.endpointResolver.invalidate();
+      return true;
+    `).catch(() => undefined);
+  }
+}
+
+async function checkEndpointSourceMessung(cdp: Cdp, port: number, vault: string | undefined): Promise<void> {
+  const lokal = await aufloesungNv(cdp);
+  await installiereManager(cdp);
+  try {
+    const m = await messeEinstellungenNv(cdp, port, vault);
+    if (!m) {
+      skipped("R5-1 Manager an: Settings zeigen den Baustein statt der lokalen Liste", "kein Einstellungen-Fenster am Port — nichts gemessen");
+    } else {
+      record(
+        "R5-1 Manager an: Settings zeigen den Baustein statt der lokalen Liste",
+        m.baustein && m.zeilen === 0,
+        `Baustein ${m.baustein ? "da" : "FEHLT"} · ${m.zeilen} lokale Zeile(n) (.okit-ep-row) sichtbar`,
+      );
+    }
+    const r = await aufloesungNv(cdp);
+    record(
+      "R5-2 Manager an: der Resolver nimmt Manager-Endpunkt und Default-Modell",
+      r.url === MGR_URL && r.model === MGR_MODEL && lokal.url !== MGR_URL,
+      `${r.url} · Modell ${r.model} (ohne Manager: ${lokal.url ?? "kein Endpunkt"})`,
+    );
+  } finally {
+    await entferneManager(cdp);
+  }
+  const m3 = await messeEinstellungenNv(cdp, port, vault);
+  const r3 = await aufloesungNv(cdp);
+  if (!m3) {
+    skipped("R5-3 Manager aus: lokale Liste zurueck (Gegenprobe zu R5-1/R5-2)", "kein Einstellungen-Fenster am Port — nichts gemessen");
+  } else {
+    record(
+      "R5-3 Manager aus: lokale Liste zurueck (Gegenprobe zu R5-1/R5-2)",
+      !m3.baustein && m3.zeilen > 0 && r3.url !== MGR_URL,
+      `${m3.zeilen} lokale Zeile(n) · Baustein ${m3.baustein ? "DA" : "weg"} · Resolver: ${r3.url ?? "kein Endpunkt"}`,
+    );
+  }
+}
+
 function arg(name: string, fallback?: string): string | undefined {
   const i = process.argv.indexOf(`--${name}`);
   return i >= 0 && process.argv[i + 1] ? process.argv[i + 1] : fallback;
@@ -1075,6 +1200,12 @@ async function main(): Promise<void> {
         if (p && p.session && p.session.activeMissionId) { p.session.end(); p.restoreVim(); p.repaint(); }
         for (const leaf of app.workspace.getLeavesOfType('markdown')) {
           if (p && leaf.view?.file?.path?.startsWith(p.settings.missionFolder)) leaf.detach();
+        }
+        if ("__nvVorherEps" in window && p) { p.settings.llmEndpoints = window.__nvVorherEps; delete window.__nvVorherEps; }
+        if ("__nvVorherMgr" in window) {
+          if (window.__nvVorherMgr === undefined) delete app.plugins.plugins["llm-endpoint-manager"];
+          else app.plugins.plugins["llm-endpoint-manager"] = window.__nvVorherMgr;
+          delete window.__nvVorherMgr;
         }
         const cb = window.__nvSmokeCollapsedBefore;
         if (p && cb) { p.settings.uiCollapsed = cb; await p.saveSettings?.(); }
@@ -1183,6 +1314,7 @@ async function main(): Promise<void> {
     await checkCardAlignment(cdp);
     await checkReader(cdp);
     await checkMasteryTier(cdp, vault);
+    await checkEndpointSource(cdp, port, vault);
     await checkCipherUplink(cdp);
   } catch (err) {
     if (err instanceof PreconditionError) {

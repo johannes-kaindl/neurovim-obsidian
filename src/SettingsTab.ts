@@ -4,7 +4,9 @@ import type NeuroVimPlugin from './main';
 import { buildEndpointList, type EndpointListStrings } from './vendor/kit-obsidian/endpoint-list';
 import { renderSettingDefinitions, refreshSettingsTab, settingBodyHost } from './vendor/kit-obsidian/settings_walker';
 import { createModelListCache } from './vendor/kit/model-list-cache';
-import { resolveActiveEndpointConfig, type EndpointConfig } from './vendor/kit/endpoint_config';
+import type { EndpointConfig } from './vendor/kit/endpoint_config';
+import { buildEndpointSourceSection, findEndpointManager } from './vendor/kit-obsidian/endpoint-source';
+import { ENDPOINT_CALLER } from './llm/endpointResolver';
 import { normalizeEndpoint } from './vendor/kit/endpoint';
 import type { EndpointStatus } from './vendor/kit/endpoint_diagnostics';
 import { endpointStatusEn, endpointWarningEn } from './llm/endpointText';
@@ -55,6 +57,9 @@ export class NeuroVimSettingTab extends PluginSettingTab {
   private activeEndpointUrl: string | null = null;
   /** Context length of the selected model in tokens, null = endpoint doesn't report it. */
   private contextLength: number | null = null;
+  /** Model the resolver picked with the active endpoint — the local row's own model, or the
+   *  manager's choice/default. Empty while nothing is resolved. */
+  private activeModel = '';
   /** One-shot latch for the reconnect() bootstrap in renderEndpointList. buildEndpointList only
    *  reaches reconnect() through its own commit chains (blur, trash, "Use first", preset) — its
    *  "Test all" button just re-renders — so without a kick-off on first render, activeEndpointUrl
@@ -154,18 +159,16 @@ export class NeuroVimSettingTab extends PluginSettingTab {
     ] };
   }
 
-  /** Re-derives the active endpoint from the current list via the SAME kit primitive
-   *  EndpointResolver uses (first reachable wins) — no reason to hand-roll a second copy of
-   *  that loop just because this caller doesn't want caching. Refreshes the context-length
-   *  line for whatever comes back. Called by buildEndpointList after every save that can
-   *  change which endpoint is active. */
+  /** Re-derives the active endpoint through the SAME resolver the CIPHER requests use
+   *  (manager first, else the local list, first reachable wins) — no second copy of that
+   *  logic just because this caller wants a fresh answer. Refreshes the context-length line
+   *  for whatever comes back. Called by buildEndpointList after every save that can change
+   *  which endpoint is active, and by the manager section after a choice change. */
   private async reconnect(): Promise<void> {
-    const active = await resolveActiveEndpointConfig(
-      this.plugin.settings.llmEndpoints,
-      (cfg) => probeEndpoint(cfg).then((r) => r.status.reachable),
-    );
+    const active = await this.plugin.resolveEndpointFresh();
     this.activeEndpointUrl = active ? active.url : null;
     const model = active?.model?.trim() ?? '';
+    this.activeModel = model;
     this.contextLength = active && model ? await probeModelContext(active, model) : null;
   }
 
@@ -226,6 +229,33 @@ export class NeuroVimSettingTab extends PluginSettingTab {
       this.hasReconnectedThisOpen = true;
       void this.reconnect().then(() => this.refreshUi());
     }
+    buildEndpointSourceSection({
+      app: this.app, containerEl: host, capability: 'chat', caller: ENDPOINT_CALLER,
+      choice: () => this.plugin.settings.choice,
+      setChoice: async (c) => { this.plugin.settings.choice = c; await this.plugin.saveSettings(); await this.reconnect(); },
+      local: () => this.plugin.settings.llmEndpoints,
+      strings: {
+        managed: 'Endpoints come from the LLM Endpoint Manager',
+        managedDesc: 'This plugin uses the endpoints configured in the LLM Endpoint Manager plugin. Your local list stays as a fallback.',
+        openManager: 'Open manager settings',
+        pickEndpoint: 'Endpoint',
+        automatic: 'automatic (first reachable)',
+        model: 'Model',
+        importLocal: 'Copy local endpoints into the manager',
+        imported: (r) => `Copied: ${r.added.length} new, ${r.merged.length} merged.`,
+        importFailed: 'Copying failed.',
+        modelHint: (key) => ENDPOINT_STRINGS.modelHint(key),
+        savedSuffix: ENDPOINT_STRINGS.savedSuffix,
+        refreshModels: ENDPOINT_STRINGS.refreshModels,
+        saveFailed: 'Could not save the endpoint choice.',
+      },
+      renderLocalList: () => { this.renderLocalEndpointList(host); },
+      rerender: () => this.refreshUi(),
+    });
+  };
+
+  /** The local list editor — only shown while no LLM Endpoint Manager is installed. */
+  private renderLocalEndpointList(host: HTMLElement): void {
     buildEndpointList({
       containerEl: host,
       label: 'Endpoints',
@@ -266,7 +296,7 @@ export class NeuroVimSettingTab extends PluginSettingTab {
       reconnect: () => this.reconnect(),
       rerender: () => this.refreshUi(),
     });
-  };
+  }
 
   private renderContext = (setting: Setting): void => {
     const host = settingBodyHost(setting);
@@ -287,10 +317,13 @@ export class NeuroVimSettingTab extends PluginSettingTab {
     // normalized urls, since activeEndpointUrl comes back normalized from the resolver while
     // the stored entry keeps whatever was typed. No active endpoint (nothing reachable, or
     // the probe hasn't landed yet) → no model to reason about.
+    // With the manager the model is its choice/default, not a list entry — use what the
+    // resolver reported.
     const active = this.plugin.settings.llmEndpoints.find(
       (ep) => normalizeEndpoint(ep.url) === this.activeEndpointUrl,
     );
-    const model = active?.model?.trim() ?? '';
+    const model = findEndpointManager(this.app) ? this.activeModel
+      : active?.model?.trim() ?? '';
     const think = thinkToggleState(model, this.plugin.settings.llmSuppressThinking);
     new Setting(host)
       .setName('Model thinking')

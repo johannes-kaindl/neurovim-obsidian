@@ -54,6 +54,9 @@ export class CorePortAdapter implements LlmPort {
 
     const endpoint = await this.resolver.resolve();
     if (endpoint === null) return UNAVAILABLE('no endpoint reachable');
+    // The manager may hand out an endpoint without a default model, and none was chosen — an
+    // empty model would be sent as-is and answered with an opaque HTTP error.
+    if (this.choice.forEndpoint(endpoint).model.trim() === '') return UNAVAILABLE('no model set for the endpoint');
 
     let outcome = await run(endpoint);
 

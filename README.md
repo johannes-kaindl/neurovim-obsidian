@@ -123,6 +123,8 @@ each section remembers whether you left it open or closed.
   your desk and as a LAN IP on the road. Add endpoints via presets or by typing a URL;
   "Test all" probes every entry and marks the active one. Existing single-endpoint configs
   from 0.4.x migrate automatically — nothing to do on upgrade.
+
+If the **LLM Endpoint Manager** plugin is installed, the endpoints (and their keys) come from it instead: the settings then offer an endpoint and model choice, and your local list stays as a fallback for when the manager is off. If the manager reports no endpoint, there is no fallback to the local list.
 - **Model** — picked from a dropdown populated by the active endpoint's `/v1/models`, with
   a free-text fallback if the list is empty or the endpoint is unreachable. When the
   endpoint reports it (LM Studio, Ollama), the model's context length is shown alongside.

@@ -143,3 +143,17 @@ describe('mergeStoredSettings — endpoint migration', () => {
       .toEqual([{ url: 'http://legacy:1' }]);
   });
 });
+
+describe('choice (Wahl gegenueber dem LLM Endpoint Manager)', () => {
+  it('Default ist die leere Wahl', () => {
+    expect(DEFAULT_SETTINGS.choice).toEqual({});
+    expect(mergeStoredSettings({}).choice).toEqual({});
+  });
+  it('bleibt aus einer data.json erhalten', () => {
+    expect(mergeStoredSettings({ choice: { endpointId: 'a', model: 'm' } }).choice).toEqual({ endpointId: 'a', model: 'm' });
+  });
+  it('untrusted: nur nicht-leere Strings bleiben', () => {
+    expect(mergeStoredSettings({ choice: { endpointId: 5, model: '' } }).choice).toEqual({});
+    expect(mergeStoredSettings({ choice: 'quatsch' }).choice).toEqual({});
+  });
+});

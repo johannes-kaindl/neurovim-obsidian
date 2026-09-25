@@ -10,6 +10,7 @@ All notable changes to this project are documented here. Format loosely follows
   (display only; the folder still exists and still syncs). Off by default.
 
 ### Changed
+- **Endpoints come from the LLM Endpoint Manager when it is installed** (kit `endpoint-source`, `obsidian-kit` 0.41.1, `code-kit` 0.7.0 re-vendored). The manager takes precedence; your local endpoint list stays as the fallback and is unchanged while the manager is missing or off. Visible effects: (1) With the manager, the CIPHER settings section shows "Endpoints come from the LLM Endpoint Manager" (endpoint choice, model choice, a button that copies your local endpoints into the manager) instead of the local list. The local list and the models on its rows stay saved, just hidden. (2) New setting `choice` (`endpointId`, `model`) holds the choice against the manager; an older `data.json` without it loads unchanged. (3) CIPHER counts as configured whenever the manager is installed; if the manager reports no endpoint there is no fallback to the local list, and if it hands out an endpoint without a model (and none is chosen) the uplink answers "no model set for the endpoint" instead of sending an empty model. (4) The failover stays: without the manager, the first reachable local endpoint still wins, is cached, and is re-resolved after a network failure.
 - **Removed the global CIPHER model setting.** Model now lives entirely on the endpoint
   row (as it already did for overrides) — a model id only means something on the endpoint
   that reports it, so "global model + per-row override" was the same information in two
@@ -31,6 +32,9 @@ All notable changes to this project are documented here. Format loosely follows
   missions lands below the number of characters the solution requires you to type —
   measured against real runs, it would report failure at something unreachable. About
   six of 54 missions carry a par today; the rest stay unjudged until one is written.
+
+### Fixed
+- `scripts/debrief-lab.mjs` read `llmEndpoints[0]` as a string, but the field carries objects (`{url, apiKey, model}`) since 0.9.0 — the default path without `--endpoint` threw a `TypeError` on a real `data.json`. The shape is now read by `scripts/debrief-settings.mjs` (with a unit test); the pre-0.9.0 string form still works.
 
 ## [0.8.0] — 2026-08-19
 

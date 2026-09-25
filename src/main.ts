@@ -26,7 +26,9 @@ import { CipherClient } from './llm/CipherClient';
 import { XhrSseTransport } from './llm/XhrSseTransport';
 import { CorePortAdapter } from './llm/CorePortAdapter';
 import { EndpointResolver } from './llm/endpointResolver';
+import { findEndpointManager } from './vendor/kit-obsidian/endpoint-source';
 import { probeEndpoint } from './llm/endpointProbe';
+import type { EndpointConfig } from './vendor/kit/endpoint_config';
 import { DEFAULT_SETTINGS, isLlmConfigured, mergeStoredSettings, type VimDojoSettings } from './settings';
 import {
   buildRunTrace, TraceStore, CipherUplink, ChatSession, buildKnowledge, quickReference,
@@ -72,7 +74,22 @@ export default class NeuroVimPlugin extends Plugin {
   private endpointResolver = new EndpointResolver(
     () => this.settings.llmEndpoints,
     async (cfg) => (await probeEndpoint(cfg)).status.reachable,
+    // The LLM Endpoint Manager, when installed, is the source — found fresh on every resolve.
+    { manager: () => findEndpointManager(this.app), choice: () => this.settings.choice },
   );
+
+  /** Resolves the active endpoint (manager first, else the local list) with its model on
+   *  `config.model`. Fresh: the settings tab calls this after every edit or choice change. */
+  async resolveEndpointFresh(): Promise<EndpointConfig | null> {
+    this.endpointResolver.invalidate();
+    return this.endpointResolver.resolve();
+  }
+
+  /** The CIPHER uplink is usable: with the manager installed it decides (endpoint and model
+   *  come from it); without it every local endpoint needs its own model. */
+  llmConfigured(): boolean {
+    return findEndpointManager(this.app) !== null || isLlmConfigured(this.settings);
+  }
   /** Active hub tab + guide search query — session-local UI state, not persisted. */
   private hubTab: HubTab = 'nexus';
   private guideQuery = '';
@@ -358,7 +375,7 @@ export default class NeuroVimPlugin extends Plugin {
       const trace = buildRunTrace(res.result, events, par, new Date().toISOString());
       if (this.settings.recordTraces) void this.traceStore?.append(trace);
 
-      const runDebrief = this.settings.recordTraces && isLlmConfigured(this.settings)
+      const runDebrief = this.settings.recordTraces && this.llmConfigured()
         ? (onToken: (t: string) => void, signal: AbortSignal) => this.runDebrief(trace, onToken, signal)
         : null;
 
@@ -405,7 +422,7 @@ export default class NeuroVimPlugin extends Plugin {
   private uplink(): CipherUplink {
     this.cipherUplink ??= new CipherUplink(
       new CorePortAdapter(this.cipherClient, this.endpointResolver, {
-        configured: () => isLlmConfigured(this.settings),
+        configured: () => this.llmConfigured(),
         forEndpoint: (ep) => ({
           model: ep.model?.trim() ?? '',
           suppressThinking: this.settings.llmSuppressThinking,
@@ -490,7 +507,7 @@ export default class NeuroVimPlugin extends Plugin {
           onAbandon: () => this.handleAbandon(),
           hint: this.hint,
           onHint: () => { if (this.hint) { new Notice(this.hint); this.hint = null; this.repaint(); } },
-          onCipher: isLlmConfigured(this.settings)
+          onCipher: this.llmConfigured()
             ? () => { this.hubTab = 'uplink'; void this.activateView(); }
             : undefined,
         }
@@ -518,7 +535,7 @@ export default class NeuroVimPlugin extends Plugin {
         data: this.data,
         onStart: (mid) => void this.handleStart(mid),
         control: target === 'sidebar' ? control : null,
-        cipher: isLlmConfigured(this.settings)
+        cipher: this.llmConfigured()
           ? {
               entries: this.cipherSession.entries,
               streaming: this.cipherSession.streaming,

@@ -1,5 +1,6 @@
 import type { HudPlacement } from './hudPlacement';
 import { migrateEndpointList, type EndpointConfig } from './vendor/kit/endpoint_config';
+import type { EndpointChoice } from './vendor/kit/endpoint-source';
 
 export type ColorScheme = 'crt' | 'native';
 
@@ -19,6 +20,10 @@ export interface VimDojoSettings {
    *  is deliberately no global fallback (removed in 0.9.0, see `foldLegacyModel`). Empty =
    *  feature off. */
   llmEndpoints: EndpointConfig[];
+  /** Choice against the LLM Endpoint Manager (endpoint + model). Empty = automatic. Only
+   *  relevant while the manager is installed; without it `llmEndpoints` (each with its own
+   *  model) is the source. */
+  choice: EndpointChoice;
   llmSuppressThinking: boolean;
   recordTraces: boolean;
   pausedBannerMinutes: number;
@@ -33,6 +38,7 @@ export const DEFAULT_SETTINGS: VimDojoSettings = {
   autoVim: false,
   openPaneOnStartup: false,
   llmEndpoints: [],
+  choice: {},
   llmSuppressThinking: true,
   recordTraces: true,
   pausedBannerMinutes: 5,
@@ -45,6 +51,16 @@ export const DEFAULT_SETTINGS: VimDojoSettings = {
 export function isLlmConfigured(s: Pick<VimDojoSettings, 'llmEndpoints'>): boolean {
   return s.llmEndpoints.length > 0
     && s.llmEndpoints.every((ep) => (ep.model ?? '').trim() !== '');
+}
+
+/** `choice` comes from a data.json and is therefore untrusted: only non-empty strings survive. */
+export function sanitizeChoice(raw: unknown): EndpointChoice {
+  if (raw === null || typeof raw !== 'object') return {};
+  const { endpointId, model } = raw as EndpointChoice;
+  return {
+    ...(typeof endpointId === 'string' && endpointId ? { endpointId } : {}),
+    ...(typeof model === 'string' && model ? { model } : {}),
+  };
 }
 
 /** Applies a legacy GLOBAL API key onto every migrated endpoint that doesn't already carry
@@ -97,6 +113,7 @@ export function mergeStoredSettings(raw: unknown): VimDojoSettings {
     ...DEFAULT_SETTINGS,
     ...rest,
     llmEndpoints: foldLegacyModel(foldLegacyApiKey(migrated, llmApiKey), llmModel),
+    choice: sanitizeChoice(rest.choice),
     uiCollapsed: { ...DEFAULT_SETTINGS.uiCollapsed, ...rest.uiCollapsed },
   };
 }

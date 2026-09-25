@@ -22,6 +22,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve, join } from 'node:path';
+import { pickEndpointSettings } from './debrief-settings.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const LAB = join(HERE, 'debrief-lab');
@@ -59,7 +60,7 @@ function readSettings() {
     process.exit(1);
   }
   const s = JSON.parse(readFileSync(path, 'utf8')).__settings ?? {};
-  return { endpoint: (s.llmEndpoints ?? [])[0], model: s.llmModel, apiKey: s.llmApiKey ?? '' };
+  return pickEndpointSettings(s);
 }
 const settings = readSettings();
 const ENDPOINT = (args.opts.endpoint ?? settings.endpoint ?? 'http://localhost:1234').replace(/\/+$/, '');

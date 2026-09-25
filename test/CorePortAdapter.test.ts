@@ -48,6 +48,19 @@ const make = (client: FakeClient, resolver: FakeResolver, configured = true): Co
   );
 
 describe('CorePortAdapter', () => {
+  it('ohne Modell am aufgeloesten Endpunkt: unavailable, kein Aufruf (Manager ohne Default-Modell)', async () => {
+    const client = new FakeClient([{ ok: true, content: 'hi' }]);
+    const adapter = new CorePortAdapter(
+      client as unknown as CipherClient,
+      new FakeResolver([ENDPOINT]) as unknown as EndpointResolver,
+      { configured: () => true, forEndpoint: () => ({ model: '  ', suppressThinking: false }) },
+    );
+    const r = await adapter.complete([]);
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.kind).toBe('unavailable');
+    expect(client.calls).toHaveLength(0);
+  });
+
   it('maps a successful stream to ok', async () => {
     const adapter = make(new FakeClient([{ ok: true, content: 'hi' }]), new FakeResolver([ENDPOINT]));
     expect(await adapter.complete([])).toEqual({ ok: true, content: 'hi' });

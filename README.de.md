@@ -126,6 +126,8 @@ jede Gruppe merkt sich, ob du sie offen oder geschlossen gelassen hast.
   sich über Vorlagen oder durch Eintippen einer URL hinzufügen; „Test all" prüft jeden
   Eintrag und markiert den aktiven. Bestehende Einzel-Endpunkt-Konfigurationen aus 0.4.x
   werden automatisch migriert — beim Update ist nichts zu tun.
+
+Ist das Plugin **LLM Endpoint Manager** installiert, kommen die Endpunkte (samt Schlüsseln) stattdessen von ihm: Die Einstellungen bieten dann eine Endpunkt- und Modellwahl, und deine lokale Liste bleibt als Rückfall erhalten, wenn der Manager aus ist. Meldet der Manager keinen Endpunkt, gibt es keinen Rückfall auf die lokale Liste.
 - **Model** — aus einer Liste gewählt, die der aktive Endpunkt über `/v1/models` liefert, mit
   freier Texteingabe als Rückfallebene, falls die Liste leer oder der Endpunkt nicht
   erreichbar ist. Meldet der Endpunkt sie (LM Studio, Ollama), wird die Kontextlänge des
