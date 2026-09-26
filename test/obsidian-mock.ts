@@ -9,7 +9,30 @@ export class TFile { constructor(public path: string) {} }
 export class ItemView {}
 export class App {}
 export class PluginSettingTab { constructor(_app?: unknown, _plugin?: unknown) {} }
-export class Setting { constructor(_containerEl: unknown) {} }
+/** Zeichnet Name, Beschreibung und Knoepfe auf, damit Tests belegen koennen, was an einer Zeile haengt. */
+export class Setting {
+  nameValue = '';
+  descValue = '';
+  components: Array<{ text?: string; iconName?: string; tooltip?: string; clickCB?: () => void }> = [];
+  constructor(_containerEl: unknown) {}
+  setName(n: string): this { this.nameValue = n; return this; }
+  setDesc(d: string): this { this.descValue = d; return this; }
+  addButton(cb: (b: unknown) => void): this {
+    const c: { text?: string; clickCB?: () => void; setButtonText(t: string): unknown; onClick(f: () => void): unknown } = {
+      setButtonText(t: string) { c.text = t; return c; },
+      onClick(f: () => void) { c.clickCB = f; return c; },
+    };
+    this.components.push(c); cb(c); return this;
+  }
+  addExtraButton(cb: (b: unknown) => void): this {
+    const c: { iconName?: string; tooltip?: string; clickCB?: () => void; setIcon(i: string): unknown; setTooltip(t: string): unknown; onClick(f: () => void): unknown } = {
+      setIcon(i: string) { c.iconName = i; return c; },
+      setTooltip(t: string) { c.tooltip = t; return c; },
+      onClick(f: () => void) { c.clickCB = f; return c; },
+    };
+    this.components.push(c); cb(c); return this;
+  }
+}
 // Minimal stand-in so src/vendor/kit-obsidian/folder-suggest.ts can be imported at all
 // (class-extends-undefined otherwise crashes at module load, before any test even runs) —
 // nothing in this repo's tests exercises the suggest dropdown itself.

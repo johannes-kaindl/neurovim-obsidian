@@ -36,8 +36,12 @@ CODE_KIT="${CODE_KIT_DIR:-../../libs/code-kit}"
 # korrekt gepeelt beglaubigt.
 KIT_REF=${KIT_REF:-0.41.1}
 CODE_KIT_REF=${CODE_KIT_REF:-0.7.0}
+# Zweiter Pin, ebenfalls Absicht: help-setting.ts (Hilfe-Zeile, UI-STANDARD 8) kam mit Kit 0.43.0 und
+# haengt an keinem anderen Modul — die uebrigen Module behalten ihren Pin.
+# Vorlage: epub-exporter/tools/sync-kit.sh (877eb2c).
+KIT_HELP_REF=${KIT_HELP_REF:-0.43.0}
 
-for paar in "$KIT|$KIT_REF" "$CODE_KIT|$CODE_KIT_REF"; do
+for paar in "$KIT|$KIT_REF" "$KIT|$KIT_HELP_REF" "$CODE_KIT|$CODE_KIT_REF"; do
   repo=${paar%%|*}; ref=${paar##*|}
   git -C "$repo" rev-parse --verify --quiet "$ref^{commit}" >/dev/null \
     || { echo "sync-kit: Ref '$ref' existiert nicht in $repo (KIT_REF/CODE_KIT_REF setzen)" >&2; exit 1; }
@@ -84,6 +88,10 @@ vendor_aus_ref() {
 # zufaellig leichtgewichtig. Ohne die Peelung schriebe der naechste Kit-Sprung eine SHA in
 # VENDOR.json, die in `git log` des Kits gar nicht vorkommt. Praezedenz: obsidian-paperize.
 SHA=$(git -C "$KIT" rev-parse --short "$KIT_REF^{commit}")
+HELP_SHA=$(git -C "$KIT" rev-parse --short "$KIT_HELP_REF^{commit}")
+HELP_VER=$(git -C "$KIT" describe --tags --abbrev=0 "$KIT_HELP_REF")
+git -C "$KIT" cat-file -e "$KIT_HELP_REF:src/obsidian/help-setting.ts" 2>/dev/null \
+  || { echo "sync-kit: src/obsidian/help-setting.ts fehlt in $KIT@$KIT_HELP_REF." >&2; exit 1; }
 
 stamp() { # stamp <vendored-file> <quell-relativer-pfad> [<quelle> <version>]
   quelle=${3:-obsidian-kit}
@@ -224,6 +232,10 @@ for m in clock collapsible endpoint-list model-picker folder-suggest settings_wa
   echo "vendored obsidian-kit@$VER/obsidian/$m.ts"
 done
 
+vendor_aus_ref src/vendor/kit-obsidian/help-setting.ts "$KIT" "$KIT_HELP_REF" src/obsidian/help-setting.ts
+stamp src/vendor/kit-obsidian/help-setting.ts src/obsidian/help-setting.ts obsidian-kit "$HELP_VER"
+echo "vendored obsidian-kit@$HELP_VER/obsidian/help-setting.ts"
+
 cat > src/vendor/kit/VENDOR.json <<JSON
 {
   "source": "obsidian-kit",
@@ -239,7 +251,7 @@ cat > src/vendor/kit-obsidian/VENDOR.json <<JSON
   "source": "obsidian-kit",
   "version": "$VER",
   "sha": "$SHA",
-  "vendored": "obsidian/clock.ts, obsidian/collapsible.ts, obsidian/endpoint-list.ts, obsidian/model-picker.ts, obsidian/folder-suggest.ts, obsidian/settings_walker.ts, obsidian/endpoint-source.ts",
+  "vendored": "obsidian/clock.ts, obsidian/collapsible.ts, obsidian/endpoint-list.ts, obsidian/model-picker.ts, obsidian/folder-suggest.ts, obsidian/settings_walker.ts, obsidian/endpoint-source.ts, obsidian/help-setting.ts (Kit $HELP_VER, $HELP_SHA)",
   "note": "Verbatim snapshot. Never hand-edit. Re-vendor via tools/sync-kit.sh. collapsible.ts has no consumer in src/, checked by test/vendorKit.test.ts only. endpoint-list.ts and model-picker.ts carry ONE mechanical deviation from verbatim: kit-internal imports of ../pure/* are rewritten to ../kit/* to match this repo's vendor layout (obsidian-kit's src/obsidian + src/pure become kit-obsidian + kit here). Reproduce that rewrite on every re-vendor; nothing else may differ. endpoint-source.ts carries the same rewrite (../pure/endpoint-source and ../vendor/code-kit/pure/* → ../kit/*). Same fix precedented in markdown-presentation's VENDOR.json at the same sha. folder-suggest.ts and settings_walker.ts have no ../pure/ imports, so relayer() is a no-op for both (same as clock/collapsible) — settings_walker.ts imports ./folder-suggest, both must stay vendored together."
 }
 JSON

@@ -1089,6 +1089,39 @@ async function messeEinstellungenNv(
   }
 }
 
+/** R6: die Hilfe-Zeile (UI-STANDARD §8) ist die erste Zeile des Tabs, mit Doku-Knopf und Bug-Icon. */
+async function checkHelpRow(cdp: Cdp, port: number, vault: string | undefined): Promise<void> {
+  const name = "R6 Hilfe-Zeile steht als erste Zeile der Einstellungen, mit Doku-Knopf und Bug-Icon";
+  await cdp.evaluate(`
+    app.setting.open();
+    app.setting.openTabById(${JSON.stringify(PLUGIN_ID)});
+    await new Promise((r) => setTimeout(r, 1500));
+    return true;
+  `);
+  const sicht = await attachTo("settings", port, vault).catch(() => null);
+  if (!sicht) {
+    await cdp.evaluate(`app.setting.close(); return true;`).catch(() => undefined);
+    skipped(name, "kein Einstellungen-Fenster am Port — nichts gemessen");
+    return;
+  }
+  try {
+    const d = await sicht.evaluate<{ name: string | null; knoepfe: string[]; bug: number }>(`
+      const wurzel = document.querySelector(".modal.mod-settings") ?? document.body;
+      const erste = wurzel.querySelector(".vertical-tab-content .setting-item");
+      return {
+        name: erste?.querySelector(".setting-item-name")?.textContent?.trim() ?? null,
+        knoepfe: erste ? [...erste.querySelectorAll("button")].map((b) => b.textContent.trim()) : [],
+        bug: erste ? erste.querySelectorAll(".clickable-icon svg.lucide-bug, .clickable-icon svg.bug").length : 0,
+      };
+    `);
+    record(name, d.name === "Help" && d.knoepfe.length === 1 && d.bug === 1,
+      `erste Zeile "${d.name ?? "—"}", Knoepfe ${JSON.stringify(d.knoepfe)}, Bug-Icon: ${d.bug}`);
+  } finally {
+    sicht.close?.();
+    await cdp.evaluate(`app.setting.close(); return true;`).catch(() => undefined);
+  }
+}
+
 async function checkEndpointSource(cdp: Cdp, port: number, vault: string | undefined): Promise<void> {
   // Der Punkt stellt seinen Gegenstand selbst her: eine lokale Liste mit einem toten Endpunkt,
   // unabhaengig davon, was der Vault gerade traegt. Der Vorwert liegt als window-Global, damit
@@ -1314,6 +1347,7 @@ async function main(): Promise<void> {
     await checkCardAlignment(cdp);
     await checkReader(cdp);
     await checkMasteryTier(cdp, vault);
+    await checkHelpRow(cdp, port, vault);
     await checkEndpointSource(cdp, port, vault);
     await checkCipherUplink(cdp);
   } catch (err) {

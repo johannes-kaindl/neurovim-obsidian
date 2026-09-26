@@ -2,6 +2,7 @@ import { App, PluginSettingTab, Setting } from 'obsidian';
 import type { SettingDefinitionGroup, SettingDefinitionItem } from 'obsidian';
 import type NeuroVimPlugin from './main';
 import { buildEndpointList, type EndpointListStrings } from './vendor/kit-obsidian/endpoint-list';
+import { githubHelpUrls, helpSettingDefinition, HELP_SETTING_TEXTS_EN } from './vendor/kit-obsidian/help-setting';
 import { renderSettingDefinitions, refreshSettingsTab, settingBodyHost } from './vendor/kit-obsidian/settings_walker';
 import { createModelListCache } from './vendor/kit/model-list-cache';
 import type { EndpointConfig } from './vendor/kit/endpoint_config';
@@ -105,7 +106,12 @@ export class NeuroVimSettingTab extends PluginSettingTab {
   }
 
   getSettingDefinitions(): SettingDefinitionItem[] {
-    return [this.missionsGroup(), this.appearanceGroup(), this.cipherGroup()];
+    // UI-STANDARD §8 help row: first item, before every heading. This plugin's settings are English
+    // only (store plugin, no i18n layer), so the row carries the English texts only.
+    return [
+      helpSettingDefinition({ ...githubHelpUrls('neurovim-obsidian'), texts: HELP_SETTING_TEXTS_EN }),
+      this.missionsGroup(), this.appearanceGroup(), this.cipherGroup(),
+    ];
   }
 
   private missionsGroup(): SettingDefinitionGroup {

@@ -6,6 +6,7 @@ All notable changes to this project are documented here. Format loosely follows
 ## [Unreleased]
 
 ### Added
+- **Help row at the top of the settings** with links to the documentation and the issue tracker (kit `help-setting`, `obsidian-kit` 0.43.0).
 - **Hide mission folder** setting — hides the mission folder in the file explorer
   (display only; the folder still exists and still syncs). Off by default.
 
