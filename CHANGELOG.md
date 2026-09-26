@@ -5,6 +5,8 @@ All notable changes to this project are documented here. Format loosely follows
 
 ## [Unreleased]
 
+## [0.10.0] — 2026-09-26
+
 ### Changed
 - **CIPHER: kit chat client instead of a local one** (`obsidian-kit` 0.43.0, `chat-client` + `chat-transport`). Visible effects: (1) The timeout now measures silence, not duration — a long, healthy answer is no longer cut off after 120 s; a server that goes quiet ends the request after 120 s without data. (2) An HTTP error shows the server's reason instead of "HTTP 404: …" plus a raw body excerpt. (3) If the server refuses the stream (origin/CORS check), the client retries once without streaming instead of reporting "unreachable". (4) Answers that end at the token limit before the first word (thinking used the budget) now count as failed with a reason. Sampling stays fixed (temperature 0.7, 1024 tokens); reasoning is still not shown.
 - **Hide mission folder now hides the folder's contents too** (kit `folder-hide`): the old rule hid only the folder's title row, the children stayed visible in the explorer. The rule is also applied to the main window's document even when a pop-out window is active while the plugin loads.
