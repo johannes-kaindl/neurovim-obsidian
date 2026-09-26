@@ -5,6 +5,8 @@ All notable changes to this project are documented here. Format loosely follows
 
 ## [Unreleased]
 
+## [0.9.0] — 2026-09-26
+
 ### Added
 - **Help row at the top of the settings** with links to the documentation and the issue tracker (kit `help-setting`, `obsidian-kit` 0.43.0).
 - **Hide mission folder** setting — hides the mission folder in the file explorer
