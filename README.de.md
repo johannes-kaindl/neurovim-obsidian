@@ -1,10 +1,10 @@
 # NeuroVim (vim-dojo)
 
-> [🇬🇧 English](https://git.jkaindl.de/jkaindl/neurovim-obsidian/src/branch/main/README.md) · 🇩🇪 Deutsch
+> [🇬🇧 English](https://github.com/johannes-kaindl/neurovim-obsidian/blob/main/README.md) · 🇩🇪 Deutsch
 
-[![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-blue.svg)](https://git.jkaindl.de/jkaindl/neurovim-obsidian/src/branch/main/LICENSE)
-[![Docs: CC BY-SA 4.0](https://img.shields.io/badge/docs-CC%20BY--SA%204.0-lightgrey.svg)](https://git.jkaindl.de/jkaindl/neurovim-obsidian/src/branch/main/LICENSE-DOCS)
-[![Release](https://img.shields.io/gitea/v/release/jkaindl/neurovim-obsidian?gitea_url=https%3A%2F%2Fgit.jkaindl.de&label=release)](https://git.jkaindl.de/jkaindl/neurovim-obsidian/releases)
+[![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-blue.svg)](https://github.com/johannes-kaindl/neurovim-obsidian/blob/main/LICENSE)
+[![Docs: CC BY-SA 4.0](https://img.shields.io/badge/docs-CC%20BY--SA%204.0-lightgrey.svg)](https://github.com/johannes-kaindl/neurovim-obsidian/blob/main/LICENSE-DOCS)
+[![Release](https://img.shields.io/github/v/release/johannes-kaindl/neurovim-obsidian?label=release)](https://github.com/johannes-kaindl/neurovim-obsidian/releases)
 [![Downloads](https://img.shields.io/badge/dynamic/json?logo=obsidian&color=%23483699&label=downloads&query=%24%5B%22neurovim%22%5D.downloads&url=https%3A%2F%2Fraw.githubusercontent.com%2Fobsidianmd%2Fobsidian-releases%2Fmaster%2Fcommunity-plugin-stats.json)](https://obsidian.md/plugins?id=neurovim)
 ![Platform](https://img.shields.io/badge/platform-Obsidian%201.7.2%2B%20·%20desktop%20%26%20mobile-7c3aed)
 
@@ -14,7 +14,7 @@ Ein KI-Handler namens **CIPHER** vergibt „Missionen", die in Wahrheit Vim-Übu
 CORP-korrumpierte Transmissionen wiederherstellen, die Uhr schlagen, XP verdienen. Du lernst
 Vim fast nebenbei; die Geschichte ist der Haken.
 
-<p align="center"><img src="https://git.jkaindl.de/jkaindl/neurovim-obsidian/raw/branch/main/docs/images/hero.png" width="820" alt="A NeuroVim mission open in an Obsidian note: the corrupted transmission in the editor with Vim mode active, and the mission HUD showing elapsed time, keystrokes and line progress"></p>
+<p align="center"><img src="https://raw.githubusercontent.com/johannes-kaindl/neurovim-obsidian/main/docs/images/hero.png" width="820" alt="A NeuroVim mission open in an Obsidian note: the corrupted transmission in the editor with Vim mode active, and the mission HUD showing elapsed time, keystrokes and line progress"></p>
 
 NeuroVim begann als Obsidian-Plugin, wuchs dann zu einem Multi-Target-Spiel heran
 ([`neurovim-standalone`](https://git.jkaindl.de/jkaindl/NeuroVIM): Web + Desktop + Obsidian).
@@ -40,9 +40,9 @@ NeuroVim begann als Obsidian-Plugin, wuchs dann zu einem Multi-Target-Spiel hera
   jedem OpenAI-kompatiblen LLM-Endpunkt, auch einem rein lokalen.
 - **Spickzettel** — eine durchsuchbare Vim-Referenz direkt im Plugin-Bereich.
 
-<img src="https://git.jkaindl.de/jkaindl/neurovim-obsidian/raw/branch/main/docs/images/briefing.png" width="584" alt="The mission briefing: CIPHER explaining the job in character before the mission starts">
+<img src="https://raw.githubusercontent.com/johannes-kaindl/neurovim-obsidian/main/docs/images/briefing.png" width="584" alt="The mission briefing: CIPHER explaining the job in character before the mission starts">
 
-<img src="https://git.jkaindl.de/jkaindl/neurovim-obsidian/raw/branch/main/docs/images/missions.png" width="412" alt="The MISSIONS tab: completed missions marked with a check, available ones showing their XP reward, later ones still locked">
+<img src="https://raw.githubusercontent.com/johannes-kaindl/neurovim-obsidian/main/docs/images/missions.png" width="412" alt="The MISSIONS tab: completed missions marked with a check, available ones showing their XP reward, later ones still locked">
 
 ## Voraussetzungen
 
@@ -62,7 +62,7 @@ NeuroVim begann als Obsidian-Plugin, wuchs dann zu einem Multi-Target-Spiel hera
 suchen → Installieren → Aktivieren.
 
 **Manuell, aus einem Release:** `main.js`, `manifest.json` und `styles.css` aus dem
-[neuesten Release](https://git.jkaindl.de/jkaindl/neurovim-obsidian/releases) nach
+[neuesten Release](https://github.com/johannes-kaindl/neurovim-obsidian/releases) nach
 `<vault>/.obsidian/plugins/neurovim/` legen und NeuroVim unter Community-Plugins aktivieren.
 
 Das Bauen aus dem Quelltext ist unter [Entwickeln / aus dem Quelltext bauen](#entwickeln--aus-dem-quelltext-bauen) beschrieben.
@@ -75,6 +75,7 @@ Das Bauen aus dem Quelltext ist unter [Entwickeln / aus dem Quelltext bauen](#en
 - **NEXUS** — dein Status (Level/XP), die Willkommens-Transmission und ein Knopf für die
   nächste Mission.
 - **MISSIONS** — die vollständige Missionsliste.
+- **ARCHIVE** — die Lore-Artefakte, die du dir verdient hast.
 - **GUIDE** — ein durchsuchbarer Vim-Spickzettel (nach Taste oder Beschreibung filtern).
 - **UPLINK** — der CIPHER-Chat (erscheint, sobald ein Endpunkt konfiguriert ist).
 
@@ -138,11 +139,11 @@ Ist das Plugin **LLM Endpoint Manager** installiert, kommen die Endpunkte (samt 
   deaktiviert sich dann mit einer Erklärung, weil er daran ohnehin nichts ändern kann.
 - **API key** — optional, für Endpunkte, die einen verlangen.
 
-<img src="https://git.jkaindl.de/jkaindl/neurovim-obsidian/raw/branch/main/docs/images/archive.png" width="412" alt="The ARCHIVE tab: a recovered loot artifact next to locked ones, each showing the level needed to unlock it">
+<img src="https://raw.githubusercontent.com/johannes-kaindl/neurovim-obsidian/main/docs/images/archive.png" width="412" alt="The ARCHIVE tab: a recovered loot artifact next to locked ones, each showing the level needed to unlock it">
 
-<img src="https://git.jkaindl.de/jkaindl/neurovim-obsidian/raw/branch/main/docs/images/reader.png" width="584" alt="A lore artifact open in the reader, rendered as markdown in the CRT colour scheme">
+<img src="https://raw.githubusercontent.com/johannes-kaindl/neurovim-obsidian/main/docs/images/reader.png" width="584" alt="A lore artifact open in the reader, rendered as markdown in the CRT colour scheme">
 
-<img src="https://git.jkaindl.de/jkaindl/neurovim-obsidian/raw/branch/main/docs/images/guide.png" width="412" alt="The GUIDE tab filtered by the search term delete, listing the matching Vim keys">
+<img src="https://raw.githubusercontent.com/johannes-kaindl/neurovim-obsidian/main/docs/images/guide.png" width="412" alt="The GUIDE tab filtered by the search term delete, listing the matching Vim keys">
 
 ## Funktionsweise
 
@@ -185,6 +186,13 @@ auszuwerten.
 - **Abschaltbar.** In den Einstellungen unter „Record run traces" ausschalten. `traces.jsonl`
   kannst du jederzeit löschen.
 
+## Dokumentation
+
+Einstieg ist der [Doku-Index](https://github.com/johannes-kaindl/neurovim-obsidian/blob/main/docs/README.md) (englisch):
+
+- **[Getting started](https://github.com/johannes-kaindl/neurovim-obsidian/blob/main/docs/getting-started.md)** — von der Installation bis zur ersten abgeschlossenen Mission.
+- **[Troubleshooting](https://github.com/johannes-kaindl/neurovim-obsidian/blob/main/docs/troubleshooting.md)** — die Meldung, ihre Ursache und die Abhilfe.
+
 ## Entwickeln / aus dem Quelltext bauen
 
 ```bash
@@ -202,13 +210,13 @@ einzige Quelle der Wahrheit für Spiellogik und Inhalte.
 
 `npm run lint` führt `eslint-plugin-obsidianmd` aus — dasselbe Regelwerk, mit dem der
 Community-Store prüft — bei `--max-warnings 0`. Manueller Smoke-Test:
-[`docs/SMOKE-TEST.md`](https://git.jkaindl.de/jkaindl/neurovim-obsidian/src/branch/main/docs/SMOKE-TEST.md).
+[`docs/SMOKE-TEST.md`](https://github.com/johannes-kaindl/neurovim-obsidian/blob/main/docs/SMOKE-TEST.md).
 
 Vor einem Pull Request bitte
-[`CONTRIBUTING.md`](https://git.jkaindl.de/jkaindl/neurovim-obsidian/src/branch/main/CONTRIBUTING.md)
+[`CONTRIBUTING.md`](https://github.com/johannes-kaindl/neurovim-obsidian/blob/main/CONTRIBUTING.md)
 lesen — vor allem, welche Änderungen hierher gehören und welche ins Monorepo. Architektur,
 Konventionen und bekannte Fallstricke stehen in
-[`AGENTS.md`](https://git.jkaindl.de/jkaindl/neurovim-obsidian/src/branch/main/AGENTS.md).
+[`AGENTS.md`](https://github.com/johannes-kaindl/neurovim-obsidian/blob/main/AGENTS.md).
 
 ## Release
 
@@ -225,14 +233,14 @@ alleinstehenden Clone. Einmalige Voraussetzungen: ein Forgejo-Repo als `origin`,
 Das Plugin fasst keine Dateien außerhalb des konfigurierten Missionsordners an und stellt
 keine Netzwerkanfragen, solange kein CIPHER-Endpunkt konfiguriert ist. Was aufgezeichnet wird,
 was wohin gesendet wird und wie du eine Sicherheitslücke vertraulich meldest:
-[`SECURITY.md`](https://git.jkaindl.de/jkaindl/neurovim-obsidian/src/branch/main/SECURITY.md).
+[`SECURITY.md`](https://github.com/johannes-kaindl/neurovim-obsidian/blob/main/SECURITY.md).
 
 ## Lizenz
 
-- **Code:** [GNU AGPL-3.0-or-later](https://git.jkaindl.de/jkaindl/neurovim-obsidian/src/branch/main/LICENSE).
-- **Dokumentation & Texte:** [CC BY-SA 4.0](https://git.jkaindl.de/jkaindl/neurovim-obsidian/src/branch/main/LICENSE-DOCS).
+- **Code:** [GNU AGPL-3.0-or-later](https://github.com/johannes-kaindl/neurovim-obsidian/blob/main/LICENSE).
+- **Dokumentation & Texte:** [CC BY-SA 4.0](https://github.com/johannes-kaindl/neurovim-obsidian/blob/main/LICENSE-DOCS).
 - **Missionen und Erzählung:** stammen aus dem [Monorepo](https://git.jkaindl.de/jkaindl/NeuroVIM)
   unter CC BY-SA 4.0.
 
 Für Verwendungen, zu denen die AGPL nicht passt, gibt es eine kommerzielle Lizenz — siehe
-[`LICENSING.md`](https://git.jkaindl.de/jkaindl/neurovim-obsidian/src/branch/main/LICENSING.md).
+[`LICENSING.md`](https://github.com/johannes-kaindl/neurovim-obsidian/blob/main/LICENSING.md).
