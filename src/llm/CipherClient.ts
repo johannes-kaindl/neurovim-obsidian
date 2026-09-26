@@ -1,42 +1,42 @@
 /**
- * Thin streaming client for one OpenAI-compatible /v1/chat/completions call.
- * Transport is injected (Obsidian's requestUrl can't stream; the real transport
- * is XHR-based — see XhrSseTransport). Pure enough to test with a fake transport.
+ * CIPHER's chat call over the kit client (`createChatClient`, obsidian-kit 0.42.0). The client
+ * and its transports come from `vendor/kit-obsidian`; what stays here is what only this plugin
+ * knows: the fixed sampling values (the kit client sends none), reasoning suppression, and the
+ * one-client-per-endpoint rule (the kit client remembers that an endpoint refused the stream —
+ * MIGRATION 0.42.0, point 2).
+ *
+ * Reasoning is dropped by design: `onReasoning` is left out.
  */
-import { parseSSE } from '../vendor/kit/sse';
-import { ThinkSplitter } from '../vendor/kit/think';
-import { normalizeEndpoint } from '../vendor/kit/endpoint';
-import { authHeaders, type EndpointConfig } from '../vendor/kit/endpoint_config';
 import type { LlmMessage } from '@neurovim/core';
-import { realClock, type ClockPort } from '../vendor/kit-obsidian/clock';
+import type { EndpointConfig } from '../vendor/kit/endpoint_config';
+import type { ChatClient, ChatErrorKind } from '../vendor/kit-obsidian/chat-client';
 import { suppressParams } from '../vendor/kit/reasoning';
 import { effectiveSuppress } from './thinkToggle';
-
-export interface SseTransport {
-  postStream(
-    url: string,
-    body: unknown,
-    headers: Record<string, string>,
-    onChunk: (raw: string) => void,
-    signal: AbortSignal,
-  ): Promise<number>;
-}
 
 export interface CipherConfig { endpoint: EndpointConfig; model: string; suppressThinking: boolean }
 
 export type StreamOutcome =
   | { ok: true; content: string }
-  | { ok: false; kind: 'aborted' | 'http' | 'network' | 'timeout'; detail: string; partial: string };
+  | { ok: false; kind: ChatErrorKind; detail: string; partial: string };
 
-const ERROR_BODY_CAP = 2048;
-const DEFAULT_TIMEOUT_MS = 120_000;
+const TEMPERATURE = 0.7;
+const MAX_TOKENS = 1024;
 
 export class CipherClient {
-  constructor(
-    private readonly transport: SseTransport,
-    private readonly timeoutMs: number = DEFAULT_TIMEOUT_MS,
-    private readonly clock: ClockPort = realClock,
-  ) {}
+  private client: ChatClient | null = null;
+  private clientKey = '';
+
+  /** `makeClient` builds a kit client (transport + fallback are the caller's wiring). */
+  constructor(private readonly makeClient: () => ChatClient) {}
+
+  private clientFor(ep: EndpointConfig): ChatClient {
+    const key = `${ep.url}\n${ep.apiKey ?? ''}`;
+    if (this.client === null || key !== this.clientKey) {
+      this.client = this.makeClient();
+      this.clientKey = key;
+    }
+    return this.client;
+  }
 
   async stream(
     cfg: CipherConfig,
@@ -44,79 +44,20 @@ export class CipherClient {
     onToken: (t: string) => void,
     signal: AbortSignal,
   ): Promise<StreamOutcome> {
-    // A signal that was already aborted before we got here would never fire our
-    // listener (added below) — check up front so we never start the transport.
-    if (signal.aborted) {
-      return { ok: false, kind: 'aborted', detail: 'stream aborted', partial: '' };
-    }
-
-    const url = `${normalizeEndpoint(cfg.endpoint.url)}/v1/chat/completions`;
-    const headers: Record<string, string> = authHeaders(cfg.endpoint.apiKey);
-    const body = {
+    const r = await this.clientFor(cfg.endpoint).complete({
+      endpoint: cfg.endpoint,
       model: cfg.model,
       messages,
-      stream: true,
-      temperature: 0.7,
-      max_tokens: 1024,
-      ...suppressParams(effectiveSuppress(cfg.model, cfg.suppressThinking)),
-    };
-
-    // Inner controller: fired by caller abort OR the hard timeout.
-    const ctrl = new AbortController();
-    let timedOut = false;
-    const onCallerAbort = (): void => ctrl.abort();
-    signal.addEventListener('abort', onCallerAbort, { once: true });
-    const timer = this.clock.setTimeout(() => { timedOut = true; ctrl.abort(); }, this.timeoutMs);
-
-    const splitter = new ThinkSplitter();
-    let content = '';
-    let rest = '';
-    let rawBody = '';
-
-    const emit = (piece: string): void => {
-      const parts = splitter.push(piece);
-      if (parts.content !== '') {
-        content += parts.content;
-        onToken(parts.content);
-      }
-      // Reasoning (think spans + reasoning_content) is dropped by design.
-    };
-
-    // Drain any tail buffered by the splitter (e.g. an unterminated "<th" prefix)
-    // into `content`/`onToken`. Shared by the success and error paths so partial
-    // content is never silently dropped.
-    const drainSplitter = (): void => {
-      const tail = splitter.flush();
-      if (tail.content !== '') { content += tail.content; onToken(tail.content); }
-    };
-
-    let status: number;
-    try {
-      status = await this.transport.postStream(url, body, headers, (raw) => {
-        if (rawBody.length < ERROR_BODY_CAP) rawBody += raw;
-        const parsed = parseSSE(rest + raw);
-        rest = parsed.rest;
-        for (const delta of parsed.content) emit(delta);
-      }, ctrl.signal);
-    } catch (e) {
-      const err = e instanceof Error ? e : new Error('unknown stream error');
-      drainSplitter();
-      if (err.name === 'AbortError') {
-        return timedOut
-          ? { ok: false, kind: 'timeout', detail: `no answer within ${this.timeoutMs / 1000}s`, partial: content }
-          : { ok: false, kind: 'aborted', detail: 'stream aborted', partial: content };
-      }
-      return { ok: false, kind: 'network', detail: err.message, partial: content };
-    } finally {
-      this.clock.clearTimeout(timer);
-      signal.removeEventListener('abort', onCallerAbort);
-    }
-
-    drainSplitter();
-
-    if (status < 200 || status >= 300) {
-      return { ok: false, kind: 'http', detail: `HTTP ${status}: ${rawBody.slice(0, ERROR_BODY_CAP)}`, partial: content };
-    }
-    return { ok: true, content };
+      params: {
+        temperature: TEMPERATURE,
+        max_tokens: MAX_TOKENS,
+        ...suppressParams(effectiveSuppress(cfg.model, cfg.suppressThinking)),
+      },
+      onToken,
+      signal,
+    });
+    if (!r.ok) return { ok: false, kind: r.kind, detail: r.detail, partial: r.partial };
+    // Cut off at the token limit but with text: valid, shown as-is (the core has no slot for the flag).
+    return { ok: true, content: r.content };
   }
 }

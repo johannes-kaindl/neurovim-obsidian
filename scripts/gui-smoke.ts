@@ -1064,6 +1064,179 @@ const aufloesungNv = (cdp: Cdp): Promise<{ url: string | null; model: string | n
 `);
 
 /** Misst den Endpunkt-Abschnitt im Einstellungen-Fenster (eigenes CDP-Target ab 1.13). */
+// --- Ordner ausblenden (Kit folder-hide) ---------------------------------------
+
+interface HideState { gefunden: boolean; titelAus: boolean; kinderAus: boolean | null }
+
+/** Zustand des Missions-Ordners im Explorer des HAUPTfensters (`rootSplit.doc`). */
+async function ordnerZustand(cdp: Cdp): Promise<HideState> {
+  return cdp.evaluate<HideState>(`
+    const p = app.plugins.plugins[${JSON.stringify(PLUGIN_ID)}];
+    const pfad = p.settings.missionFolder.replace(/\\/+$/, "");
+    const doc = app.workspace.rootSplit.doc;
+    const titel = doc.querySelector('.nav-folder-title[data-path=' + JSON.stringify(pfad) + ']');
+    if (!titel) return { gefunden: false, titelAus: false, kinderAus: null };
+    const kinder = titel.nextElementSibling && titel.nextElementSibling.classList.contains("nav-folder-children") ? titel.nextElementSibling : null;
+    return {
+      gefunden: true,
+      titelAus: doc.defaultView.getComputedStyle(titel).display === "none",
+      kinderAus: kinder ? doc.defaultView.getComputedStyle(kinder).display === "none" : null,
+    };
+  `);
+}
+
+async function setzeVersteckt(cdp: Cdp, an: boolean): Promise<void> {
+  await cdp.evaluate(`
+    const p = app.plugins.plugins[${JSON.stringify(PLUGIN_ID)}];
+    p.settings.hideMissionFolder = ${an};
+    await p.saveSettings();
+    p.applyMissionFolderVisibility(); // der Weg, den der Einstellungs-Tab nach dem Speichern geht
+    await new Promise((r) => setTimeout(r, 200));
+    return true;
+  `);
+}
+
+async function checkFolderHide(cdp: Cdp): Promise<void> {
+  console.log("\nF · Ordner ausblenden (Kit folder-hide)");
+  const vorher = await cdp.evaluate<boolean>(`return app.plugins.plugins[${JSON.stringify(PLUGIN_ID)}].settings.hideMissionFolder;`);
+  let popout = false;
+  try {
+    // Der Explorer muss im Hauptfenster sichtbar sein, sonst gibt es nichts zu messen.
+    await cdp.evaluate(`
+      if (app.workspace.getLeavesOfType("file-explorer").length === 0) await app.commands.executeCommandById("file-explorer:open");
+      const l = app.workspace.getLeavesOfType("file-explorer")[0];
+      if (l) app.workspace.revealLeaf(l);
+      // Ohne aufgeklappten Ordner gibt es keinen Kinder-Container — dann misst F1 den Inhalt nicht.
+      const pfad = app.plugins.plugins[${JSON.stringify(PLUGIN_ID)}].settings.missionFolder.replace(/\\/+$/, "");
+      const item = l?.view?.fileItems?.[pfad];
+      window.__nvSmokeWarZu = item ? item.collapsed === true : null;
+      if (item && item.collapsed) await item.setCollapsed(false);
+      await new Promise((r) => setTimeout(r, 800));
+      return true;`);
+    await setzeVersteckt(cdp, false);
+    const sichtbar = await pollUntil<HideState>(cdp, `
+      const p = app.plugins.plugins[${JSON.stringify(PLUGIN_ID)}];
+      const pfad = p.settings.missionFolder.replace(/\\/+$/, "");
+      const t = app.workspace.rootSplit.doc.querySelector('.nav-folder-title[data-path=' + JSON.stringify(pfad) + ']');
+      return t ? { gefunden: true } : null;`, 6000, 300);
+    if (sichtbar === null) { skipped("F1-F4 Ordner ausblenden", "Missions-Ordner im Explorer nicht gefunden — nichts gemessen"); return; }
+
+    await setzeVersteckt(cdp, true);
+    const an = await ordnerZustand(cdp);
+    record("F1 Ausblenden versteckt den Ordner UND seinen Inhalt", an.titelAus && an.kinderAus !== false,
+      `Titel ${an.titelAus ? "aus" : "SICHTBAR"}, Kinder ${an.kinderAus === null ? "(kein Container)" : an.kinderAus ? "aus" : "SICHTBAR"}`);
+    if (an.kinderAus === null) skipped("F1b Inhalt des Ordners", "kein Kinder-Container im Explorer (Ordner nicht aufklappbar) — Inhalt nicht gemessen");
+
+    await setzeVersteckt(cdp, false);
+    const aus = await ordnerZustand(cdp);
+    record("F2 Einblenden macht ihn wieder sichtbar", aus.gefunden && !aus.titelAus && aus.kinderAus !== true,
+      `Titel ${aus.titelAus ? "AUS" : "sichtbar"}, Kinder ${aus.kinderAus === true ? "AUS" : "sichtbar"}`);
+
+    // Pop-out: aktives Dokument ist NICHT das Hauptfenster; die Regel muss trotzdem dort landen,
+    // wo der Explorer lebt, und darf im Pop-out nichts hinterlassen.
+    const po = await cdp.evaluate<{ ok: boolean; aktivIstPopout: boolean }>(`
+      const leaf = app.workspace.openPopoutLeaf();
+      await new Promise((r) => setTimeout(r, 1200));
+      const win = leaf.view.containerEl.ownerDocument.defaultView;
+      win.focus();
+      await new Promise((r) => setTimeout(r, 500));
+      window.__nvSmokePopout = leaf;
+      return { ok: leaf.view.containerEl.ownerDocument !== app.workspace.rootSplit.doc, aktivIstPopout: activeDocument !== app.workspace.rootSplit.doc };`);
+    popout = po.ok;
+    if (!po.ok) { skipped("F3 Pop-out aktiv", "Pop-out-Fenster liess sich nicht öffnen — nichts gemessen"); }
+    else {
+      const blaetterVorher = await cdp.evaluate<number>(`return window.__nvSmokePopout.view.containerEl.ownerDocument.adoptedStyleSheets.length;`);
+      await setzeVersteckt(cdp, true);
+      const imPopout = await ordnerZustand(cdp);
+      const blaetterNachher = await cdp.evaluate<number>(`return window.__nvSmokePopout.view.containerEl.ownerDocument.adoptedStyleSheets.length;`);
+      record("F3 Pop-out aktiv: Regel greift im Hauptfenster, nicht im Pop-out", imPopout.titelAus && blaetterNachher === blaetterVorher,
+        `aktives Dokument ${po.aktivIstPopout ? "= Pop-out" : "= Hauptfenster (Pop-out nicht aktiv geworden)"}, Titel ${imPopout.titelAus ? "aus" : "SICHTBAR"}, Blätter im Pop-out ${blaetterVorher} → ${blaetterNachher}`);
+
+      // Laden bei aktivem Pop-out (die Bauart, an der slide-deck 0.4.0 mit NotAllowedError nicht mehr lud).
+      const geladen = await cdp.evaluate<string>(`
+        try {
+          await app.plugins.disablePlugin(${JSON.stringify(PLUGIN_ID)});
+          await app.plugins.enablePlugin(${JSON.stringify(PLUGIN_ID)});
+          await new Promise((r) => setTimeout(r, 1500));
+          window.__nvSmokePopout.view.containerEl.ownerDocument.defaultView.focus();
+          await new Promise((r) => setTimeout(r, 500));
+          return app.plugins.plugins[${JSON.stringify(PLUGIN_ID)}] ? "ok" : "Plugin nach enablePlugin nicht geladen";
+        } catch (e) { return String(e); }`);
+      const nachLaden = await pollUntil<HideState>(cdp, `
+        const p = app.plugins.plugins[${JSON.stringify(PLUGIN_ID)}];
+        if (!p) return null;
+        const pfad = p.settings.missionFolder.replace(/\\/+$/, "");
+        const t = app.workspace.rootSplit.doc.querySelector('.nav-folder-title[data-path=' + JSON.stringify(pfad) + ']');
+        return t && getComputedStyle(t).display === "none" ? { gefunden: true } : null;`, 6000, 300);
+      record("F4 Laden bei aktivem Pop-out: Ordner ist ausgeblendet", geladen === "ok" && nachLaden !== null,
+        geladen !== "ok" ? geladen : nachLaden !== null ? "Titel im Hauptfenster aus" : "Titel nach dem Laden sichtbar");
+    }
+  } finally {
+    await cdp.evaluate(`
+      try { window.__nvSmokePopout?.detach(); } catch {}
+      delete window.__nvSmokePopout;
+      if (window.__nvSmokeWarZu === true) {
+        const l = app.workspace.getLeavesOfType("file-explorer")[0];
+        const q = app.plugins.plugins[${JSON.stringify(PLUGIN_ID)}]?.settings.missionFolder.replace(/\\/+$/, "");
+        await l?.view?.fileItems?.[q]?.setCollapsed?.(true);
+      }
+      delete window.__nvSmokeWarZu;
+      // F4 hat das Plugin bei aktivem Pop-out neu geladen. main.ts bindet den Tastatur-Zaehler beim
+      // Laden an activeDocument (Befund, s. Abschlussmeldung) — er haengt danach am geschlossenen
+      // Pop-out und zaehlt im Hauptfenster nichts mehr (R4-3 im NAECHSTEN Lauf rot: Anschlaege 0).
+      // Deshalb ohne Pop-out ein zweites Mal laden, damit der Lauf den Vault sauber hinterlaesst.
+      await app.plugins.disablePlugin(${JSON.stringify(PLUGIN_ID)});
+      await app.plugins.enablePlugin(${JSON.stringify(PLUGIN_ID)});
+      await new Promise((r) => setTimeout(r, 1200));
+      const p = app.plugins.plugins[${JSON.stringify(PLUGIN_ID)}];
+      if (p) { p.settings.hideMissionFolder = ${vorher}; await p.saveSettings(); p.applyMissionFolderVisibility(); }
+      return true;`).catch(() => undefined);
+    void popout;
+  }
+}
+
+/** Ein bereits GELADENES Chat-Modell auf dem lokalen LM-Studio-Endpunkt, sonst `null` — bewusst
+ *  nur ein geladenes: eine Anfrage an ein nicht geladenes Modell löst ein JIT-Laden aus und
+ *  verdrängt das Modell, an dem eine andere Sitzung gerade arbeitet. */
+async function geladenesModell(url: string): Promise<string | null> {
+  try {
+    const res = await fetch(`${url}/api/v0/models`, { signal: AbortSignal.timeout(3000) });
+    if (!res.ok) return null;
+    const body = (await res.json()) as { data?: Array<{ id: string; state?: string; type?: string }> };
+    return (body.data ?? []).find((m) => m.state === "loaded" && (m.type === "llm" || m.type === "vlm"))?.id ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/** Der Kit-Chat-Client gegen einen ECHTEN Endpunkt: R3 stubbt `cipherClient.stream` und beruehrt
+ *  ihn deshalb nie. Hier laeuft der echte Weg (Kit-Client + XHR-Transport im Renderer). */
+async function checkCipherReal(cdp: Cdp): Promise<void> {
+  console.log("\nR7 · CIPHER gegen einen echten Endpunkt");
+  const name = "R7 Kit-Chat-Client streamt gegen den echten Endpunkt";
+  const url = "http://127.0.0.1:1234";
+  const modell = await geladenesModell(url);
+  if (modell === null) { skipped(name, `auf ${url} ist kein Modell geladen oder der Server antwortet nicht — nichts gemessen (ein Lauf löste sonst ein JIT-Laden aus)`); return; }
+  await cdp.evaluate(`
+    const p = app.plugins.plugins[${JSON.stringify(PLUGIN_ID)}];
+    window.__nvSmokeReal = { tokens: 0, erster: null, t0: Date.now(), fertig: false, ergebnis: null };
+    p.cipherClient.stream(
+      { endpoint: { url: ${JSON.stringify(url)}, apiKey: "" }, model: ${JSON.stringify(modell)}, suppressThinking: true },
+      [{ role: "user", content: "Answer in exactly one short sentence: what does the vim command dw do?" }],
+      () => { const r = window.__nvSmokeReal; r.tokens += 1; r.erster ??= Date.now() - r.t0; },
+      new AbortController().signal,
+    ).then((o) => { window.__nvSmokeReal.ergebnis = o; }).catch((e) => { window.__nvSmokeReal.ergebnis = { ok: false, kind: "threw", detail: String(e), partial: "" }; })
+      .finally(() => { window.__nvSmokeReal.fertig = true; });
+    return true;`);
+  await pollUntil<boolean>(cdp, `return window.__nvSmokeReal?.fertig === true ? true : null;`, 180_000, 500).catch(() => null);
+  const r = await cdp.evaluate<{ tokens: number; erster: number | null; fertig: boolean; ergebnis: { ok: boolean; content?: string; kind?: string; detail?: string } | null }>(`
+    const x = window.__nvSmokeReal; delete window.__nvSmokeReal; return x;`);
+  const ok = r.fertig && r.ergebnis?.ok === true && r.tokens >= 2 && (r.ergebnis.content ?? "").trim() !== "";
+  record(name, ok, !r.fertig ? "keine Antwort innerhalb von 180 s"
+    : r.ergebnis?.ok !== true ? `Fehler ${r.ergebnis?.kind}: ${r.ergebnis?.detail}`
+    : `${r.tokens} Token-Häppchen von ${modell}, erstes nach ${r.erster ?? "?"} ms, ${(r.ergebnis.content ?? "").length} Zeichen`);
+}
+
 async function messeEinstellungenNv(
   cdp: Cdp, port: number, vault: string | undefined,
 ): Promise<{ baustein: boolean; zeilen: number } | null> {
@@ -1349,7 +1522,9 @@ async function main(): Promise<void> {
     await checkMasteryTier(cdp, vault);
     await checkHelpRow(cdp, port, vault);
     await checkEndpointSource(cdp, port, vault);
+    await checkFolderHide(cdp);
     await checkCipherUplink(cdp);
+    await checkCipherReal(cdp);
   } catch (err) {
     if (err instanceof PreconditionError) {
       console.error(`\n⛔ Abbruch — Voraussetzung nicht erfüllt:\n   ${err.message}\n`);

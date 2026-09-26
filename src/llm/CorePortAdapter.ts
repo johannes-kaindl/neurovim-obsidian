@@ -27,7 +27,8 @@ const UNAVAILABLE = (detail: string): LlmResult =>
 /** StreamOutcome speaks HTTP; LlmResult must not. The status line survives in `detail`. */
 function toResult(o: StreamOutcome): LlmResult {
   if (o.ok) return { ok: true, content: o.content };
-  const kind = o.kind === 'http' ? 'failed' : o.kind === 'network' ? 'unavailable' : o.kind;
+  // http / overflow / truncated: something answered, but not with a usable completion.
+  const kind = o.kind === 'network' ? 'unavailable' : o.kind === 'aborted' || o.kind === 'timeout' ? o.kind : 'failed';
   return { ok: false, kind, detail: o.detail, partial: o.partial };
 }
 

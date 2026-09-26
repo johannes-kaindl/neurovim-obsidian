@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { parseSSE } from '../src/vendor/kit/sse';
-import { ThinkSplitter } from '../src/vendor/kit/think';
+import { ThinkSplitter } from '../src/vendor/kit/think-splitter';
 import { normalizeEndpoint } from '../src/vendor/kit/endpoint';
 import { classifyEndpointStatus, ENDPOINT_PRESETS, validateEndpointInput } from '../src/vendor/kit/endpoint_diagnostics';
 import { applyEndpointEdit, migrateEndpointList, moveEndpointToFront } from '../src/vendor/kit/endpoint_config';

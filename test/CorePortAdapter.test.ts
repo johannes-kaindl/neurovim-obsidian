@@ -68,6 +68,8 @@ describe('CorePortAdapter', () => {
 
   it.each([
     ['http' as const, 'failed'],
+    ['overflow' as const, 'failed'],
+    ['truncated' as const, 'failed'],
     ['timeout' as const, 'timeout'],
     ['aborted' as const, 'aborted'],
   ])('translates %s to %s and keeps detail and partial', async (from, to) => {

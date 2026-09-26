@@ -16,14 +16,15 @@ import { StatusBarItem } from './StatusBarItem';
 import { PausedBanner } from './PausedBanner';
 import { isMissionEditorKeystroke } from './keystrokeCounter';
 import { NeuroVimSettingTab } from './SettingsTab';
-import { applyFolderVisibility, removeFolderVisibility } from './obsidian/folder-visibility';
+import { installFolderHide, type FolderHideHandle } from './vendor/kit-obsidian/folder-hide';
 import { buildResultView } from './result/resultView';
 import { authoredPar } from './masteryTier';
 import { ResultModal } from './result/ResultModal';
 import { BriefingModal } from './briefing/BriefingModal';
 import { LoreModal } from './lore/LoreModal';
 import { CipherClient } from './llm/CipherClient';
-import { XhrSseTransport } from './llm/XhrSseTransport';
+import { createChatClient } from './vendor/kit-obsidian/chat-client';
+import { requestUrlTransport, xhrSseTransport } from './vendor/kit-obsidian/chat-transport';
 import { CorePortAdapter } from './llm/CorePortAdapter';
 import { EndpointResolver } from './llm/endpointResolver';
 import { findEndpointManager } from './vendor/kit-obsidian/endpoint-source';
@@ -68,7 +69,9 @@ export default class NeuroVimPlugin extends Plugin {
   private vimRestore: boolean | null = null;
   private tick: number | null = null;
   private cipherSession = new ChatSession();
-  private cipherClient = new CipherClient(new XhrSseTransport());
+  private cipherClient = new CipherClient(() => createChatClient({ transport: xhrSseTransport, fallbackTransport: requestUrlTransport }));
+  /** Installed once after onLayoutReady, updated from applyMissionFolderVisibility(). */
+  private folderHide: FolderHideHandle | null = null;
   private traceStore: TraceStore | null = null;
   private cipherUplink: CipherUplink | null = null;
   private endpointResolver = new EndpointResolver(
@@ -155,8 +158,17 @@ export default class NeuroVimPlugin extends Plugin {
     }, { capture: true });
 
     this.addSettingTab(new NeuroVimSettingTab(this.app, this));
-    this.applyMissionFolderVisibility();
-    this.register(removeFolderVisibility);
+    // Not before the layout is ready: the target document is the main window's (rootSplit.doc), and
+    // a restored pop-out may be the ACTIVE document while loading.
+    this.app.workspace.onLayoutReady(() => {
+      this.folderHide = installFolderHide(
+        this.app.workspace.rootSplit.doc,
+        this.settings.missionFolder,
+        this.settings.hideMissionFolder,
+        (e) => console.error('[neurovim] folder hide failed', e),
+      );
+    });
+    this.register(() => { this.folderHide?.remove(); this.folderHide = null; });
     this.tick = window.setInterval(() => { this.syncPresence(); this.repaint(); }, 500);
     // Only auto-open the pane on startup if the user opted in (default off) — otherwise the
     // pane still opens on demand via the ribbon icon or the "Open NeuroVim" command.
@@ -287,16 +299,13 @@ export default class NeuroVimPlugin extends Plugin {
     this.repaint();
   }
 
-  /** Re-derives the adopted stylesheet from the CURRENT settings — safe to call after either
-   *  the toggle or the folder path changes, and once on load. Not `activeDocument`: since
-   *  Obsidian 1.13 the settings window is a separate document, so a toggle flipped there would
-   *  target the wrong window. The file explorer always lives in the main workspace document. */
+  /** Re-derives the hide rule from the CURRENT settings — safe to call after either the toggle or
+   *  the folder path changes. The handle targets the MAIN window's document (`rootSplit.doc`), not
+   *  `activeDocument`: since Obsidian 1.13 the settings window is a separate document, so a toggle
+   *  flipped there would otherwise target the wrong window. Before the layout is ready there is
+   *  no handle yet; the install picks the settings up then. */
   applyMissionFolderVisibility(): void {
-    applyFolderVisibility(
-      this.app.workspace.containerEl.ownerDocument,
-      this.settings.missionFolder.replace(/\/+$/, ''),
-      this.settings.hideMissionFolder,
-    );
+    this.folderHide?.update(this.settings.missionFolder, this.settings.hideMissionFolder);
   }
 
   /** Persist PluginData + settings under one data.json blob. */
