@@ -3,8 +3,9 @@
 #
 # Vorlage: koda-agent/tools/sync-kit.sh (uebernommen 2026-08-20). Drei Dinge, die es
 # dort nicht gibt und die hier zwingend sind:
-#   1. pure/think-splitter.ts liegt hier als think.ts — historischer Name, an dem die
-#      Aufrufstellen haengen. Ohne den Sonderfall entsteht eine zweite, tote Datei.
+#   1. (entfallen mit dem Chat-Client-Tausch, Welle 11) think-splitter liegt jetzt unter dem
+#      Kit-Namen: chat-client.ts importiert `../kit/think-splitter`, die alte Ablage `think.ts`
+#      liess den Import ins Leere zeigen.
 #   2. endpoint-list.ts und model-picker.ts importieren kit-intern aus ../pure/ und
 #      muessen aufs hiesige Vendor-Layout umgeschrieben werden — siehe relayer().
 #   3. Der Pin geht auf den TAG, nicht auf HEAD (siehe SHA= unten).
@@ -34,7 +35,7 @@ CODE_KIT="${CODE_KIT_DIR:-../../libs/code-kit}"
 # stand auf 0.31.0. Ein Routinelauf waere also vier Minor-Versionen gesprungen,
 # ohne dass jemand einen Sprung beauftragt haette — und der Stempel haette ihn
 # korrekt gepeelt beglaubigt.
-KIT_REF=${KIT_REF:-0.41.1}
+KIT_REF=${KIT_REF:-0.43.0}
 CODE_KIT_REF=${CODE_KIT_REF:-0.7.0}
 # Zweiter Pin, ebenfalls Absicht: help-setting.ts (Hilfe-Zeile, UI-STANDARD 8) kam mit Kit 0.43.0 und
 # haengt an keinem anderen Modul — die uebrigen Module behalten ihren Pin.
@@ -186,12 +187,12 @@ relayer_pure() { # relayer_pure <vendored-file>
 
 mkdir -p src/vendor/kit src/vendor/kit-obsidian
 
-PURE_MODULE="sse endpoint endpoint_diagnostics reasoning model-context endpoint_config model-choice model-list-cache timeout sampling-profiles endpoint-source"
+PURE_MODULE="sse think-splitter error_body folder-hide endpoint endpoint_diagnostics reasoning model-context endpoint_config model-choice model-list-cache timeout sampling-profiles endpoint-source"
 
-# Erst ALLE Quellen aufloesen (think-splitter mit, s. Ausnahme unten), dann kopieren: ein
+# Erst ALLE Quellen aufloesen, dann kopieren: ein
 # fehlendes Modul ist ein Aufbaufehler und wird als solcher gemeldet, statt den Lauf auf
 # halber Strecke abzubrechen.
-for m in $PURE_MODULE think-splitter; do
+for m in $PURE_MODULE; do
   quelle_fuer "$m" >/dev/null || {
     echo "FEHLER: $m.ts liegt weder in $KIT/src/pure/ noch in $CODE_KIT/src/ts/{pure,web}/." >&2
     echo "  Seit obsidian-kit 2ab1bb5 ist code-kit die Quelle der domaenenfreien Module." >&2
@@ -214,18 +215,7 @@ for m in $PURE_MODULE; do
   echo "vendored $quelle@$ver/$rel"
 done
 
-# Ausnahme 1 (s. Kopf): think-splitter.ts -> think.ts.
-ts_fund=$(quelle_fuer think-splitter)
-ts_repo=$(printf '%s' "$ts_fund" | cut -d'|' -f1)
-ts_quelle=$(printf '%s' "$ts_fund" | cut -d'|' -f2)
-ts_rel=$(printf '%s' "$ts_fund" | cut -d'|' -f3)
-ts_ver=$(printf '%s' "$ts_fund" | cut -d'|' -f4)
-ts_ref=$(printf '%s' "$ts_fund" | cut -d'|' -f5)
-vendor_aus_ref src/vendor/kit/think.ts "$ts_repo" "$ts_ref" "$ts_rel"
-stamp src/vendor/kit/think.ts "$ts_rel" "$ts_quelle" "$ts_ver"
-echo "vendored $ts_quelle@$ts_ver/$ts_rel -> think.ts"
-
-for m in clock collapsible endpoint-list model-picker folder-suggest settings_walker endpoint-source; do
+for m in chat-client chat-transport clock collapsible endpoint-list model-picker folder-hide folder-suggest settings_walker endpoint-source; do
   vendor_aus_ref "src/vendor/kit-obsidian/$m.ts" "$KIT" "$KIT_REF" "src/obsidian/$m.ts"
   relayer "src/vendor/kit-obsidian/$m.ts"   # Ausnahme 2 (s. Kopf) — no-op fuer clock/collapsible/folder-suggest/settings_walker
   stamp "src/vendor/kit-obsidian/$m.ts" "src/obsidian/$m.ts"
@@ -242,7 +232,7 @@ cat > src/vendor/kit/VENDOR.json <<JSON
   "version": "$VER",
   "sha": "$SHA",
   "code_kit_version": "$CODE_VER",
-  "vendored": "pure/sse.ts, pure/think-splitter.ts (als think.ts), pure/endpoint.ts, pure/endpoint_diagnostics.ts, pure/reasoning.ts, pure/model-context.ts, pure/endpoint_config.ts, pure/model-choice.ts, pure/model-list-cache.ts, pure/timeout.ts, pure/sampling-profiles.ts, pure/endpoint-source.ts",
+  "vendored": "pure/sse.ts, pure/think-splitter.ts, pure/error_body.ts, pure/folder-hide.ts, pure/endpoint.ts, pure/endpoint_diagnostics.ts, pure/reasoning.ts, pure/model-context.ts, pure/endpoint_config.ts, pure/model-choice.ts, pure/model-list-cache.ts, pure/timeout.ts, pure/sampling-profiles.ts, pure/endpoint-source.ts",
   "note": "Verbatim snapshot. Never hand-edit. Re-vendor via tools/sync-kit.sh. obsidian/clock.ts + obsidian/collapsible.ts + obsidian/endpoint-list.ts + obsidian/model-picker.ts liegen in ../kit-obsidian/, siehe dortige VENDOR.json."
 }
 JSON
@@ -251,7 +241,7 @@ cat > src/vendor/kit-obsidian/VENDOR.json <<JSON
   "source": "obsidian-kit",
   "version": "$VER",
   "sha": "$SHA",
-  "vendored": "obsidian/clock.ts, obsidian/collapsible.ts, obsidian/endpoint-list.ts, obsidian/model-picker.ts, obsidian/folder-suggest.ts, obsidian/settings_walker.ts, obsidian/endpoint-source.ts, obsidian/help-setting.ts (Kit $HELP_VER, $HELP_SHA)",
+  "vendored": "obsidian/chat-client.ts, obsidian/chat-transport.ts, obsidian/folder-hide.ts, obsidian/clock.ts, obsidian/collapsible.ts, obsidian/endpoint-list.ts, obsidian/model-picker.ts, obsidian/folder-suggest.ts, obsidian/settings_walker.ts, obsidian/endpoint-source.ts, obsidian/help-setting.ts (Kit $HELP_VER, $HELP_SHA)",
   "note": "Verbatim snapshot. Never hand-edit. Re-vendor via tools/sync-kit.sh. collapsible.ts has no consumer in src/, checked by test/vendorKit.test.ts only. endpoint-list.ts and model-picker.ts carry ONE mechanical deviation from verbatim: kit-internal imports of ../pure/* are rewritten to ../kit/* to match this repo's vendor layout (obsidian-kit's src/obsidian + src/pure become kit-obsidian + kit here). Reproduce that rewrite on every re-vendor; nothing else may differ. endpoint-source.ts carries the same rewrite (../pure/endpoint-source and ../vendor/code-kit/pure/* → ../kit/*). Same fix precedented in markdown-presentation's VENDOR.json at the same sha. folder-suggest.ts and settings_walker.ts have no ../pure/ imports, so relayer() is a no-op for both (same as clock/collapsible) — settings_walker.ts imports ./folder-suggest, both must stay vendored together."
 }
 JSON
