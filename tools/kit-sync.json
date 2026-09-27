@@ -1,0 +1,34 @@
+{
+  "sources": {
+    "obsidian-kit": { "ref": "0.43.0" },
+    "code-kit": { "ref": "0.7.0" }
+  },
+  "targets": [
+    {
+      "dir": "src/vendor/kit",
+      "source": "code-kit",
+      "from": "src/ts/pure",
+      "modules": ["sse", "think-splitter", "error_body", "endpoint", "endpoint_diagnostics", "reasoning", "model-context", "endpoint_config", "model-choice", "model-list-cache", "timeout", "sampling-profiles"]
+    },
+    {
+      "dir": "src/vendor/kit",
+      "source": "obsidian-kit",
+      "from": "src/pure",
+      "modules": ["folder-hide"]
+    },
+    {
+      "dir": "src/vendor/kit",
+      "source": "obsidian-kit",
+      "from": "src/pure",
+      "modules": ["endpoint-source"],
+      "rewrite": [["../vendor/code-kit/pure/", "./"], ["../vendor/code-kit/web/", "./"]]
+    },
+    {
+      "dir": "src/vendor/kit-obsidian",
+      "source": "obsidian-kit",
+      "from": "src/obsidian",
+      "modules": ["chat-client", "chat-transport", "clock", "collapsible", "endpoint-list", "model-picker", "folder-hide", "folder-suggest", "settings_walker", "endpoint-source", "help-setting"],
+      "rewrite": [["../vendor/code-kit/pure/", "../kit/"], ["../vendor/code-kit/web/", "../kit/"], ["../pure/", "../kit/"]]
+    }
+  ]
+}
