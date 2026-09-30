@@ -2,6 +2,6 @@
   "source": "obsidian-kit",
   "version": "0.43.0",
   "sha": "bcd1805",
-  "vendored": "chat-client.ts (obsidian-kit@0.44.0, 127c3a8), chat-transport.ts, clock.ts, collapsible.ts, endpoint-list.ts, model-picker.ts, folder-hide.ts, folder-suggest.ts, settings_walker.ts, endpoint-source.ts, help-setting.ts",
+  "vendored": "chat-client.ts (obsidian-kit@0.44.0, 127c3a8), chat-transport.ts, clock.ts, collapsible.ts, endpoint-list.ts, model-picker.ts, folder-hide.ts, folder-suggest.ts, settings_walker.ts, endpoint-source.ts, help-setting.ts, clipboard.ts, request-section.ts, request-session.ts",
   "note": "Verbatim snapshot. Pins in tools/kit-sync.json, re-vendor via tools/sync-kit.sh (zentrales kit-sync im Dach). Never hand-edit. collapsible.ts has no consumer in src/, checked by test/vendorKit.test.ts only. Import rewrites (chat-client.ts, endpoint-list.ts, model-picker.ts, folder-hide.ts, endpoint-source.ts) run as a `rewrite` rule in tools/kit-sync.json — the tool's dependency check replaces the old inline note. settings_walker.ts imports ./folder-suggest, both must stay vendored together."
 }
