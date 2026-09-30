@@ -133,10 +133,7 @@ Ist das Plugin **LLM Endpoint Manager** installiert, kommen die Endpunkte (samt 
   freier Texteingabe als Rückfallebene, falls die Liste leer oder der Endpunkt nicht
   erreichbar ist. Meldet der Endpunkt sie (LM Studio, Ollama), wird die Kontextlänge des
   Modells daneben angezeigt.
-- **Model thinking** — standardmäßig aus, das ist der schnellere Weg: CIPHER antwortet
-  direkt, statt zu überlegen. Schalte es ein, wenn das Modell vor der Antwort nachdenken
-  soll. Modelle, die immer denken (gpt-oss/harmony), werden erkannt; der Schalter
-  deaktiviert sich dann mit einer Erklärung, weil er daran ohnehin nichts ändern kann.
+- **Request** — was CIPHER mit jeder Frage mitschickt: Sampling-Werte (temperature, top_p, top_k, …) und die Denkstufe. Die Voreinstellungen kommen aus einer Profiltabelle je Modellfamilie (Qwen, Gemma, gpt-oss) und Backend, das Modell bekommt also die Werte, die sein Hersteller empfiehlt, statt eines festen Satzes für alle. Der Abschnitt (standardmäßig eingeklappt) zeigt, was gesendet wird und was davon wirkt, erlaubt pro Modellfamilie eigene Werte, und listet die letzte Anfrage und die Abweichungen dieser Sitzung. Denken ist standardmäßig aus, das ist der schnellere Weg: CIPHER antwortet direkt, statt zu überlegen; mit einer Stufe darf das Modell vorher nachdenken. gpt-oss lässt sich nicht ganz abschalten, dort geht die niedrigste Stufe raus. Die Zeile „Level picker in chat“ hat in diesem Plugin keine Wirkung (es gibt keinen Chat-Knopf, auf dem sie wirken könnte).
 - **API key** — optional, für Endpunkte, die einen verlangen.
 
 <img src="https://raw.githubusercontent.com/johannes-kaindl/neurovim-obsidian/main/docs/images/archive.png" width="412" alt="The ARCHIVE tab: a recovered loot artifact next to locked ones, each showing the level needed to unlock it">

@@ -54,6 +54,7 @@
  */
 
 import { execFileSync } from "node:child_process";
+import { createServer, type Server } from "node:http";
 import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
@@ -835,6 +836,7 @@ async function checkCipherUplink(cdp: Cdp): Promise<void> {
     window.__nvSmokeRestore = {
       stream: p.cipherClient.stream.bind(p.cipherClient),
       resolve: p.endpointResolver.resolve.bind(p.endpointResolver),
+      resolveSource: p.endpointResolver.resolveSource.bind(p.endpointResolver),
       invalidate: p.endpointResolver.invalidate.bind(p.endpointResolver),
       endpoints: p.settings.llmEndpoints,
       model: p.settings.llmModel,
@@ -843,6 +845,11 @@ async function checkCipherUplink(cdp: Cdp): Promise<void> {
     p.settings.llmEndpoints = [{ url: 'http://nv-smoke.invalid:1234', apiKey: '', model: 'stub' }];
     p.settings.llmModel = 'stub';
     p.endpointResolver.resolve = async () => ({ url: 'http://nv-smoke.invalid:1234', apiKey: '', model: 'stub' });
+    // Der Adapter fragt resolveSource() (volles Ergebnis mit Familie/Backend/Wire-Modell), nicht resolve().
+    p.endpointResolver.resolveSource = async () => ({
+      kind: 'local', config: { url: 'http://nv-smoke.invalid:1234', apiKey: '', model: 'stub' }, model: 'stub',
+      family: null, familySource: 'none', backend: 'unknown', backendSource: 'none', sentModel: 'stub',
+    });
     p.endpointResolver.invalidate = () => {};
     // Der Stub haelt den Stream offen, bis der Treiber ihn freigibt (R3-3) oder die
     // Oberflaeche ihn abbricht (R3-1). KEINE Timer-Schleife: Obsidians Renderer drosselt
@@ -850,20 +857,20 @@ async function checkCipherUplink(cdp: Cdp): Promise<void> {
     // ohne Fokus) — 40 × 100 ms wurden so zu 40 s, und R3-3 lief rot, obwohl die Antwort
     // spaeter korrekt landete. Ein Treiber-Befund, kein Plugin-Befund.
     p.cipherClient.stream = (cfg, messages, onToken, signal) => new Promise((resolve) => {
-      window.__nvSmokeSawModel = cfg && cfg.model;
+      window.__nvSmokeSawModel = cfg && cfg.sentModel;
       onToken('Use d');
       const finish = () => {
         onToken('w.');
-        resolve({ ok: true, content: 'Use dw.' });
+        resolve({ ok: true, content: 'Use dw.', facts: { status: 200, content: 'Use dw.', reasoning: '' } });
       };
       window.__nvSmokeRelease = finish;
       if (signal.aborted) {
-        resolve({ ok: false, kind: 'aborted', detail: 'stream aborted', partial: 'Use d' });
+        resolve({ ok: false, kind: 'aborted', detail: 'stream aborted', partial: 'Use d', facts: null });
         return;
       }
       signal.addEventListener('abort', () => {
         window.__nvSmokeRelease = null;
-        resolve({ ok: false, kind: 'aborted', detail: 'stream aborted', partial: 'Use d' });
+        resolve({ ok: false, kind: 'aborted', detail: 'stream aborted', partial: 'Use d', facts: null });
       }, { once: true });
     });
     // Einen etwaigen zuvor gebauten Uplink verwerfen, damit er den Stub sieht.
@@ -1006,6 +1013,7 @@ async function checkCipherUplink(cdp: Cdp): Promise<void> {
         if (p && r) {
           p.cipherClient.stream = r.stream;
           p.endpointResolver.resolve = r.resolve;
+          p.endpointResolver.resolveSource = r.resolveSource;
           p.endpointResolver.invalidate = r.invalidate;
           p.settings.llmEndpoints = r.endpoints;
           p.settings.llmModel = r.model;
@@ -1221,7 +1229,7 @@ async function checkCipherReal(cdp: Cdp): Promise<void> {
     const p = app.plugins.plugins[${JSON.stringify(PLUGIN_ID)}];
     window.__nvSmokeReal = { tokens: 0, erster: null, t0: Date.now(), fertig: false, ergebnis: null };
     p.cipherClient.stream(
-      { endpoint: { url: ${JSON.stringify(url)}, apiKey: "" }, model: ${JSON.stringify(modell)}, suppressThinking: true },
+      { endpoint: { url: ${JSON.stringify(url)}, apiKey: "" }, sentModel: ${JSON.stringify(modell)}, params: { temperature: 0.7, max_tokens: 1024 } },
       [{ role: "user", content: "Answer in exactly one short sentence: what does the vim command dw do?" }],
       () => { const r = window.__nvSmokeReal; r.tokens += 1; r.erster ??= Date.now() - r.t0; },
       new AbortController().signal,
@@ -1235,6 +1243,206 @@ async function checkCipherReal(cdp: Cdp): Promise<void> {
   record(name, ok, !r.fertig ? "keine Antwort innerhalb von 180 s"
     : r.ergebnis?.ok !== true ? `Fehler ${r.ergebnis?.kind}: ${r.ergebnis?.detail}`
     : `${r.tokens} Token-Häppchen von ${modell}, erstes nach ${r.erster ?? "?"} ms, ${(r.ergebnis.content ?? "").length} Zeichen`);
+}
+
+/** Ein Fake-Endpunkt im Treiber-Prozess: beantwortet /v1/models und streamt auf
+ *  /v1/chat/completions einen Satz — und hält jeden gesendeten Body fest. Nur so ist der Draht
+ *  messbar; `lastRequest()` der Session zeigt, was das Plugin zu senden GLAUBT. */
+async function starteFakeEndpunkt(modell: string): Promise<{ url: string; bodies: Array<Record<string, unknown>>; stop: () => Promise<void> }> {
+  const bodies: Array<Record<string, unknown>> = [];
+  // CORS wie ein echter LM Studio: der Stream-Weg (XHR) laeuft im Renderer und braucht Preflight
+  // und Header — ohne sie weicht der Client auf den Fallback ohne Stream aus (`stream:false`), und
+  // der Prüfpunkt misst dann den Ausweichweg statt den Normalfall.
+  const cors = { "access-control-allow-origin": "*", "access-control-allow-headers": "*", "access-control-allow-methods": "GET, POST, OPTIONS" };
+  const server: Server = createServer((req, res) => {
+    if (req.method === "OPTIONS") { res.writeHead(204, cors); res.end(); return; }
+    if (req.method === "GET" && req.url?.startsWith("/v1/models")) {
+      res.writeHead(200, { "content-type": "application/json", ...cors });
+      res.end(JSON.stringify({ data: [{ id: modell }] }));
+      return;
+    }
+    if (req.method === "POST" && req.url?.startsWith("/v1/chat/completions")) {
+      let raw = "";
+      req.on("data", (c: Buffer) => { raw += c.toString("utf8"); });
+      req.on("end", () => {
+        try { bodies.push(JSON.parse(raw) as Record<string, unknown>); } catch { bodies.push({ _unparseable: raw }); }
+        res.writeHead(200, { "content-type": "text/event-stream", ...cors });
+        res.write('data: {"choices":[{"delta":{"content":"Use dw."}}]}\n\n');
+        res.write('data: {"choices":[{"delta":{},"finish_reason":"stop"}]}\n\n');
+        res.end("data: [DONE]\n\n");
+      });
+      return;
+    }
+    res.writeHead(404); res.end();
+  });
+  await new Promise<void>((r) => server.listen(0, "127.0.0.1", r));
+  const addr = server.address();
+  const port = typeof addr === "object" && addr ? addr.port : 0;
+  return { url: `http://127.0.0.1:${port}`, bodies, stop: () => new Promise<void>((r) => { server.close(() => r()); }) };
+}
+
+/** N2: was CIPHER tatsächlich auf den Draht schreibt. Die Kette ist die echte — Uplink → Adapter →
+ *  Resolver (Ping, Backend-Probe) → Profil → Kit-Client → XHR — nur der Endpunkt ist ein Fake. */
+async function checkRequestBody(cdp: Cdp): Promise<void> {
+  const modell = "qwen/qwen3.8-27b";
+  const fake = await starteFakeEndpunkt(modell);
+  const frage = (ueberschreiben: string) => cdp.evaluate<{ ok: boolean; params: Record<string, unknown> | null }>(`
+    const p = app.plugins.plugins[${JSON.stringify(PLUGIN_ID)}];
+    ${ueberschreiben}
+    p.endpointResolver.invalidate();
+    p.cipherUplink = null;
+    p.cipherSession.reset();
+    await p.uplink().ask(p.cipherSession, "how do I delete a word?");
+    const last = p.requestSession.lastRequest();
+    const lines = p.cipherSession.lines ?? [];
+    return { ok: true, params: last ? last.params : null };
+  `);
+  try {
+    await cdp.evaluate(`
+      const p = app.plugins.plugins[${JSON.stringify(PLUGIN_ID)}];
+      if (!("__nvVorherReq" in window)) window.__nvVorherReq = { eps: JSON.parse(JSON.stringify(p.settings.llmEndpoints)), request: JSON.parse(JSON.stringify(p.settings.request)) };
+      p.settings.llmEndpoints = [{ url: ${JSON.stringify(fake.url)}, model: ${JSON.stringify(modell)} }];
+      return true;
+    `);
+    // --- N2-1: Profilwerte am Draht (Familie qwen3.8 aus dem Namen, Backend unbekannt) ---
+    await frage(`p.settings.request = { overrides: {}, thinking: {}, lastOnLevel: {}, levelPickerInChat: false };`);
+    const b1 = fake.bodies[0];
+    record(
+      "N2-1 Body am Draht trägt Profilwerte, nicht feste Werte",
+      b1 !== undefined && b1.model === modell && b1.stream === true && b1.temperature === 0.7 && b1.top_p === 0.8
+        && b1.reasoning_effort === "none" && b1.max_tokens === 1024 && !("top_k" in b1),
+      b1 ? `model ${String(b1.model)}, stream ${String(b1.stream)}, temperature ${String(b1.temperature)}, top_p ${String(b1.top_p)}, reasoning_effort ${String(b1.reasoning_effort)}, max_tokens ${String(b1.max_tokens)}, top_k ${"top_k" in b1 ? "DA" : "weg"}` : "kein Request angekommen",
+    );
+    // --- N2-2: Überschreibung und Denkstufe kommen am Draht an (Gegenprobe zu N2-1) ---
+    await frage(`p.settings.request = { overrides: { companion: { "qwen3.8": { temperature: 0.3 } } }, thinking: { companion: "medium" }, lastOnLevel: {}, levelPickerInChat: false };`);
+    const b2 = fake.bodies[1];
+    record(
+      "N2-2 Überschreibung und Denkstufe ändern den Body (Gegenprobe zu N2-1)",
+      b2 !== undefined && b2.temperature === 0.3 && b2.reasoning_effort === "medium" && b2.top_p === 0.95 && b2.max_tokens === 2048,
+      b2 ? `temperature ${String(b2.temperature)}, reasoning_effort ${String(b2.reasoning_effort)}, top_p ${String(b2.top_p)}, max_tokens ${String(b2.max_tokens)}` : "kein zweiter Request angekommen",
+    );
+    const letzte = await cdp.evaluate<Record<string, unknown> | null>(`
+      const l = app.plugins.plugins[${JSON.stringify(PLUGIN_ID)}].requestSession.lastRequest();
+      return l ? l.params : null;`);
+    record(
+      "N2-3 Die Session zeigt, was wirklich gesendet wurde",
+      letzte !== null && b2 !== undefined && ["temperature", "top_p", "reasoning_effort", "max_tokens"].every((k) => letzte[k] === b2[k]),
+      letzte ? `Session: temperature ${String(letzte.temperature)}, max_tokens ${String(letzte.max_tokens)}` : "keine Session-Aufzeichnung",
+    );
+  } finally {
+    await cdp.evaluate(`
+      const p = app.plugins.plugins[${JSON.stringify(PLUGIN_ID)}];
+      const v = window.__nvVorherReq;
+      if (v) { p.settings.llmEndpoints = v.eps; p.settings.request = v.request; delete window.__nvVorherReq; }
+      p.endpointResolver.invalidate();
+      p.cipherUplink = null;
+      p.cipherSession.reset();
+      return true;
+    `).catch(() => undefined);
+    await fake.stop();
+  }
+}
+
+/** N1: der Abschnitt „Request" in den Einstellungen — zweites Öffnen des Tabs (das erste macht R6),
+ *  also auch der Beleg, dass der Tab beim erneuten Öffnen die Session neu liest („Last request"
+ *  nach N2). Dann zwei Bearbeitungen hintereinander (Überschreiben, Zurücksetzen): der Abschnitt
+ *  darf dazwischen nicht zuklappen (Pilot lingotuner: im grünen Smoke unsichtbar). */
+async function checkRequestSection(cdp: Cdp, port: number, vault: string | undefined): Promise<void> {
+  const name = "N1 Abschnitt Request";
+  await cdp.evaluate(`
+    app.setting.open();
+    app.setting.openTabById(${JSON.stringify(PLUGIN_ID)});
+    await new Promise((r) => setTimeout(r, 1500));
+    return true;
+  `);
+  const sicht = await attachTo("settings", port, vault).catch(() => null);
+  if (!sicht) {
+    await cdp.evaluate(`app.setting.close(); return true;`).catch(() => undefined);
+    skipped(name, "kein Einstellungen-Fenster am Port — nichts gemessen");
+    return;
+  }
+  const abschnitt = `
+    const wurzel = document.querySelector(".modal.mod-settings") ?? document.body;
+    const kopf = [...wurzel.querySelectorAll(".okit-collapsible-header")].find((h) => h.textContent.trim() === "Request");
+    const koerper = kopf ? kopf.nextElementSibling : null;
+  `;
+  try {
+    // Aufklappen (Standard: zu) — ein echter Klick auf den Kopf, wie ihn der Nutzer macht.
+    const offen = await sicht.evaluate<{ gefunden: boolean; offen: boolean }>(`
+      ${abschnitt}
+      if (!kopf) return { gefunden: false, offen: false };
+      if (koerper.classList.contains("is-collapsed")) kopf.click();
+      await new Promise((r) => setTimeout(r, 400));
+      return { gefunden: true, offen: !koerper.classList.contains("is-collapsed") };
+    `);
+    if (!offen.gefunden) { record(`${name} ist vorhanden und aufklappbar`, false, "Kopf „Request“ fehlt in den Einstellungen"); return; }
+    const inhalt = await sicht.evaluate<{ namen: string[]; letzte: string | null; status: string | null }>(`
+      ${abschnitt}
+      return {
+        namen: [...koerper.querySelectorAll(".setting-item-name")].map((n) => n.textContent.trim()),
+        letzte: koerper.querySelector("pre.okit-request-last")?.textContent ?? null,
+        status: koerper.querySelector(".okit-request-status")?.textContent?.trim() ?? null,
+      };
+    `);
+    const erwartet = ["Companion", "Temperature (temperature)", "Token budget (max_tokens)", "Thinking level", "Last request"];
+    const fehlt = erwartet.filter((n) => !inhalt.namen.includes(n));
+    record(`${name} ist vorhanden, klappt auf und zeigt Modus, Felder und Denkstufe`,
+      offen.offen && fehlt.length === 0 && inhalt.namen.some((n) => n.startsWith("Family:")),
+      fehlt.length === 0 ? `${inhalt.namen.length} Zeilen, kein Feld fehlt` : `fehlt: ${fehlt.join(", ")}`);
+    record("N1-2 Zweites Öffnen zeigt die Anfrage aus N2 („Last request“ ist frisch)",
+      inhalt.letzte !== null && inhalt.letzte.includes('"temperature"') && inhalt.letzte.includes('"max_tokens"'),
+      inhalt.letzte !== null ? `Aufzeichnung: ${inhalt.letzte.replace(/\s+/g, " ").slice(0, 80)}` : "keine Aufzeichnung — der Tab hat die Session beim erneuten Öffnen nicht neu gelesen");
+
+    // --- N1-3: zwei Bearbeitungen hintereinander, der Abschnitt bleibt offen ---------------
+    const setzen = await sicht.evaluate<boolean>(`
+      ${abschnitt}
+      const inp = koerper.querySelector('input[data-field="temperature"]');
+      if (!inp) return false;
+      inp.focus(); inp.value = "0.3"; inp.dispatchEvent(new Event("blur"));
+      return true;
+    `);
+    const nachSetzen = setzen ? await pollUntil<{ eigen: boolean; offen: boolean }>(sicht, `
+      ${abschnitt}
+      const inp = koerper?.querySelector('input[data-field="temperature"]');
+      if (!inp || !inp.classList.contains("okit-request-own")) return null;
+      return { eigen: true, offen: !koerper.classList.contains("is-collapsed") };
+    `, 8_000, 300).catch(() => null) : null;
+    const zuruecksetzen = nachSetzen ? await sicht.evaluate<boolean>(`
+      ${abschnitt}
+      const inp = koerper.querySelector('input[data-field="temperature"]');
+      const zeile = inp.closest(".setting-item");
+      const knopf = zeile.querySelector('[aria-label="Reset"]');
+      if (!knopf) return false;
+      knopf.click();
+      return true;
+    `) : false;
+    const nachReset = zuruecksetzen ? await pollUntil<{ offen: boolean; eigenWeg: boolean }>(sicht, `
+      ${abschnitt}
+      const inp = koerper?.querySelector('input[data-field="temperature"]');
+      if (!inp || inp.classList.contains("okit-request-own")) return null;
+      return { offen: !koerper.classList.contains("is-collapsed"), eigenWeg: inp.value === "" };
+    `, 8_000, 300).catch(() => null) : null;
+    const gespeichert = await cdp.evaluate<string>(`return JSON.stringify(app.plugins.plugins[${JSON.stringify(PLUGIN_ID)}].settings.request.overrides);`);
+    record("N1-3 Überschreiben und Zurücksetzen nacheinander: Abschnitt bleibt offen, Wert wird gespeichert und wieder gelöscht",
+      Boolean(nachSetzen?.offen) && Boolean(nachReset?.offen) && Boolean(nachReset?.eigenWeg) && gespeichert === "{}",
+      !setzen ? "Temperatur-Feld nicht gefunden"
+        : !nachSetzen ? "Überschreibung kam nicht an (Feld nicht als eigen markiert)"
+        : !zuruecksetzen ? "Zurücksetzen-Knopf fehlt"
+        : !nachReset ? "Zurücksetzen griff nicht"
+        : `nach Überschreiben ${nachSetzen.offen ? "offen" : "ZU"}, nach Zurücksetzen ${nachReset.offen ? "offen" : "ZU"}, gespeichert ${gespeichert}`);
+  } finally {
+    // Vorwert zurück, falls der Lauf mitten in der Überschreibung abbrach.
+    await cdp.evaluate(`
+      const p = app.plugins.plugins[${JSON.stringify(PLUGIN_ID)}];
+      if (p.settings.request && p.settings.request.overrides && p.settings.request.overrides.companion) {
+        delete p.settings.request.overrides.companion;
+        await p.saveRequestSettings(p.settings.request);
+      }
+      return true;
+    `).catch(() => undefined);
+    sicht.close?.();
+    await cdp.evaluate(`app.setting.close(); return true;`).catch(() => undefined);
+  }
 }
 
 async function messeEinstellungenNv(
@@ -1397,6 +1605,7 @@ async function main(): Promise<void> {
         if (p && r) {
           p.cipherClient.stream = r.stream;
           p.endpointResolver.resolve = r.resolve;
+          p.endpointResolver.resolveSource = r.resolveSource;
           p.endpointResolver.invalidate = r.invalidate;
           p.settings.llmEndpoints = r.endpoints;
           p.settings.llmModel = r.model;
@@ -1488,6 +1697,7 @@ async function main(): Promise<void> {
       if (!p || !r) return false;
       p.cipherClient.stream = r.stream;
       p.endpointResolver.resolve = r.resolve;
+      p.endpointResolver.resolveSource = r.resolveSource;
       p.endpointResolver.invalidate = r.invalidate;
       p.settings.llmEndpoints = r.endpoints;
       p.settings.llmModel = r.model;
@@ -1521,6 +1731,8 @@ async function main(): Promise<void> {
     await checkReader(cdp);
     await checkMasteryTier(cdp, vault);
     await checkHelpRow(cdp, port, vault);
+    await checkRequestBody(cdp);
+    await checkRequestSection(cdp, port, vault);
     await checkEndpointSource(cdp, port, vault);
     await checkFolderHide(cdp);
     await checkCipherUplink(cdp);

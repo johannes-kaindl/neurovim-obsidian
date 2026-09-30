@@ -129,10 +129,7 @@ If the **LLM Endpoint Manager** plugin is installed, the endpoints (and their ke
 - **Model** — picked from a dropdown populated by the active endpoint's `/v1/models`, with
   a free-text fallback if the list is empty or the endpoint is unreachable. When the
   endpoint reports it (LM Studio, Ollama), the model's context length is shown alongside.
-- **Model thinking** — off by default, which is the faster path: CIPHER answers straight
-  away instead of deliberating. Turn it on if you want the model to reason before
-  answering. Models that always think (gpt-oss/harmony) are detected and the toggle
-  disables itself with an explanation, since it can't turn those off anyway.
+- **Request** — what CIPHER sends with each question: sampling values (temperature, top_p, top_k, …) and the thinking level. The defaults come from a profile table per model family (Qwen, Gemma, gpt-oss) and backend, so a model gets the settings its vendor recommends instead of one fixed set for all. The section (collapsed by default) shows what is sent and what has an effect, lets you override a value per model family, and lists the last request and any deviations seen this session. Thinking is off by default, which is the faster path: CIPHER answers straight away instead of deliberating; set a level to let the model reason first. gpt-oss cannot be switched off entirely, so its lowest level is sent. The row "Level picker in chat" has no effect in this plugin (there is no chat button to show it on).
 - **API key** — optional, for endpoints that require one.
 
 <img src="https://raw.githubusercontent.com/johannes-kaindl/neurovim-obsidian/main/docs/images/archive.png" width="412" alt="The ARCHIVE tab: a recovered loot artifact next to locked ones, each showing the level needed to unlock it">
