@@ -3,16 +3,17 @@ import type { SettingDefinitionGroup, SettingDefinitionItem } from 'obsidian';
 import type NeuroVimPlugin from './main';
 import { buildEndpointList, type EndpointListStrings } from './vendor/kit-obsidian/endpoint-list';
 import { githubHelpUrls, helpSettingDefinition, HELP_SETTING_TEXTS_EN } from './vendor/kit-obsidian/help-setting';
-import { renderSettingDefinitions, refreshSettingsTab, settingBodyHost } from './vendor/kit-obsidian/settings_walker';
+import { installTabRefreshOnOpen, renderSettingDefinitions, refreshSettingsTab, settingBodyHost } from './vendor/kit-obsidian/settings_walker';
+import { buildRequestSection } from './vendor/kit-obsidian/request-section';
+import { CIPHER_MAX_TOKENS, MODE as CIPHER_MODE } from './llm/CipherClient';
+import { requestSectionStrings } from './llm/requestStrings';
 import { createModelListCache } from './vendor/kit/model-list-cache';
 import type { EndpointConfig } from './vendor/kit/endpoint_config';
-import { buildEndpointSourceSection, findEndpointManager } from './vendor/kit-obsidian/endpoint-source';
+import { buildEndpointSourceSection } from './vendor/kit-obsidian/endpoint-source';
 import { ENDPOINT_CALLER } from './llm/endpointResolver';
-import { normalizeEndpoint } from './vendor/kit/endpoint';
 import type { EndpointStatus } from './vendor/kit/endpoint_diagnostics';
 import { endpointStatusEn, endpointWarningEn } from './llm/endpointText';
 import { probeEndpoint } from './llm/endpointProbe';
-import { thinkToggleState } from './llm/thinkToggle';
 import { probeModelContext } from './llm/modelContext';
 
 /** Every user-visible string of the kit's endpoint-list editor. The kit deliberately
@@ -58,9 +59,6 @@ export class NeuroVimSettingTab extends PluginSettingTab {
   private activeEndpointUrl: string | null = null;
   /** Context length of the selected model in tokens, null = endpoint doesn't report it. */
   private contextLength: number | null = null;
-  /** Model the resolver picked with the active endpoint — the local row's own model, or the
-   *  manager's choice/default. Empty while nothing is resolved. */
-  private activeModel = '';
   /** One-shot latch for the reconnect() bootstrap in renderEndpointList. buildEndpointList only
    *  reaches reconnect() through its own commit chains (blur, trash, "Use first", preset) — its
    *  "Test all" button just re-renders — so without a kick-off on first render, activeEndpointUrl
@@ -71,7 +69,15 @@ export class NeuroVimSettingTab extends PluginSettingTab {
   // call into a single function — run it before the next rebuild and on hide().
   private cleanupPrevious: () => void = () => {};
 
-  constructor(app: App, private readonly plugin: NeuroVimPlugin) { super(app, plugin); }
+  constructor(app: App, private readonly plugin: NeuroVimPlugin) {
+    super(app, plugin);
+    // "Last request" and the deviation list live in the plugin session, not in the tab — reopen
+    // must redraw them, or the section shows the state from when the tab was last built.
+    // Installed once for the tab's lifetime and NOT undone in hide(): Obsidian keeps one tab
+    // instance per plugin and reopens that same instance, so an uninstall on close would leave
+    // every later open without the refresh.
+    installTabRefreshOnOpen(this, () => this.renderImperative());
+  }
 
   // ── Declarative settings API (Obsidian 1.13) ────────────────────────────
   // One truth for both render paths: getSettingDefinitions() returns the structure; simple
@@ -161,7 +167,7 @@ export class NeuroVimSettingTab extends PluginSettingTab {
       { name: 'CIPHER uplink', desc: 'Ask CIPHER for Vim advice via any OpenAI-compatible endpoint.', render: this.renderCipherIntro },
       { name: 'Endpoints', desc: 'Ordered fallback list — the first reachable one is used. Each row sets its own model (and optionally its own API key).', render: this.renderEndpointList },
       { name: 'Context', desc: 'Context window of the selected model.', render: this.renderContext },
-      { name: 'Model thinking', desc: 'Whether the model is asked not to think before answering.', render: this.renderThinking },
+      { name: 'Request', desc: 'What CIPHER sends with each question: sampling values and thinking level, per model family.', render: this.renderRequest },
     ] };
   }
 
@@ -174,7 +180,6 @@ export class NeuroVimSettingTab extends PluginSettingTab {
     const active = await this.plugin.resolveEndpointFresh();
     this.activeEndpointUrl = active ? active.url : null;
     const model = active?.model?.trim() ?? '';
-    this.activeModel = model;
     this.contextLength = active && model ? await probeModelContext(active, model) : null;
   }
 
@@ -314,39 +319,23 @@ export class NeuroVimSettingTab extends PluginSettingTab {
     }
   };
 
-  private renderThinking = (setting: Setting): void => {
-    const host = settingBodyHost(setting);
-    // The toggle must reason about the model the REQUEST will use: main.ts asks with the
-    // active endpoint's own model — there is no global fallback any more (0.9.0). Look the
-    // active entry up FRESH in the list (the kit's own applyRole does the same, for the same
-    // reason: after a model commit only the list carries the new value) and compare
-    // normalized urls, since activeEndpointUrl comes back normalized from the resolver while
-    // the stored entry keeps whatever was typed. No active endpoint (nothing reachable, or
-    // the probe hasn't landed yet) → no model to reason about.
-    // With the manager the model is its choice/default, not a list entry — use what the
-    // resolver reported.
-    const active = this.plugin.settings.llmEndpoints.find(
-      (ep) => normalizeEndpoint(ep.url) === this.activeEndpointUrl,
-    );
-    const model = findEndpointManager(this.app) ? this.activeModel
-      : active?.model?.trim() ?? '';
-    const think = thinkToggleState(model, this.plugin.settings.llmSuppressThinking);
-    new Setting(host)
-      .setName('Model thinking')
-      .setDesc(think.desc)
-      .addToggle((t) =>
-        t
-          // When disabled, the model always thinks regardless of llmSuppressThinking (see
-          // effectiveSuppress) — force the switch to ON so its position matches actual
-          // request behaviour instead of echoing a suppress flag the request ignores.
-          .setValue(think.disabled || !this.plugin.settings.llmSuppressThinking)
-          .setDisabled(think.disabled)
-          .onChange(async (v) => {
-            this.plugin.settings.llmSuppressThinking = !v;
-            await this.plugin.saveSettings();
-            this.refreshUi();
-          }),
-      );
+  /** The kit's "Request" section (mode companion): what goes out per question, overrides per
+   *  model family, thinking level, last request and deviations. Its state is the resolver's
+   *  last result, so it follows the endpoint `reconnect()` picked. */
+  private renderRequest = (setting: Setting): void => {
+    buildRequestSection({
+      containerEl: settingBodyHost(setting),
+      modes: [CIPHER_MODE],
+      state: () => this.plugin.requestSectionState(),
+      settings: () => this.plugin.settings.request,
+      save: (next) => this.plugin.saveRequestSettings(next),
+      // CIPHER's token budget is the plugin's own, not a user field — but it goes out with every
+      // request, so the section must explain the request WITH it.
+      maxTokens: () => CIPHER_MAX_TOKENS,
+      session: this.plugin.requestSession,
+      rerender: () => this.refreshUi(),
+      strings: requestSectionStrings(),
+    });
   };
 
   hide(): void {

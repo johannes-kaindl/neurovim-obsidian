@@ -1,6 +1,9 @@
 import type { HudPlacement } from './hudPlacement';
 import { migrateEndpointList, type EndpointConfig } from './vendor/kit/endpoint_config';
 import type { EndpointChoice } from './vendor/kit/endpoint-source';
+import {
+  DEFAULT_REQUEST_SETTINGS, onLevelFor, sanitizeRequestSettings, type RequestSettings,
+} from './vendor/kit/sampling-profiles';
 
 export type ColorScheme = 'crt' | 'native';
 
@@ -24,7 +27,10 @@ export interface VimDojoSettings {
    *  relevant while the manager is installed; without it `llmEndpoints` (each with its own
    *  model) is the source. */
   choice: EndpointChoice;
-  llmSuppressThinking: boolean;
+  /** What CIPHER's requests send (sampling values, thinking level): overrides per mode × model
+   *  family plus the thinking level. Edited in the "Request" section; the defaults come from
+   *  the kit's profile table. */
+  request: RequestSettings;
   recordTraces: boolean;
   pausedBannerMinutes: number;
   uiCollapsed: Record<string, boolean>;
@@ -39,7 +45,7 @@ export const DEFAULT_SETTINGS: VimDojoSettings = {
   openPaneOnStartup: false,
   llmEndpoints: [],
   choice: {},
-  llmSuppressThinking: true,
+  request: DEFAULT_REQUEST_SETTINGS,
   recordTraces: true,
   pausedBannerMinutes: 5,
   uiCollapsed: {},
@@ -89,6 +95,22 @@ function foldLegacyModel(eps: EndpointConfig[], legacyModel: string | undefined)
   return eps.map((cfg) => (cfg.model ? cfg : { ...cfg, model }));
 }
 
+/** CIPHER's request mode in the kit's profile table (see `llm/CipherClient.ts`). */
+const REQUEST_MODE = 'companion';
+
+/** Sanitises the persisted `request` block and migrates the pre-0.11.0 `llmSuppressThinking`
+ *  switch once into `request.thinking.companion` — only while nothing is set there explicitly.
+ *  `dropped` lists settings that failed validation; the caller reports them (a silent reset
+ *  would hide that the user's value is gone). Pure. */
+export function loadRequestSettings(raw: unknown): { request: RequestSettings; dropped: string[] } {
+  const r = raw !== null && typeof raw === 'object' ? (raw as Record<string, unknown>) : {};
+  const { settings, dropped } = sanitizeRequestSettings(r.request);
+  if (typeof r.llmSuppressThinking === 'boolean' && settings.thinking[REQUEST_MODE] === undefined) {
+    settings.thinking[REQUEST_MODE] = r.llmSuppressThinking ? 'off' : onLevelFor(settings, REQUEST_MODE);
+  }
+  return { request: settings, dropped };
+}
+
 /** Merge a raw `data.json` `__settings` blob onto the defaults, migrating both the 0.4.x
  *  single `llmEndpoint` field and the pre-0.8.0 global `llmApiKey` on the way in. Both legacy
  *  fields are destructured out of `rest` — spreading the source wholesale would carry them
@@ -96,10 +118,11 @@ function foldLegacyModel(eps: EndpointConfig[], legacyModel: string | undefined)
  *  re-seeding dead fields on every save. Pure — no Obsidian dependency — so main.ts's onload
  *  can stay a thin wrapper around it and the migration is testable without a plugin mock. */
 export function mergeStoredSettings(raw: unknown): VimDojoSettings {
-  const { llmEndpoint, llmApiKey, llmModel, llmEndpoints, ...rest } = (raw ?? {}) as Partial<VimDojoSettings> & {
+  const { llmEndpoint, llmApiKey, llmModel, llmEndpoints, llmSuppressThinking: _legacySuppress, ...rest } = (raw ?? {}) as Partial<VimDojoSettings> & {
     llmEndpoint?: string;
     llmApiKey?: string;
     llmModel?: string;
+    llmSuppressThinking?: boolean;
     llmEndpoints?: (string | EndpointConfig)[];
   };
   // migrateEndpointList (vendored from the kit) does not guard Array.isArray — a hand-edited or
@@ -114,6 +137,7 @@ export function mergeStoredSettings(raw: unknown): VimDojoSettings {
     ...rest,
     llmEndpoints: foldLegacyModel(foldLegacyApiKey(migrated, llmApiKey), llmModel),
     choice: sanitizeChoice(rest.choice),
+    request: loadRequestSettings(raw).request,
     uiCollapsed: { ...DEFAULT_SETTINGS.uiCollapsed, ...rest.uiCollapsed },
   };
 }

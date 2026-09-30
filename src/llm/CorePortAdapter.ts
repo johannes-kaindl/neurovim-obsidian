@@ -2,23 +2,34 @@
  * Fulfils the core's LlmPort with this plugin's transport stack.
  *
  * Everything the core deliberately does not know lives here: which endpoint
- * answers, what to do when it stops answering, which model to ask, and how to
- * suppress reasoning. The core sees four failure kinds and a detail string.
+ * answers, what to do when it stops answering, which model to ask, and which
+ * sampling/thinking values that model gets. The core sees four failure kinds and a detail string.
  *
  * Model choice is per-endpoint, not global: each entry in the endpoint list
- * may carry its own model, so it can only be decided once resolve() has picked
- * one. That is why this takes `modelFor(endpoint)` rather than a plain thunk.
+ * may carry its own model, so it can only be decided once the resolver has picked
+ * one. That is why this takes `forSource(result)` rather than a plain thunk.
  */
 import type { LlmPort, LlmMessage, LlmResult } from '../vendor/neurovim/core';
 import type { CipherClient, StreamOutcome } from './CipherClient';
 import type { EndpointResolver } from './endpointResolver';
-import type { EndpointConfig } from '../vendor/kit/endpoint_config';
+import type { EndpointSourceResult } from '../vendor/kit/endpoint-source';
+import type { ResponseFacts } from '../vendor/kit/sampling-profiles';
+
+/** What one request needs, derived from the source that answered. */
+export interface RequestPlan {
+  /** Model as it goes over the wire (after alias resolution). */
+  sentModel: string;
+  /** Sampling/thinking fields, flat — from the kit's profile table plus the user's overrides. */
+  params: Record<string, number | string>;
+  /** Hands the server's answer to the request session (deviation check). */
+  report(facts: ResponseFacts): void;
+}
 
 export interface ModelChoice {
-  /** Is the uplink usable at all? (endpoints present, every one has a model) */
+  /** Is the uplink usable at all? (manager installed, or every local endpoint has a model) */
   configured(): boolean;
-  /** Model + reasoning setting for the endpoint that actually answered. */
-  forEndpoint(ep: EndpointConfig): { model: string; suppressThinking: boolean };
+  /** Request for the endpoint that actually answered. */
+  forSource(src: EndpointSourceResult): RequestPlan;
 }
 
 const UNAVAILABLE = (detail: string): LlmResult =>
@@ -48,18 +59,20 @@ export class CorePortAdapter implements LlmPort {
     const onToken = opts?.onToken ?? ((): void => {});
     const signal = opts?.signal ?? new AbortController().signal;
 
-    const run = (endpoint: EndpointConfig): Promise<StreamOutcome> => {
-      const { model, suppressThinking } = this.choice.forEndpoint(endpoint);
-      return this.client.stream({ endpoint, model, suppressThinking }, messages, onToken, signal);
+    const run = async (src: EndpointSourceResult, endpoint: NonNullable<EndpointSourceResult['config']>): Promise<StreamOutcome> => {
+      const plan = this.choice.forSource(src);
+      const outcome = await this.client.stream({ endpoint, sentModel: plan.sentModel, params: plan.params }, messages, onToken, signal);
+      if (outcome.facts !== null) plan.report(outcome.facts);
+      return outcome;
     };
 
-    const endpoint = await this.resolver.resolve();
-    if (endpoint === null) return UNAVAILABLE('no endpoint reachable');
+    const src = await this.resolver.resolveSource();
+    if (src.config === null) return UNAVAILABLE('no endpoint reachable');
     // The manager may hand out an endpoint without a default model, and none was chosen — an
     // empty model would be sent as-is and answered with an opaque HTTP error.
-    if (this.choice.forEndpoint(endpoint).model.trim() === '') return UNAVAILABLE('no model set for the endpoint');
+    if (src.sentModel.trim() === '') return UNAVAILABLE('no model set for the endpoint');
 
-    let outcome = await run(endpoint);
+    let outcome = await run(src, src.config);
 
     // A network failure may just mean the cached endpoint moved (host slept,
     // network changed). Re-resolve once and retry — never twice, or a dead
@@ -69,8 +82,8 @@ export class CorePortAdapter implements LlmPort {
     // entirely for a single-endpoint list — the common case.
     if (!outcome.ok && outcome.kind === 'network') {
       this.resolver.invalidate();
-      const fresh = await this.resolver.resolve();
-      if (fresh !== null) outcome = await run(fresh);
+      const fresh = await this.resolver.resolveSource();
+      if (fresh.config !== null) outcome = await run(fresh, fresh.config);
     }
 
     return toResult(outcome);

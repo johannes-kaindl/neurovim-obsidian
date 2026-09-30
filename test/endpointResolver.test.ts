@@ -4,6 +4,37 @@ import type { LlmEndpointManagerApi } from '../src/vendor/kit/endpoint-source';
 
 const cfg = (url: string) => ({ url });
 
+describe('EndpointResolver — source result (family/backend/wire model for the request profile)', () => {
+  it('resolveSource carries the local row\'s model as sentModel and probes the backend once per resolve', async () => {
+    const backendOf = vi.fn(async () => 'lmstudio' as const);
+    const r = new EndpointResolver(
+      () => [{ url: 'http://a:1', model: 'qwen/qwen3.8-27b' }],
+      async () => true,
+      { manager: () => null, choice: () => ({}), backendOf },
+    );
+    const src = await r.resolveSource();
+    expect(src).toMatchObject({ kind: 'local', sentModel: 'qwen/qwen3.8-27b', family: 'qwen3.8', backend: 'lmstudio', backendSource: 'probe' });
+    await r.resolveSource();
+    expect(backendOf).toHaveBeenCalledTimes(1); // the local result is cached like resolve() always was
+  });
+
+  it('lastSource() is null before the first resolve and holds the latest result afterwards', async () => {
+    const r = new EndpointResolver(() => [{ url: 'http://a:1', model: 'm' }], async () => true);
+    expect(r.lastSource()).toBeNull();
+    await r.resolve();
+    expect(r.lastSource()).toMatchObject({ kind: 'local', sentModel: 'm', backend: 'unknown' });
+  });
+
+  it('a failed backend probe leaves the backend unknown instead of failing the resolve', async () => {
+    const r = new EndpointResolver(
+      () => [{ url: 'http://a:1', model: 'm' }],
+      async () => true,
+      { manager: () => null, choice: () => ({}), backendOf: async () => { throw new Error('probe down'); } },
+    );
+    expect(await r.resolveSource()).toMatchObject({ backend: 'unknown', backendSource: 'none' });
+  });
+});
+
 describe('EndpointResolver', () => {
   it('resolves to the first reachable endpoint', async () => {
     const ping = vi.fn(async (c: { url: string }) => c.url === 'http://b:2');

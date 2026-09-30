@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { DEFAULT_SETTINGS, isLlmConfigured, mergeStoredSettings } from '../src/settings';
+import { DEFAULT_SETTINGS, isLlmConfigured, loadRequestSettings, mergeStoredSettings } from '../src/settings';
+import { thinkingFor } from '../src/vendor/kit/sampling-profiles';
 
 describe('LLM settings', () => {
   it('defaults to unconfigured (feature off)', () => {
@@ -7,8 +8,9 @@ describe('LLM settings', () => {
     expect(isLlmConfigured(DEFAULT_SETTINGS)).toBe(false);
   });
 
-  it('suppresses thinking by default (short vim tips, faster answers)', () => {
-    expect(DEFAULT_SETTINGS.llmSuppressThinking).toBe(true);
+  it('does not think by default (short vim tips, faster answers) — the companion profile says off', () => {
+    expect(thinkingFor(DEFAULT_SETTINGS.request, 'companion')).toBe('off');
+    expect(DEFAULT_SETTINGS.request.overrides).toEqual({});
   });
 
   it('records run traces by default (local, transparent telemetry)', () => {
@@ -155,5 +157,43 @@ describe('choice (Wahl gegenueber dem LLM Endpoint Manager)', () => {
   it('untrusted: nur nicht-leere Strings bleiben', () => {
     expect(mergeStoredSettings({ choice: { endpointId: 5, model: '' } }).choice).toEqual({});
     expect(mergeStoredSettings({ choice: 'quatsch' }).choice).toEqual({});
+  });
+});
+
+describe('request settings — migration of the legacy llmSuppressThinking switch', () => {
+  it('suppress = true (the old default) becomes thinking "off" for the companion mode', () => {
+    const { request } = loadRequestSettings({ llmSuppressThinking: true });
+    expect(request.thinking.companion).toBe('off');
+  });
+
+  it('suppress = false becomes the mode\'s "on" level (never "off")', () => {
+    const { request } = loadRequestSettings({ llmSuppressThinking: false });
+    expect(request.thinking.companion).toBeDefined();
+    expect(request.thinking.companion).not.toBe('off');
+  });
+
+  it('an explicit new setting wins over the legacy flag', () => {
+    const { request } = loadRequestSettings({ llmSuppressThinking: true, request: { thinking: { companion: 'high' } } });
+    expect(request.thinking.companion).toBe('high');
+  });
+
+  it('no legacy flag and no request block: nothing is invented', () => {
+    expect(loadRequestSettings({}).request.thinking).toEqual({});
+    expect(loadRequestSettings(undefined).request.thinking).toEqual({});
+  });
+
+  it('mergeStoredSettings applies the migration and drops the legacy field (persist() would re-seed it)', () => {
+    const settings = mergeStoredSettings({ llmSuppressThinking: false });
+    expect(settings.request.thinking.companion).not.toBe('off');
+    expect(Object.hasOwn(settings, 'llmSuppressThinking')).toBe(false);
+  });
+
+  it('keeps stored overrides and reports the ones that fail validation instead of dropping them silently', () => {
+    const good = loadRequestSettings({ request: { overrides: { companion: { 'qwen3.8': { temperature: 0.4 } } } } });
+    expect(good.request.overrides.companion?.['qwen3.8']?.temperature).toBe(0.4);
+    expect(good.dropped).toEqual([]);
+    const bad = loadRequestSettings({ request: { overrides: { companion: { 'qwen3.8': { temperature: 'hot' } } } } });
+    expect(bad.dropped.length).toBeGreaterThan(0);
+    expect(bad.request.overrides.companion?.['qwen3.8']?.temperature).toBeUndefined();
   });
 });

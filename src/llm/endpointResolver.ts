@@ -11,8 +11,10 @@ import type { EndpointConfig } from '../vendor/kit/endpoint_config';
 import {
   resolveEndpointSource,
   type EndpointChoice,
+  type EndpointSourceResult,
   type LlmEndpointManagerApi,
 } from '../vendor/kit/endpoint-source';
+import type { BackendId } from '../vendor/kit/sampling-profiles';
 
 export const ENDPOINT_CALLER = 'neurovim';
 
@@ -21,12 +23,17 @@ export interface EndpointSourceDeps {
   manager: () => LlmEndpointManagerApi | null;
   /** The user's endpoint/model choice against the manager. */
   choice: () => EndpointChoice;
+  /** Which backend sits behind a LOCAL endpoint (the manager reports its own). Null = unknown. */
+  backendOf?: (cfg: EndpointConfig) => Promise<BackendId | null>;
 }
 
 export class EndpointResolver {
-  private cached: EndpointConfig | null = null;
+  private cached: EndpointSourceResult | null = null;
   /** In-flight resolve, shared so concurrent asks don't each ping the list. */
-  private pending: Promise<EndpointConfig | null> | null = null;
+  private pending: Promise<EndpointSourceResult> | null = null;
+  /** The last full result — family, backend and the wire model ride on it. The settings tab
+   *  reads it for the "Request" section; requests read it through `resolveSource()`. */
+  private last: EndpointSourceResult | null = null;
 
   constructor(
     private readonly getEndpoints: () => EndpointConfig[],
@@ -34,11 +41,16 @@ export class EndpointResolver {
     private readonly source?: EndpointSourceDeps,
   ) {}
 
-  /** First reachable endpoint (with its normalized url + own key), or null if none answers.
-   *  The model to ask rides on `config.model`: the manager's choice/default, or the local
-   *  row's own model. Local results are cached until invalidate(); a failed resolve is not
-   *  cached — the next ask retries (the network may be back). */
-  async resolve(): Promise<EndpointConfig | null> {
+  /** The most recent resolve result (null before the first one). */
+  lastSource(): EndpointSourceResult | null {
+    return this.last;
+  }
+
+  /** Full source result of the first reachable endpoint: config (normalized url + own key),
+   *  the model to ask, and what the request profile needs (family, backend, sent model).
+   *  Local results are cached until invalidate(); a failed resolve is not cached — the next
+   *  ask retries (the network may be back). */
+  async resolveSource(): Promise<EndpointSourceResult> {
     const manager = this.source?.manager() ?? null;
     if (manager === null && this.cached !== null) return this.cached;
     if (this.pending) return this.pending;
@@ -50,15 +62,24 @@ export class EndpointResolver {
       // nothing for the local list, so it only travels with the manager.
       ...(manager !== null && this.source ? { choice: this.source.choice() } : {}),
       caller: ENDPOINT_CALLER,
+      ...(this.source?.backendOf ? { backendOf: this.source.backendOf } : {}),
     }, this.ping)
       .then((r) => {
-        const ep = r.config === null ? null
-          : r.model !== '' && r.model !== r.config.model ? { ...r.config, model: r.model } : r.config;
-        if (r.kind === 'local') this.cached = ep;
-        return ep;
+        if (r.kind === 'local' && r.config !== null) this.cached = r;
+        this.last = r;
+        return r;
       })
       .finally(() => { this.pending = null; });
     return this.pending;
+  }
+
+  /** First reachable endpoint (with its normalized url + own key), or null if none answers.
+   *  The model to ask rides on `config.model`: the manager's choice/default, or the local
+   *  row's own model. */
+  async resolve(): Promise<EndpointConfig | null> {
+    const r = await this.resolveSource();
+    return r.config === null ? null
+      : r.model !== '' && r.model !== r.config.model ? { ...r.config, model: r.model } : r.config;
   }
 
   /** Drops the cached endpoint so the next resolve() probes the list again. */

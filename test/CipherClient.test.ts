@@ -5,9 +5,11 @@ import type { ClockPort } from '../src/vendor/kit-obsidian/clock';
 
 /* Was der Kit-Client selbst kann (Abbruch, Fristen, Fehlerkoerper, Fallback ohne Stream) ist im
    Kit abgedeckt (MIGRATION 0.42.0, Punkt 5). Hier steht, was DIESES Plugin daraus macht: die
-   Sampling-/Suppress-Parameter, den Client je Endpunkt und die Form des Ergebnisses. */
+   Parameter unveraendert auf den Draht, den Client je Endpunkt und die Form des Ergebnisses samt
+   Antwort-Fakten fuer die Pruefung. Welche Parameter es sind, entscheidet `buildCipherParams`
+   (request-golden.test.ts). */
 
-const CFG = { endpoint: { url: 'http://localhost:1234/v1/', apiKey: '' }, model: 'test-model', suppressThinking: false };
+const CFG = { endpoint: { url: 'http://localhost:1234/v1/', apiKey: '' }, sentModel: 'test-model', params: { temperature: 0.7, max_tokens: 1024 } };
 const MSGS = [{ role: 'user' as const, content: 'q' }];
 
 /** Node's own timers — the kit's default clock uses `window`, which doesn't exist in this
@@ -46,24 +48,24 @@ describe('CipherClient.stream', () => {
     const t = fakeTransport([sse('Hel'), sse('lo'), 'data: [DONE]\n']);
     const tokens: string[] = [];
     const r = await run(clientOver(t), CFG, tokens);
-    expect(r).toEqual({ ok: true, content: 'Hello' });
+    expect(r).toMatchObject({ ok: true, content: 'Hello' });
     expect(tokens.join('')).toBe('Hello');
     expect(t.calls[0].url).toBe('http://localhost:1234/v1/chat/completions');
     expect(t.calls[0].body.model).toBe('test-model');
     expect(t.calls[0].body.stream).toBe(true);
   });
 
-  it('sends the fixed CIPHER sampling values as params', async () => {
+  it('puts the resolved params flat into the request body, unchanged', async () => {
     const t = fakeTransport(['data: [DONE]\n']);
-    await run(clientOver(t));
-    expect(t.calls[0].body).toMatchObject({ temperature: 0.7, max_tokens: 1024 });
+    await run(clientOver(t), { ...CFG, params: { temperature: 0.2, top_k: 20, reasoning_effort: 'none' } });
+    expect(t.calls[0].body).toMatchObject({ model: 'test-model', temperature: 0.2, top_k: 20, reasoning_effort: 'none' });
   });
 
   it('suppresses <think> spans and never shows reasoning', async () => {
     const t = fakeTransport([sseReasoning('deliberate'), sse('<think>secret plan</think>'), sse('visible'), 'data: [DONE]\n']);
     const tokens: string[] = [];
     const r = await run(clientOver(t), CFG, tokens);
-    expect(r).toEqual({ ok: true, content: 'visible' });
+    expect(r).toMatchObject({ ok: true, content: 'visible' });
     expect(tokens.join('')).toBe('visible');
   });
 
@@ -134,13 +136,13 @@ describe('CipherClient.stream', () => {
       },
     };
     const r = await run(clientOver(t, 80));
-    expect(r).toEqual({ ok: true, content: 'abcd' });
+    expect(r).toMatchObject({ ok: true, content: 'abcd' });
   });
 
   it('text cut off at the token limit is still delivered (valid answer)', async () => {
     const finish = 'data: {"choices":[{"delta":{},"finish_reason":"length"}]}\n';
     const r = await run(clientOver(fakeTransport([sse('cut'), finish, 'data: [DONE]\n'])));
-    expect(r).toEqual({ ok: true, content: 'cut' });
+    expect(r).toMatchObject({ ok: true, content: 'cut' });
   });
 
   it('cut off at the token limit WITHOUT text (thinking used the budget) → kind "truncated"', async () => {
@@ -161,23 +163,32 @@ describe('CipherClient.stream', () => {
   });
 });
 
-describe('CipherClient thinking suppression', () => {
-  it('sends suppress params when asked', async () => {
-    const t = fakeTransport(['data: [DONE]\n']);
-    await run(clientOver(t), { ...CFG, model: 'qwen3-8b', suppressThinking: true });
-    expect(t.calls[0].body.reasoning_effort).toBe('none');
-    expect(t.calls[0].body.chat_template_kwargs).toEqual({ enable_thinking: false });
+describe('CipherClient response facts (input of checkResponse)', () => {
+  it('a finished answer carries status 200, finish reason, content and the reasoning it never showed', async () => {
+    const finish = 'data: {"choices":[{"delta":{},"finish_reason":"stop"}]}\n';
+    const r = await run(clientOver(fakeTransport([sseReasoning('plan'), sse('hi'), finish, 'data: [DONE]\n'])));
+    expect(r).toMatchObject({ ok: true, facts: { status: 200, finishReason: 'stop', content: 'hi', reasoning: 'plan' } });
   });
 
-  it('sends no suppress params when thinking is allowed', async () => {
-    const t = fakeTransport(['data: [DONE]\n']);
-    await run(clientOver(t), { ...CFG, model: 'qwen3-8b', suppressThinking: false });
-    expect(t.calls[0].body.reasoning_effort).toBeUndefined();
+  it('an HTTP failure carries the status and the server message', async () => {
+    const r = await run(clientOver(fakeTransport(['{"error":{"message":"bad param"}}'], 400)));
+    expect(r).toMatchObject({ ok: false, kind: 'http', facts: { status: 400, errorText: expect.stringContaining('bad param') } });
   });
 
-  it('never suppresses an always-on thinker even when asked', async () => {
-    const t = fakeTransport(['data: [DONE]\n']);
-    await run(clientOver(t), { ...CFG, model: 'gpt-oss-20b', suppressThinking: true });
-    expect(t.calls[0].body.reasoning_effort).toBeUndefined();
+  it('thinking that used the whole budget (truncated, no text) is a 200 with finish reason length', async () => {
+    const finish = 'data: {"choices":[{"delta":{},"finish_reason":"length"}]}\n';
+    const r = await run(clientOver(fakeTransport([sseReasoning('long'), finish, 'data: [DONE]\n'])));
+    expect(r).toMatchObject({ ok: false, kind: 'truncated', facts: { status: 200, finishReason: 'length', content: '', reasoning: 'long' } });
+  });
+
+  it.each(['network', 'aborted'] as const)('%s has no server answer, so no facts', async (kind) => {
+    const t: SseTransport = {
+      postStream: () => {
+        const e = new Error(kind === 'aborted' ? 'Aborted' : 'ECONNREFUSED');
+        if (kind === 'aborted') e.name = 'AbortError';
+        return Promise.reject(e);
+      },
+    };
+    expect(await run(clientOver(t))).toMatchObject({ ok: false, kind, facts: null });
   });
 });

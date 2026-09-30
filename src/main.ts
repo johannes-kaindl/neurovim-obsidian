@@ -22,15 +22,20 @@ import { authoredPar } from './masteryTier';
 import { ResultModal } from './result/ResultModal';
 import { BriefingModal } from './briefing/BriefingModal';
 import { LoreModal } from './lore/LoreModal';
-import { CipherClient } from './llm/CipherClient';
+import { CipherClient, MODE as CIPHER_MODE, buildCipherParams } from './llm/CipherClient';
 import { createChatClient } from './vendor/kit-obsidian/chat-client';
 import { requestUrlTransport, xhrSseTransport } from './vendor/kit-obsidian/chat-transport';
 import { CorePortAdapter } from './llm/CorePortAdapter';
 import { EndpointResolver } from './llm/endpointResolver';
 import { findEndpointManager } from './vendor/kit-obsidian/endpoint-source';
 import { probeEndpoint } from './llm/endpointProbe';
+import { cachedProbe } from './llm/backendProbe';
+import { deviationNotice, requestDroppedNotice } from './llm/requestStrings';
+import { createRequestSession, type RequestSession } from './vendor/kit-obsidian/request-session';
+import type { RequestSectionState } from './vendor/kit-obsidian/request-section';
+import { checkResponse, thinkingFor, type RequestSettings } from './vendor/kit/sampling-profiles';
 import type { EndpointConfig } from './vendor/kit/endpoint_config';
-import { DEFAULT_SETTINGS, isLlmConfigured, mergeStoredSettings, type VimDojoSettings } from './settings';
+import { DEFAULT_SETTINGS, isLlmConfigured, loadRequestSettings, mergeStoredSettings, type VimDojoSettings } from './settings';
 import {
   buildRunTrace, TraceStore, CipherUplink, ChatSession, buildKnowledge, quickReference,
   type RunTrace, type LlmResult, type MissionContext,
@@ -78,14 +83,41 @@ export default class NeuroVimPlugin extends Plugin {
     () => this.settings.llmEndpoints,
     async (cfg) => (await probeEndpoint(cfg)).status.reachable,
     // The LLM Endpoint Manager, when installed, is the source — found fresh on every resolve.
-    { manager: () => findEndpointManager(this.app), choice: () => this.settings.choice },
+    {
+      manager: () => findEndpointManager(this.app),
+      choice: () => this.settings.choice,
+      // The manager reports its own backend; a local endpoint is probed (30 s cache per URL).
+      backendOf: (cfg) => cachedProbe(cfg.url, cfg.model ?? ''),
+    },
   );
+  /** Per-session record of what CIPHER's requests sent and which deviations the answers showed
+   *  (settings section "Request"). Not persisted. */
+  readonly requestSession: RequestSession = createRequestSession({ message: (d) => deviationNotice(d) });
 
   /** Resolves the active endpoint (manager first, else the local list) with its model on
    *  `config.model`. Fresh: the settings tab calls this after every edit or choice change. */
   async resolveEndpointFresh(): Promise<EndpointConfig | null> {
     this.endpointResolver.invalidate();
     return this.endpointResolver.resolve();
+  }
+
+  /** What the "Request" settings section shows: the family/backend/wire model of the last
+   *  resolve (null parts until the first one). */
+  requestSectionState(): RequestSectionState {
+    const s = this.endpointResolver.lastSource();
+    return {
+      family: s?.family ?? null, familySource: s?.familySource ?? 'none',
+      backend: s?.backend ?? 'unknown', backendSource: s?.backendSource ?? 'none',
+      model: s?.model ?? '', sentModel: s?.sentModel ?? '',
+      ...(s?.defaultModel !== undefined ? { defaultModel: s.defaultModel } : {}),
+    };
+  }
+
+  /** Persists edited request settings. Not `saveSettings()`: a changed override does not move
+   *  the endpoint, so the resolver cache (and its pings) stays. */
+  async saveRequestSettings(next: RequestSettings): Promise<void> {
+    this.settings.request = next;
+    await this.persist();
   }
 
   /** The CIPHER uplink is usable: with the manager installed it decides (endpoint and model
@@ -104,6 +136,13 @@ export default class NeuroVimPlugin extends Plugin {
     // drops it — the legacy field is neither read nor written after this point. See
     // src/settings.ts for why a plain spread of the raw blob would resurrect it.
     this.settings = mergeStoredSettings(blob?.__settings);
+    // Invalid saved request settings were reset to the profile — say so once instead of
+    // dropping the user's value silently.
+    const { dropped } = loadRequestSettings(blob?.__settings);
+    if (dropped.length > 0) {
+      new Notice(requestDroppedNotice(dropped.length));
+      console.warn('NeuroVim: request settings dropped', dropped);
+    }
     this.data = await loadPluginData(this.storage);
     this.missions = await this.content.listMissions();
 
@@ -432,10 +471,18 @@ export default class NeuroVimPlugin extends Plugin {
     this.cipherUplink ??= new CipherUplink(
       new CorePortAdapter(this.cipherClient, this.endpointResolver, {
         configured: () => this.llmConfigured(),
-        forEndpoint: (ep) => ({
-          model: ep.model?.trim() ?? '',
-          suppressThinking: this.settings.llmSuppressThinking,
-        }),
+        forSource: (src) => {
+          const family = src.family;
+          const thinking = thinkingFor(this.settings.request, CIPHER_MODE);
+          const overrides = this.settings.request.overrides[CIPHER_MODE]?.[family ?? 'unknown'] ?? {};
+          const { params } = buildCipherParams({ family, backend: src.backend, thinking, overrides });
+          this.requestSession.recordRequest(params);
+          return {
+            sentModel: src.sentModel,
+            params,
+            report: (facts) => this.requestSession.report(checkResponse({ family, thinking }, facts)),
+          };
+        },
       }),
       buildKnowledge(quickReference(ENTRIES)),
       () => this.repaint(),
