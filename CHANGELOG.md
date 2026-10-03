@@ -5,6 +5,8 @@ All notable changes to this project are documented here. Format loosely follows
 
 ## [Unreleased]
 
+## [0.11.1] — 2026-10-03
+
 ### Changed
 
 - The README now shows screenshots of the CIPHER uplink and of the settings.
