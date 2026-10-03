@@ -17,8 +17,8 @@ Erzeugt von `npm run shots`, geprüft von `npm run shots:check`
 | `reader.png` | feature | README, README.de | Ein geöffnetes Artefakt im Reader: gerendertes Markdown, der ASCII-Kopf als **geschlossener Rahmen**. Der Reader muss denselben Grund tragen wie der Hub dahinter — ein Bild, auf dem er dem Theme statt dem CRT-Schema folgt, ist als Beleg wertlos. |
 | `briefing.png` | feature | README, README.de | Das Briefing-Modal vor dem Missionsstart: CIPHERs Ansprache **vollständig lesbar**, der Knopf `▶ BEGIN MISSION` sichtbar. Aufgenommen an **M-01**, nicht an M-05: dessen Briefing trägt einen langen Log-Auszug, der das Modal über die Fensterhöhe schiebt (2026-08-16 gemessen). Dass der DIRECTIVE-Block unten angeschnitten ist, ist in Ordnung — das Modal scrollt, und der Charakter des Spiels steckt in der CIPHER-Passage. |
 | `guide.png` | feature | README, README.de | Der GUIDE-Tab mit **aktiver Suche**: ein Suchbegriff im Feld und die gefilterte Trefferliste. Ein ungefiltertes Cheatsheet zeigt nicht, dass es durchsuchbar ist. |
-| `settings.png` | feature | README, README.de | Der Einstellungen-Tab, so weit er ohne Scrollen lesbar ist: Missionsordner, HUD-Platzierung, Farbschema. **Offene Lücke (2026-08-16):** ab Obsidian 1.13 sind die Einstellungen ein **eigenes Fenster ohne Workspace**; der Treiber ist mit dem Workspace-Fenster verbunden und findet den Tab dort nicht. Lösung wäre eine zweite CDP-Verbindung (`attachTo("settings", …)`, in der Brücke vorhanden) — nicht gebaut, weil kein anderes Bild sie braucht. `shots:check` meldet die Lücke bei jedem Lauf. |
-| `uplink.png` | feature | README, README.de | Der UPLINK-Tab mit einem CIPHER-Wortwechsel — Frage des Spielers, Antwort in der Rolle. **Vorbehalt:** braucht einen erreichbaren OpenAI-kompatiblen Endpunkt. Ist keiner verfügbar, bleibt diese Zeile stehen und `shots:check` meldet das Bild bei jedem Lauf als fehlend — eine sichtbare Lücke ist besser als eine stillschweigend gestrichene Zusage. |
+| `settings.png` | feature | README, README.de | Der Einstellungen-Tab ab dem Abschnitt **Appearance**: HUD-Platzierung, CRT-Farbschema, darunter der Abschnitt CIPHER uplink mit einem aktiven Endpunkt samt Modell. Der Tab ist länger als jeder Bildschirm (949 px gemessen), deshalb zeigt das Bild nicht auch den Missionsordner. Ab Obsidian 1.13 sind die Einstellungen ein **eigenes Fenster ohne Workspace** (in der Zweitinstanz ein Pop-out); der Treiber verbindet sich dafür ein zweites Mal (`attachTo("settings", …)`). |
+| `uplink.png` | feature | README, README.de | Der UPLINK-Tab mit einem CIPHER-Wortwechsel — Frage des Spielers, Antwort in der Rolle. Der Treiber startet dafür einen **Fake-Endpunkt** (`node:http`, Port 8766, feste generische Antwort): die Oberfläche ist echt, nur die Worte sind festgelegt. |
 
 ## Anzeigebreite: nie über die aufgenommene Größe
 
@@ -110,11 +110,4 @@ früherer Lauf soll nicht in die nächsten Bilder durchschlagen.
 
 ## Offene Lücken
 
-`shots:check` meldet `settings.png` und `uplink.png` bei jedem Lauf als fehlend. Das ist
-Absicht: beide sind im Vertrag zugesagt und technisch machbar, nur nicht gebaut. Eine
-gemeldete Lücke bleibt sichtbar, eine gestrichene Zeile nicht.
-
-- **`settings.png`** — braucht eine zweite CDP-Verbindung zum Einstellungsfenster.
-- **`uplink.png`** — braucht einen erreichbaren OpenAI-kompatiblen Endpunkt. Der Weg ist
-  bekannt (`koda-agent` bringt im Treiber einen eigenen `node:http`-Server auf Port 0 mit,
-  statt von einem laufenden LLM-Server abzuhängen), aber ungebaut.
+Keine. `settings.png` und `uplink.png` sind seit 2026-10-03 aufgenommen (zweite CDP-Verbindung bzw. Fake-Endpunkt im Treiber); `shots:check` meldet nichts mehr als fehlend.

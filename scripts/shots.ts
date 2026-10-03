@@ -37,6 +37,8 @@
  */
 
 import { existsSync, mkdirSync, rmSync } from "node:fs";
+import { createServer, type Server } from "node:http";
+import type { AddressInfo } from "node:net";
 import { join } from "node:path";
 
 import { Cdp, attachTo, closeExtraLeaves, pollUntil } from "../../tools/obsidian-cdp/cdp.js";
@@ -65,9 +67,85 @@ const SHOWCASE_STATE = {
   unlocked: ["M-01", "M-02", "M-03", "M-04", "KATA-01", "M-05", "LOOT-01"],
 };
 
+const FAKE_MODEL = "qwen3-8b";
+const CIPHER_QUESTION = "What does the w motion do?";
+const CIPHER_ANSWER = "Easy: w jumps you to the start of the next word. Prefix a count, like 3w, to hop three words at once. Try it on the intercept: fewer keystrokes, cleaner trace.";
+
+const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
+
+interface FakeEndpoint { url: string; close: () => Promise<void> }
+
+/** Fake LLM endpoint: no model runs, the answer is fixed and generic. The UI is real, only the
+ *  words are canned. Port 8766 (not 1234 — a regular LM Studio instance may hold that one);
+ *  if it is taken, any free port. */
+async function startFakeEndpoint(): Promise<FakeEndpoint> {
+  const server: Server = createServer((req, res) => {
+    res.setHeader("Access-Control-Allow-Origin", "*");
+    res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+    res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
+    if (req.method === "OPTIONS") { res.writeHead(204); res.end(); return; }
+    if (req.url?.includes("/v1/models") === true) {
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ data: [{ id: FAKE_MODEL, object: "model" }] }));
+      return;
+    }
+    if (req.method === "POST" && req.url?.includes("/v1/chat/completions") === true) {
+      req.on("data", () => undefined);
+      req.on("end", () => {
+        res.writeHead(200, { "Content-Type": "text/event-stream" });
+        const half = Math.floor(CIPHER_ANSWER.length / 2);
+        for (const part of [CIPHER_ANSWER.slice(0, half), CIPHER_ANSWER.slice(half)]) {
+          res.write(`data: ${JSON.stringify({ choices: [{ delta: { content: part }, finish_reason: null }], model: FAKE_MODEL })}\n\n`);
+        }
+        res.write(`data: ${JSON.stringify({ choices: [{ delta: {}, finish_reason: "stop" }], model: FAKE_MODEL })}\n\n`);
+        res.write("data: [DONE]\n\n");
+        res.end();
+      });
+      return;
+    }
+    res.writeHead(404);
+    res.end();
+  });
+  await new Promise<void>((resolve) => {
+    server.once("error", () => { server.listen(0, "127.0.0.1", resolve); });
+    server.listen(8766, "127.0.0.1", resolve);
+  });
+  const port = (server.address() as AddressInfo).port;
+  return { url: `http://127.0.0.1:${port}`, close: () => new Promise<void>((resolve) => { server.close(() => { resolve(); }); server.closeAllConnections(); }) };
+}
+
+/** Point the plugin at the fake endpoint (local list; no endpoint manager in the recording vault). */
+async function useFakeEndpoint(cdp: Cdp, fake: FakeEndpoint): Promise<void> {
+  await cdp.evaluate(`
+    const p = app.plugins.plugins[${JSON.stringify(PLUGIN_ID)}];
+    p.settings.llmEndpoints = [{ url: ${JSON.stringify(fake.url)}, model: ${JSON.stringify(FAKE_MODEL)} }];
+    await p.saveSettings();
+    await new Promise((r) => setTimeout(r, 500));
+    return true;
+  `);
+}
+
 function arg(name: string, fallback?: string): string | undefined {
   const i = process.argv.indexOf(`--${name}`);
   return i >= 0 && process.argv[i + 1] ? process.argv[i + 1] : fallback;
+}
+
+/** Fresh second-instance profile: confirm the "trust author" dialog, lift Restricted Mode, enable the
+ *  plugin, English UI. No-op in an already prepared instance. */
+async function prepareInstance(cdp: Cdp): Promise<void> {
+  await pollUntil<{ ok: boolean }>(cdp, `
+    const btn = Array.from(document.querySelectorAll(".modal-container button")).find((b) => /trust|vertrau/i.test(b.textContent || ""));
+    if (btn) { btn.click(); return { ok: true }; }
+    return document.querySelector(".workspace") && app.plugins && app.plugins.manifests && app.plugins.manifests[${JSON.stringify(PLUGIN_ID)}] && !document.querySelector(".modal-container") ? { ok: false } : null;
+  `, 20_000, 500);
+  await sleep(800);
+  await cdp.evaluate(`
+    try { localStorage.setItem("language", "en"); } catch (e) {}
+    if (app.plugins.setEnable) await app.plugins.setEnable(true);
+    if (!app.plugins.plugins[${JSON.stringify(PLUGIN_ID)}]) await app.plugins.enablePluginAndSave(${JSON.stringify(PLUGIN_ID)});
+    await new Promise((r) => setTimeout(r, 1500));
+    return true;
+  `);
 }
 
 class PreconditionError extends Error {}
@@ -121,7 +199,7 @@ async function selectTab(cdp: Cdp, label: string): Promise<void> {
 
 // --- Die einzelnen Bilder ----------------------------------------------------
 
-type Shot = { name: string; run: (cdp: Cdp) => Promise<Buffer | null> };
+type Shot = { name: string; run: (cdp: Cdp, ctx: { port: number; vault: string; fake: FakeEndpoint }) => Promise<Buffer | null> };
 
 /**
  * Box eines Elements, **auf das Fenster beschnitten**.
@@ -241,20 +319,68 @@ const SHOTS: Shot[] = [
   },
   {
     name: "settings.png",
-    run: async (cdp) => {
+    run: async (cdp, { port, vault, fake }) => {
       await endMission(cdp);
-      const opened = await cdp.evaluate<boolean>(`
+      await useFakeEndpoint(cdp, fake);
+      await cdp.evaluate(`
+        app.setting.close();
+        await new Promise((r) => setTimeout(r, 500));
         app.setting.open();
         await new Promise((r) => setTimeout(r, 600));
         app.setting.openTabById(${JSON.stringify(PLUGIN_ID)});
         await new Promise((r) => setTimeout(r, 900));
-        return Boolean(document.querySelector('.vertical-tab-content'));
+        return true;
       `);
-      if (!opened) return null;
-      const box = await visibleBox(cdp, ".modal.mod-settings", 0);
-      const png = await capture(cdp, box ?? undefined);
-      await cdp.evaluate("app.setting.close(); await new Promise(r=>setTimeout(r,400)); return true;");
-      return png;
+      // From Obsidian 1.13 the settings are their own window without a workspace (a pop-out in a
+      // second instance): the bridge needs a second CDP connection. Inline modal as fallback.
+      const asModal = await cdp.evaluate<boolean>("return Boolean(document.querySelector('.modal.mod-settings'));");
+      const win = asModal ? cdp : await attachTo("settings", port, vault);
+      if (!win) return null;
+      try {
+        if (!asModal) {
+          await win.send("Page.bringToFront");
+          await setWindowSize(win, 1000, 1300);
+          await sleep(800);
+        }
+        // The tab is taller than any screen: start at the "Record run traces" card (then Appearance: HUD placement,
+        // colour scheme) so the CIPHER uplink section with its endpoint list follows below.
+        await win.evaluate(`
+          const h = [...document.querySelectorAll('.setting-item-name')].find((e) => /^\\s*Record run traces\\s*$/.test(e.textContent || ''));
+          if (h) { const row = h.closest('.setting-item'); (row || h).scrollIntoView({ block: 'start' }); const c = document.querySelector('.vertical-tab-content'); if (c) c.scrollTop += 16; }
+          await new Promise((r) => setTimeout(r, 500));
+          return true;
+        `);
+        const box = await visibleBox(win, asModal ? ".modal.mod-settings" : ".vertical-tab-content", 0);
+        return await capture(win, box ?? undefined);
+      } finally {
+        if (asModal) await cdp.evaluate("app.setting.close(); return true;").catch(() => undefined);
+        else { await win.evaluate("window.close(); return true;").catch(() => undefined); win.close(); }
+      }
+    },
+  },
+  {
+    name: "uplink.png",
+    run: async (cdp, { fake }) => {
+      await endMission(cdp);
+      await useFakeEndpoint(cdp, fake);
+      await openHub(cdp);
+      // UPLINK only exists with a configured endpoint; the tab bar repaints on the next tick.
+      const tab = await pollUntil<boolean>(cdp,
+        "return [...document.querySelectorAll('.nv-tabs .nv-tab')].some((b) => b.textContent.trim() === 'UPLINK') || null;", 10_000, 500);
+      if (!tab) return null;
+      await selectTab(cdp, "UPLINK");
+      await cdp.evaluate(`
+        const input = document.querySelector('.nv-uplink-input');
+        input.value = ${JSON.stringify(CIPHER_QUESTION)};
+        document.querySelector('.nv-uplink .nv-btn-submit').click();
+        return true;
+      `);
+      const answered = await pollUntil<boolean>(cdp,
+        "return document.querySelectorAll('.nv-uplink-assistant').length > 0 && !document.querySelector('.nv-uplink-cursor') ? true : null;", 20_000, 500);
+      if (!answered) return null;
+      await sleep(600);
+      const box = await visibleBox(cdp, ".nv-root", 8);
+      return capture(cdp, box ?? undefined);
     },
   },
   {
@@ -316,7 +442,9 @@ async function main(): Promise<void> {
     return;
   }
 
+  let fake: FakeEndpoint | null = null;
   try {
+    await prepareInstance(cdp);
     const loaded = await cdp.evaluate<boolean>(
       `return Boolean(app.plugins.plugins[${JSON.stringify(PLUGIN_ID)}]);`,
     );
@@ -327,12 +455,14 @@ async function main(): Promise<void> {
     await applyShowcaseState(cdp);
     mkdirSync(OUT_DIR, { recursive: true });
 
+    fake = await startFakeEndpoint();
+    console.log(`Fake endpoint: ${fake.url} (canned answer, no model)`);
     const todo = only ? SHOTS.filter((s) => s.name.startsWith(only)) : SHOTS;
     if (todo.length === 0) throw new PreconditionError(`Kein Bild passt auf --only ${only}`);
 
     for (const shot of todo) {
       try {
-        const png = await shot.run(cdp);
+        const png = await shot.run(cdp, { port, vault: vault ?? "neurovim-obsidian", fake: fake as FakeEndpoint });
         if (!png) {
           console.log(`⚠️  ${shot.name} — Zustand ließ sich nicht herstellen, übersprungen`);
           continue;
@@ -356,6 +486,7 @@ async function main(): Promise<void> {
     }
     throw err;
   } finally {
+    if (fake) await fake.close();
     cdp.close();
   }
 }

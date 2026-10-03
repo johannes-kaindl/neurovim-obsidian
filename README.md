@@ -132,6 +132,8 @@ If the **LLM Endpoint Manager** plugin is installed, the endpoints (and their ke
 - **Request** — what CIPHER sends with each question: sampling values (temperature, top_p, top_k, …) and the thinking level. The defaults come from a profile table per model family (Qwen, Gemma, gpt-oss) and backend, so a model gets the settings its vendor recommends instead of one fixed set for all. The section (collapsed by default) shows what is sent and what has an effect, lets you override a value per model family, and lists the last request and any deviations seen this session. Thinking is off by default, which is the faster path: CIPHER answers straight away instead of deliberating; set a level to let the model reason first. gpt-oss cannot be switched off entirely, so its lowest level is sent. The row "Level picker in chat" has no effect in this plugin (there is no chat button to show it on).
 - **API key** — optional, for endpoints that require one.
 
+<img src="https://raw.githubusercontent.com/johannes-kaindl/neurovim-obsidian/main/docs/images/settings.png" width="820" alt="The NeuroVim settings: the Appearance section with HUD placement and the CRT colour scheme, followed by the CIPHER uplink section with an active endpoint and its model">
+
 <img src="https://raw.githubusercontent.com/johannes-kaindl/neurovim-obsidian/main/docs/images/archive.png" width="412" alt="The ARCHIVE tab: a recovered loot artifact next to locked ones, each showing the level needed to unlock it">
 
 <img src="https://raw.githubusercontent.com/johannes-kaindl/neurovim-obsidian/main/docs/images/reader.png" width="584" alt="A lore artifact open in the reader, rendered as markdown in the CRT colour scheme">
@@ -158,6 +160,8 @@ Ask CIPHER for Vim advice — in character, powered by any OpenAI-compatible end
 Settings → NeuroVim → CIPHER uplink; leave the endpoint list empty and the feature stays
 fully off. During a mission, the HUD gains a CIPHER button that opens the uplink with the
 mission's context attached.
+
+<img src="https://raw.githubusercontent.com/johannes-kaindl/neurovim-obsidian/main/docs/images/uplink.png" width="412" alt="The UPLINK tab: a question from the player and CIPHER's answer in character">
 
 Privacy: your questions plus the active mission's metadata (title, category, goal)
 are sent to the endpoint you configure — never any other vault content.
