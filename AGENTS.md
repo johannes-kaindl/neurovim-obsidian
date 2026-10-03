@@ -54,7 +54,6 @@ src/                    — plugin source (flat, no deep nesting)
   content/              — Content port adapter
   vendor/neurovim/      — Vendored from neurovim-standalone (core + content)
 test/                   — Vitest tests + obsidian-mock
-docs/superpowers/       — Frozen legacy specs + plans (historical — nothing new goes here, see Memory)
 scripts/                — vendor-neurovim.mjs (release tooling is central, see Commands)
 ```
 
@@ -150,7 +149,7 @@ vim-dojo **never** touches files outside the configured mission folder. Critical
   maintainer's coding cockpit (`$VAULT/25_Coding/vim-dojo/_SDD/`, CORE-META-14, maintainer-local).
   They carry working context (vault paths, sister-repo internals) that is of no use to anyone in a
   public repo. The repo keeps the design essence in this file + `CHANGELOG.md`.
-- **Legacy:** `docs/superpowers/{specs,plans}/` is frozen — do not add anything new there.
+- **Legacy:** Specs and plans live in the maintainer's Vault cockpit under `_SDD/` (CORE-META-14); `docs/superpowers/` no longer exists in the repo — do not add anything new there.
 - **Never in the repo:** absolute paths outside the repo (`/Users/…`, vault paths) — use placeholders
   (`$VAULT/…`, `~/…`, repo-relative). Provenance as repo name + `file:line` is welcome.
   Gate: `scripts/check-no-abs-paths.mjs` (part of `npm test`).

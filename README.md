@@ -200,7 +200,7 @@ single source of truth for game logic and content.
 
 `npm run lint` runs `eslint-plugin-obsidianmd` — the same rule set the community store
 scans with — at `--max-warnings 0`. Manual smoke test:
-[`docs/SMOKE-TEST.md`](https://github.com/johannes-kaindl/neurovim-obsidian/blob/main/docs/SMOKE-TEST.md).
+[`docs/SMOKE.md`](https://github.com/johannes-kaindl/neurovim-obsidian/blob/main/docs/SMOKE.md#manual-smoke-test-3-min).
 
 Before opening a pull request, please read
 [`CONTRIBUTING.md`](https://github.com/johannes-kaindl/neurovim-obsidian/blob/main/CONTRIBUTING.md) —

@@ -15,4 +15,4 @@ The [README](https://github.com/johannes-kaindl/neurovim-obsidian/blob/main/READ
 
 ---
 
-`SMOKE.md`, `SMOKE-TEST.md`, `superpowers/` and `images/` hold maintainer material and are not user documentation.
+`SMOKE.md` and `images/` hold maintainer material and are not user documentation.

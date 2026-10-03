@@ -207,7 +207,7 @@ einzige Quelle der Wahrheit für Spiellogik und Inhalte.
 
 `npm run lint` führt `eslint-plugin-obsidianmd` aus — dasselbe Regelwerk, mit dem der
 Community-Store prüft — bei `--max-warnings 0`. Manueller Smoke-Test:
-[`docs/SMOKE-TEST.md`](https://github.com/johannes-kaindl/neurovim-obsidian/blob/main/docs/SMOKE-TEST.md).
+[`docs/SMOKE.md`](https://github.com/johannes-kaindl/neurovim-obsidian/blob/main/docs/SMOKE.md#manual-smoke-test-3-min).
 
 Vor einem Pull Request bitte
 [`CONTRIBUTING.md`](https://github.com/johannes-kaindl/neurovim-obsidian/blob/main/CONTRIBUTING.md)
