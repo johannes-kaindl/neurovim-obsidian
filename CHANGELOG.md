@@ -5,6 +5,12 @@ All notable changes to this project are documented here. Format loosely follows
 
 ## [Unreleased]
 
+### Changed
+
+- The README now shows screenshots of the CIPHER uplink and of the settings.
+- The manual smoke checklist is merged into `docs/SMOKE.md`; README links point there.
+- Internal design notes moved out of the repository; the user documentation is unchanged.
+
 ## [0.11.0] — 2026-09-30
 
 ### Added
