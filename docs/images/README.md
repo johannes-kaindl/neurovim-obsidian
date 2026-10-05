@@ -19,6 +19,20 @@ Erzeugt von `npm run shots`, geprüft von `npm run shots:check`
 | `guide.png` | feature | README, README.de | Der GUIDE-Tab mit **aktiver Suche**: ein Suchbegriff im Feld und die gefilterte Trefferliste. Ein ungefiltertes Cheatsheet zeigt nicht, dass es durchsuchbar ist. |
 | `settings.png` | feature | README, README.de | Der Einstellungen-Tab ab dem Abschnitt **Appearance**: HUD-Platzierung, CRT-Farbschema, darunter der Abschnitt CIPHER uplink mit einem aktiven Endpunkt samt Modell. Der Tab ist länger als jeder Bildschirm (949 px gemessen), deshalb zeigt das Bild nicht auch den Missionsordner. Ab Obsidian 1.13 sind die Einstellungen ein **eigenes Fenster ohne Workspace** (in der Zweitinstanz ein Pop-out); der Treiber verbindet sich dafür ein zweites Mal (`attachTo("settings", …)`). |
 | `uplink.png` | feature | README, README.de | Der UPLINK-Tab mit einem CIPHER-Wortwechsel — Frage des Spielers, Antwort in der Rolle. Der Treiber startet dafür einen **Fake-Endpunkt** (`node:http`, Port 8766, feste generische Antwort): die Oberfläche ist echt, nur die Worte sind festgelegt. |
+| `hero-demo.gif` | hero-video | README, README.de | Die Hero-Sequenz an Mission M-08 als Bewegtbild: Zuschnitt Editor plus HUD-Box, Theme Birds of Yore, HUD-Schema `crt`, Schrift 20 px. Beginnt im Einfügemodus am Anfang der Zeile `Once upon a ██████████ dreary, …` (Pre-Roll `i` vor der Aufnahme), dann `ESC` · `3w` · `ciw` · `midnight` · `ESC`; am Ende liest die Zeile `Once upon a midnight dreary, …`, der Zeilenfortschritt im HUD tickt von 32/45 auf 33/45. 20 fps (der GIF-Takt ist 10 ms, 24 würde zu 25), 800 px, Palette je Datei; `hero-demo.mp4` daneben mit demselben Inhalt (D13). Quelle ist `out/sequenz/m08-hero/` (Einzelbilder, `eingaben.jsonl`, `sequenz.json`), nicht im Repo. |
+
+## Sequenzen
+
+Eine Sequenz ist eine Bedienung in **einem** Start: Eingaben in festem Takt, je Anschlag ein Bild, dazu das Eingabe-Log im Vertrag von media-kit (`tools/obsidian-cdp/README.md` § Sequenz). Rezept: `scripts/sequenz.ts` (`npm run sequenz`). Die Einzelbilder liegen **nie** unter `docs/images/` (der Check `shots-contract-sync` verlangt dort je `.png` eine Vertragszeile), sondern unter `out/sequenz/<name>/` (gitignored, Übergabe an Kompositionen); nur GIF und MP4 der Hero-Sequenz wandern nach `docs/images/`.
+
+Zustand für beide Sequenzen: Zweitinstanz mit Theme Birds of Yore (aus `fixture/make-theme.mjs`, Tag `birds-of-yore-0.3.0`) und `baseFontSize` 20, Spielstand 140 XP mit M-01 bis M-07 erledigt und M-08 frei (Level 2 ab 66 XP), HUD-Schema `crt`, HUD-Platzierung `box`, Fenster 1280×860, Zuschnitt `.cm-editor` plus `.nv-float-hud-container` bei Dichte 2. Das Log (`eingaben.jsonl`) hält die echten Zeitpunkte; `geraeusch taste` bekommt `--anschlag` aus `sequenz.json` → `anschlag.gemessen`. Jede Sequenz ist nur grün, wenn der Editortext am Ende dem Soll entspricht.
+
+| Name | Schritte | Übergabe | muss zeigen |
+|---|---|---|---|
+| `m08-hero` | `ESC` · `3w` · `ciw` · `midnight` · `ESC` | `out/sequenz/m08-hero/` (16 Bilder, 5 Logzeilen, ≈ 7 s) | Die Reparatur eines Wortes mit echten Vim-Tasten, HUD zählt Tasten und Zeilen; Quelle für `hero-demo.gif`/`.mp4` und den Reparatur-Beat des Trailers. |
+| `m08-voll` | wie `m08-hero`, dann alle weiteren Korruptionen des NEVERMORE-Profils (`c3w`, `ciw`, `S`, `8s`, `dd`), zuletzt `SUBMIT` über den Plugin-Befehl | `out/sequenz/m08-voll/` (222 Bilder, 50 Logzeilen, ≈ 59 s) | Alle neun Korruptionen repariert (zwei █-Läufe, vier REDACTED, SURVEILLANCE/MONITORING, EVERMORE, die entfernte Zeile, zwei Compliance-Banner), danach das Result-Modal „MISSION COMPLETE +35 XP“. Für den Trailer, nicht in der README. |
+
+Zwei gemessene Fallen (2026-10-05): `SUBMIT` liest die Notiz von der Platte, Obsidian speichert erst nach rund 2 s Ruhe, deshalb ruft das Rezept vor dem Befehl `view.save()`; und M-08 hatte im Content bis zu diesem Tag keine Lösung, das Plugin konnte die Mission nicht starten (behoben im Monorepo, `solutions/M-08-SOLUTION-Corrupted_Transmission.md`).
 
 ## Anzeigebreite: nie über die aufgenommene Größe
 
@@ -73,6 +87,26 @@ Bild zeigt die Progression nicht.
 
 ## Reproduktion
 
+### Sequenz (Zweitinstanz, eigener Port, Lock je Port)
+
+```bash
+npm run sequenz -- --setup                      # Vault aus fixture/ bauen, Theme und Schrift 20 px setzen
+UD=/tmp/obs-test-neurovim-obsidian; pgrep -f "user-data-dir=$UD" && echo "Profil belegt"; mkdir -p "$UD"
+cp ~/Library/Application\ Support/obsidian/obsidian-<version>.asar "$UD"/      # sonst startet die gebündelte Version
+# $UD/obsidian.json mit {"vaults":{"nvseq":{"path":"$STAGING_VAULTS_DIR/neurovim-obsidian","ts":<ms>,"open":true}}}
+python3 ~/.claude/hooks/obsidian-cdp-lock.py acquire --label neurovim-obsidian --intent "Sequenz M-08" --ttl 900 --exclusive focus --port 9360
+/Applications/Obsidian.app/Contents/MacOS/Obsidian --user-data-dir="$UD" --remote-debugging-port=9360 &
+npm run sequenz -- --vault neurovim-obsidian --port 9360 --sequenz m08-hero      # schreibt hero-demo.gif/.mp4
+npm run sequenz -- --port 9360 --beenden        # eigene Instanz beenden; je Aufnahme ein frischer Prozess
+npm run sequenz -- --vault neurovim-obsidian --port 9360 --sequenz m08-voll --ohne-video
+npm run sequenz -- --sequenz m08-hero --nur-video   # GIF/MP4 neu aus out/sequenz/m08-hero, ohne Obsidian
+python3 ~/.claude/hooks/obsidian-cdp-lock.py release
+```
+
+Vor dem ersten Lauf bestätigt `prepareInstance` den Vertrauensdialog des frischen Profils und hebt den eingeschränkten Modus auf. Ein Messlauf: `--modus schritt|screencast --out out/messung-<x> --ohne-video`; die Messzeile steht nach `✅` in der Ausgabe und in `sequenz.json` → `messung`.
+
+### Bilder (reguläre Instanz oder Zweitinstanz)
+
 ⚠️ **Vor dem Quit koordinieren — Obsidian ist geteilte Infrastruktur.** Dieses Rezept
 braucht den frischen Start (ein Bild pro Start, jeder Lauf hinterlässt Zustand); Mitnutzen ist
 hier keine Alternative. Aber Obsidian ist Single-Instance: der Quit trifft die Instanz, an der
@@ -110,4 +144,4 @@ früherer Lauf soll nicht in die nächsten Bilder durchschlagen.
 
 ## Offene Lücken
 
-Keine. `settings.png` und `uplink.png` sind seit 2026-10-03 aufgenommen (zweite CDP-Verbindung bzw. Fake-Endpunkt im Treiber); `shots:check` meldet nichts mehr als fehlend.
+Keine für Bilder (`settings.png` und `uplink.png` seit 2026-10-03, `hero-demo.gif` seit 2026-10-05). Die Sequenz `m08-voll` ist Übergabe, kein README-Bild; ihr Trailer-Einsatz hängt an Johannes' Storyboard (`clipwerk/projects/neurovim-trailer`).

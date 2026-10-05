@@ -11,6 +11,7 @@
  * # Zweitinstanz starten (Profil, .asar, obsidian.json, Lock) — siehe docs/images/README.md § Reproduktion
  * npm run sequenz -- --vault neurovim-obsidian --port 9360 --sequenz m08-hero
  * npm run sequenz -- --vault neurovim-obsidian --port 9360 --sequenz m08-voll --ohne-video
+ * npm run sequenz -- --sequenz m08-hero --nur-video   # GIF/MP4 neu aus out/sequenz/m08-hero, ohne Obsidian
  * npm run sequenz -- --port 9360 --beenden        # eigene Zweitinstanz beenden
  * ```
  *
@@ -22,7 +23,7 @@ import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
-import { Cdp, attachTo, closeExtraLeaves, pollUntil } from "../../tools/obsidian-cdp/cdp.js";
+import { Cdp, attachTo, clearNotices, closeExtraLeaves, notices, pollUntil } from "../../tools/obsidian-cdp/cdp.js";
 import { boxAround, setWindowSize } from "../../tools/obsidian-cdp/shot.js";
 import { buildVault, stagingVaultDir } from "../../tools/obsidian-cdp/vault.js";
 import { konkatListe, sequenzZuGif, sequenzZuMp4, type Schritt } from "../../tools/obsidian-cdp/sequenz.js";
@@ -34,8 +35,9 @@ const FIXTURE_DIR = join(REPO_ROOT, "docs/images/fixture");
 const IMAGES_DIR = join(REPO_ROOT, "docs/images");
 const THEME_NAME = "Birds of Yore";
 const BASE_FONT_SIZE = 20;
-/** Aus readme-spec.json images.hero_video — gespiegelt, nicht erfunden. */
-const VIDEO = { fps: 24, width: 800, gifKb: 2048 };
+/** Aus readme-spec.json images.hero_video (20 bis 24 fps, 800 px, 2048 KB) — gespiegelt, nicht erfunden.
+ *  20 statt 24: der GIF-Takt ist 10 ms, 24 fps wuerde ffmpeg still auf 25 runden (gemessen 2026-10-05). */
+const VIDEO = { fps: 20, width: 800, gifKb: 2048 };
 const ANSCHLAG = 0.1;
 const VORHALT = 0.8;
 /** Standardmodus — wird in Plan C, Task 4 nach der Messung gesetzt. */
@@ -52,8 +54,16 @@ const ZEILE_HERO_VORHER = "Once upon a ██████████ dreary, wh
 const ZEILE_HERO_NACHHER = "Once upon a midnight dreary, while I pondered, weak and weary,";
 const ZEILE_ZWEI_NACHHER = "Eagerly I wished the morrow;—vainly I had sought to borrow";
 
+/** SUBMIT liest die Notiz von der Platte (MissionSession.submit → readNote); Obsidian speichert erst nach
+ *  ~2 s Ruhe. Deshalb vorher `view.save()`, sonst meldet der Submit „n lines differ“ gegen den alten Stand
+ *  (gemessen 2026-10-05: exakte Lösung im Editor, 15 Zeilen Differenz; nach save() das Result-Modal). */
 const submit = async (k: { evaluate: <T>(a: string) => Promise<T> }): Promise<void> => {
-  await k.evaluate(`app.commands.executeCommandById(${JSON.stringify(`${PLUGIN_ID}:submit`)}); return true;`);
+  await k.evaluate(`
+    await app.workspace.activeLeaf.view.save?.();
+    await new Promise((r) => setTimeout(r, 300));
+    app.commands.executeCommandById(${JSON.stringify(`${PLUGIN_ID}:submit`)});
+    return true;
+  `);
 };
 
 const HERO: Schritt[] = [
@@ -64,16 +74,31 @@ const HERO: Schritt[] = [
   { key: "ESC", kind: "key", target: "editor", halt: 1.2 },
 ];
 
-/** Voller Durchlauf: beide Korruptionen, dann SUBMIT ueber den Plugin-Befehl (kein Tastaturereignis). */
+/**
+ * Voller Durchlauf: alle neun Korruptionen des NEVERMORE-Profils (gemessen an der Transmission,
+ * 2026-10-05: zwei █-Laeufe, vier REDACTED, SURVEILLANCE/MONITORING, EVERMORE, eine entfernte Zeile,
+ * zwei Compliance-Banner), dann SUBMIT ueber den Plugin-Befehl (kein Tastaturereignis).
+ * Die Wortgrenzen (`W`, `ciw`) sind an CodeMirrors Vim gemessen, nicht angenommen.
+ */
+const T = (key: string, halt: number): Schritt => ({ key, kind: "text", target: "editor", halt });
+const K = (key: string, halt: number): Schritt => ({ key, kind: "key", target: "editor", halt });
 const VOLL: Schritt[] = [
-  ...HERO.slice(0, 4),
-  { key: "ESC", kind: "key", target: "editor", halt: 0.6 },
-  { key: "9j", kind: "text", target: "editor", halt: 0.5 },
-  { key: "0", kind: "key", target: "editor", halt: 0.3 },
-  { key: "4W", kind: "text", target: "editor", halt: 0.6 },
-  { key: "8s", kind: "text", target: "editor", halt: 0.5 },
-  { key: "morrow", kind: "text", target: "editor", halt: 0.4 },
-  { key: "ESC", kind: "key", target: "editor", halt: 0.8 },
+  ...HERO.slice(0, 4), K("ESC", 0.5),
+  // Zeile 26: REDACTED REDACTED REDACTED volume of REDACTED lore—
+  T("j0", 0.3), T("c3w", 0.3), T("Over many a quaint and curious", 0.3), K("ESC", 0.3), T("3W", 0.3), T("ciw", 0.3), T("forgotten", 0.3), K("ESC", 0.5),
+  // Zeile 29: SURVEILLANCE -> visitor, MONITORING -> tapping
+  T("3j0", 0.3), T("2W", 0.3), T("ciw", 0.3), T("visitor", 0.3), K("ESC", 0.3), T("3Wl", 0.3), T("ciw", 0.3), T("tapping", 0.3), K("ESC", 0.5),
+  // Zeile 32: [LINE REMOVED …] -> Originalzeile
+  T("3j", 0.3), K("S", 0.3), T("Ah, distinctly I remember it was in the bleak December;", 0.3), K("ESC", 0.5),
+  // Zeile 34: ████████ -> morrow
+  T("2j0", 0.3), T("4W", 0.3), T("8s", 0.3), T("morrow", 0.3), K("ESC", 0.5),
+  // Zeilen 35, 36: REDACTED -> Lenore
+  T("j^", 0.3), T("9W", 0.3), T("ciw", 0.3), T("Lenore", 0.3), K("ESC", 0.4),
+  T("j0", 0.3), T("10W", 0.3), T("ciw", 0.3), T("Lenore", 0.3), K("ESC", 0.4),
+  // Zeile 37: EVERMORE -> evermore
+  T("j0", 0.3), T("3W", 0.3), T("ciw", 0.3), T("evermore", 0.3), K("ESC", 0.5),
+  // Zeilen 39, 40: Compliance-Banner
+  T("2j", 0.3), T("dd", 0.5), T("dd", 0.8),
   { key: "SUBMIT", kind: "key", target: "hud", halt: 2.5, aktion: submit },
 ];
 
@@ -94,8 +119,8 @@ const SEQUENZEN: Sequenz[] = [
       const zwei = await textDerZeile(cdp, "Eagerly I wished");
       if (eins !== ZEILE_HERO_NACHHER) return `Zeile 1 lautet ${JSON.stringify(eins)}`;
       if (zwei !== ZEILE_ZWEI_NACHHER) return `Zeile 2 lautet ${JSON.stringify(zwei)}`;
-      const modal = await pollUntil<boolean>(cdp, "return document.querySelector('.nv-result') ? true : null;", 10_000, 300);
-      return modal ? null : "Result-Modal (.nv-result) erschien nach SUBMIT nicht";
+      const modal = await pollUntil<boolean>(cdp, "return document.querySelector('.nv-result-modal') ? true : null;", 10_000, 300);
+      return modal ? null : `Result-Modal (.nv-result-modal) erschien nach SUBMIT nicht; Notices: ${await notices(cdp)}`;
     },
   },
 ];
@@ -166,7 +191,9 @@ async function herkunft(cdp: Cdp): Promise<Record<string, unknown>> {
   const commit = execFileSync("git", ["rev-parse", "HEAD"], { cwd: REPO_ROOT, encoding: "utf-8" }).trim();
   const manifest = JSON.parse(readFileSync(join(REPO_ROOT, "manifest.json"), "utf-8")) as { version: string };
   const theme = JSON.parse(readFileSync(join(FIXTURE_DIR, "theme.json"), "utf-8")) as Record<string, string>;
-  const obsidian = await cdp.evaluate<string>("return (window.require('electron').remote.app.getVersion());");
+  // Nicht `remote.app.getVersion()`: das ist die GEBUENDELTE Version der .app (1.12.4), der Renderer laeuft
+  // aber mit der .asar im Profil (gemessen 2026-10-05: Titel „Obsidian 1.14.4“, getVersion 1.12.4).
+  const obsidian = await cdp.evaluate<string>("return (document.title.match(/Obsidian (\\d+\\.\\d+\\.\\d+)/) || [])[1] || window.require('electron').remote.app.getVersion();");
   return {
     repo: "neurovim-obsidian", commit, plugin_version: manifest.version, license: "AGPL-3.0-or-later",
     mission: "M-08", theme: { ...theme }, obsidian_version: obsidian, fixture: "docs/images/fixture",
@@ -208,6 +235,18 @@ function statSizeKb(p: string): number {
   return Math.round(statSync(p).size / 1024);
 }
 
+/** GIF und MP4 nach Klasse hero-video aus einer vorhandenen Aufnahme (`sequenz.json`) — auch ohne Obsidian (`--nur-video`). */
+function videoSchreiben(outDir: string): void {
+  const pfad = join(outDir, "sequenz.json");
+  if (!existsSync(pfad)) { console.error(`⛔ ${pfad} fehlt — erst aufnehmen.`); process.exitCode = 2; return; }
+  const e = JSON.parse(readFileSync(pfad, "utf-8")) as { bilder: { datei: string; t: number }[]; dauer: number; modus: string };
+  const liste = konkatListe(e.bilder.map((b) => ({ datei: b.datei, t: b.t })), e.dauer, VIDEO.fps);
+  const gif = join(IMAGES_DIR, "hero-demo.gif");
+  console.log(`   ${sequenzZuGif(outDir, liste, gif, VIDEO)}`);
+  console.log(`   ${sequenzZuMp4(outDir, liste, join(IMAGES_DIR, "hero-demo.mp4"), VIDEO)}`);
+  if (existsSync(gif) && statSizeKb(gif) > VIDEO.gifKb) console.log(`⚠️  hero-demo.gif ${statSizeKb(gif)} KB, Budget ${VIDEO.gifKb} KB — kuerzere Halte oder weniger Bilder`);
+}
+
 async function main(): Promise<void> {
   if (process.argv.includes("--setup")) { await setup(); return; }
   const port = Number(arg("port", "9360"));
@@ -219,6 +258,7 @@ async function main(): Promise<void> {
   if (!sequenz) { console.error(`Unbekannte Sequenz ${name}; bekannt: ${SEQUENZEN.map((s) => s.name).join(", ")}`); process.exitCode = 2; return; }
   const modus = (arg("modus", MODUS_STANDARD) as "schritt" | "screencast");
   const outDir = join(REPO_ROOT, arg("out", "out/sequenz") as string, sequenz.name);
+  if (process.argv.includes("--nur-video")) { videoSchreiben(outDir); return; }
 
   const cdp = await attachTo("workspace", port, vault);
   if (!cdp) {
@@ -235,6 +275,9 @@ async function main(): Promise<void> {
     await closeExtraLeaves(cdp);
     await missionStarten(cdp);   // setzt Spielstand, Schema crt, HUD-Platzierung box
 
+    // Notices vom Zuruecksetzen („Mission aborted“) duerfen nicht in Bild 0 stehen (gemessen 2026-10-05, Messlauf 1).
+    await clearNotices(cdp);
+    await sleep(300);
     // Pre-Roll: `i` vor der Aufnahme, nicht im Log — die Sequenz beginnt im Einfuegemodus.
     await cdp.send("Input.dispatchKeyEvent", { type: "keyDown", key: "i", code: "KeyI", windowsVirtualKeyCode: 73, text: "i", unmodifiedText: "i" });
     await cdp.send("Input.dispatchKeyEvent", { type: "keyUp", key: "i", code: "KeyI", windowsVirtualKeyCode: 73 });
@@ -251,13 +294,7 @@ async function main(): Promise<void> {
     console.log(`✅ ${ergebnisSchreiben(outDir, ergebnis)}`);
     console.log(`   ${messzeile(join(outDir, "sequenz.json"))}`);
 
-    if (sequenz.video && modus === "schritt" && !process.argv.includes("--ohne-video")) {
-      const liste = konkatListe(ergebnis.bilder.map((b) => ({ datei: b.datei, t: b.t })), ergebnis.dauer, VIDEO.fps);
-      const gif = join(IMAGES_DIR, "hero-demo.gif");
-      console.log(`   ${sequenzZuGif(outDir, liste, gif, VIDEO)}`);
-      console.log(`   ${sequenzZuMp4(outDir, liste, join(IMAGES_DIR, "hero-demo.mp4"), VIDEO)}`);
-      if (existsSync(gif) && statSizeKb(gif) > VIDEO.gifKb) console.log(`⚠️  hero-demo.gif ${statSizeKb(gif)} KB, Budget ${VIDEO.gifKb} KB — kuerzere Halte oder weniger Bilder`);
-    }
+    if (sequenz.video && modus === "schritt" && !process.argv.includes("--ohne-video")) videoSchreiben(outDir);
     console.log("\nJetzt die Bilder ANSEHEN — der Standard prueft die Form, nie die Aussage.");
   } catch (err) {
     if (err instanceof PreconditionError) {

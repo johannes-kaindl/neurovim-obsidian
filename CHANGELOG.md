@@ -5,6 +5,8 @@ All notable changes to this project are documented here. Format loosely follows
 
 ## [Unreleased]
 
+- Hero-Demo als GIF und MP4 in der README (Sequenz-Aufnahme an Mission M-08, Theme Birds of Yore); Rezept `npm run sequenz`, Vertrag in `docs/images/README.md` § Sequenzen.
+
 ## [0.11.1] — 2026-10-03
 
 ### Changed

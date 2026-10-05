@@ -15,6 +15,7 @@ restore CORP-corrupted transmissions, beat the clock, earn XP. You learn Vim alm
 accident; the story is the hook.
 
 <p align="center"><img src="https://raw.githubusercontent.com/johannes-kaindl/neurovim-obsidian/main/docs/images/hero.png" width="820" alt="A NeuroVim mission open in an Obsidian note: the corrupted transmission in the editor with Vim mode active, and the mission HUD showing elapsed time, keystrokes and line progress"></p>
+<p align="center"><img src="https://raw.githubusercontent.com/johannes-kaindl/neurovim-obsidian/main/docs/images/hero-demo.gif" width="800" alt="Inside a mission note, the cursor leaves insert mode with ESC, 3w jumps three words to a run of corrupted block glyphs, ciw replaces them with the word midnight, and the HUD's line counter ticks."></p>
 
 NeuroVim originally started life as an Obsidian plugin, then grew into a multi-target
 game ([`neurovim-standalone`](https://git.jkaindl.de/jkaindl/NeuroVIM): web + desktop +
