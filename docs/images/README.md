@@ -96,14 +96,14 @@ cp ~/Library/Application\ Support/obsidian/obsidian-<version>.asar "$UD"/      #
 # $UD/obsidian.json mit {"vaults":{"nvseq":{"path":"$STAGING_VAULTS_DIR/neurovim-obsidian","ts":<ms>,"open":true}}}
 python3 ~/.claude/hooks/obsidian-cdp-lock.py acquire --label neurovim-obsidian --intent "Sequenz M-08" --ttl 900 --exclusive focus --port 9360
 /Applications/Obsidian.app/Contents/MacOS/Obsidian --user-data-dir="$UD" --remote-debugging-port=9360 &
-npm run sequenz -- --vault neurovim-obsidian --port 9360 --sequenz m08-hero      # schreibt hero-demo.gif/.mp4
+npm run sequenz -- --vault neurovim-obsidian --port 9360 --sequenz m08-hero      # schreibt hero-roh.gif/.mp4 neben die Bilder
 npm run sequenz -- --port 9360 --beenden        # eigene Instanz beenden; je Aufnahme ein frischer Prozess
 npm run sequenz -- --vault neurovim-obsidian --port 9360 --sequenz m08-voll --ohne-video
-npm run sequenz -- --sequenz m08-hero --nur-video   # GIF/MP4 neu aus out/sequenz/m08-hero, ohne Obsidian
+npm run sequenz -- --sequenz m08-hero --nur-video [--readme]   # Rohfassung neu, ohne Obsidian; --readme nach docs/images/
 python3 ~/.claude/hooks/obsidian-cdp-lock.py release
 ```
 
-Vor dem ersten Lauf bestätigt `prepareInstance` den Vertrauensdialog des frischen Profils und hebt den eingeschränkten Modus auf. Eine Aufnahme verlangt einen sauberen Arbeitsbaum (`git status --porcelain` leer), sonst beschreibt der Commit in `sequenz.json` → `herkunft` nicht den Stand, der sie erzeugt hat; `--herkunft-unsauber` erlaubt das nur für Messläufe und schreibt die abweichenden Dateien in die Herkunft. `--nur-video` schreibt ausschließlich `hero-demo.gif`/`.mp4` aus `out/sequenz/m08-hero/`. Ein Messlauf: `--modus schritt|screencast --out out/messung-<x> --ohne-video`; die Messzeile steht nach `✅` in der Ausgabe und in `sequenz.json` → `messung`.
+Vor dem ersten Lauf bestätigt `prepareInstance` den Vertrauensdialog des frischen Profils und hebt den eingeschränkten Modus auf. Eine Aufnahme verlangt einen sauberen Arbeitsbaum (`git status --porcelain` leer), sonst beschreibt der Commit in `sequenz.json` → `herkunft` nicht den Stand, der sie erzeugt hat; `--herkunft-unsauber` erlaubt das nur für Messläufe und schreibt die abweichenden Dateien in die Herkunft. `--nur-video` schreibt die Rohfassung `hero-roh.gif`/`.mp4` in `out/sequenz/m08-hero/`; `docs/images/hero-demo.*` gehören der Komposition aus clipwerk (Spec § 5, Gate 5) und werden vom Rezept nur mit `--readme` überschrieben (Rohfassung als Platzhalter, bis die Komposition da ist). Ein Messlauf: `--modus schritt|screencast --out out/messung-<x> --ohne-video`; die Messzeile steht nach `✅` in der Ausgabe und in `sequenz.json` → `messung`.
 
 ### Bilder (reguläre Instanz oder Zweitinstanz)
 

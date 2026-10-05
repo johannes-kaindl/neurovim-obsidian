@@ -11,12 +11,13 @@
  * # Zweitinstanz starten (Profil, .asar, obsidian.json, Lock) — siehe docs/images/README.md § Reproduktion
  * npm run sequenz -- --vault neurovim-obsidian --port 9360 --sequenz m08-hero
  * npm run sequenz -- --vault neurovim-obsidian --port 9360 --sequenz m08-voll --ohne-video
- * npm run sequenz -- --sequenz m08-hero --nur-video   # GIF/MP4 neu aus out/sequenz/m08-hero, ohne Obsidian
+ * npm run sequenz -- --sequenz m08-hero --nur-video   # hero-roh.gif/.mp4 in out/sequenz/m08-hero, ohne Obsidian
+ * npm run sequenz -- --sequenz m08-hero --nur-video --readme   # Rohfassung nach docs/images/hero-demo.* (nur ohne Komposition)
  * npm run sequenz -- --port 9360 --beenden        # eigene Zweitinstanz beenden
  * ```
  *
  * Ergebnis: `out/sequenz/<name>/` (Einzelbilder, eingaben.jsonl, sequenz.json; gitignored) und fuer
- * `m08-hero` zusaetzlich `docs/images/hero-demo.gif` + `.mp4` (Klasse hero-video).
+ * `m08-hero` die Rohfassung `hero-roh.gif` + `.mp4` daneben; `docs/images/hero-demo.*` nur mit `--readme` (Klasse hero-video).
  */
 
 import { execFileSync } from "node:child_process";
@@ -246,17 +247,21 @@ function statSizeKb(p: string): number {
   return Math.round(statSync(p).size / 1024);
 }
 
-/** GIF und MP4 nach Klasse hero-video aus einer vorhandenen Aufnahme (`sequenz.json`) — auch ohne Obsidian (`--nur-video`). */
+/** GIF und MP4 nach Klasse hero-video aus einer vorhandenen Aufnahme (`sequenz.json`) — auch ohne Obsidian (`--nur-video`).
+ *  Standardziel ist der Aufnahmeordner (`hero-roh.gif`/`.mp4`): die README-Dateien `docs/images/hero-demo.*` gehören der
+ *  Komposition aus clipwerk (Spec § 5, Gate 5); nur `--readme` schreibt die Rohfassung dorthin (Entscheidung 2026-10-05). */
 function videoSchreiben(outDir: string): void {
   const pfad = join(outDir, "sequenz.json");
   if (!existsSync(pfad)) { console.error(`⛔ ${pfad} fehlt — erst aufnehmen.`); process.exitCode = 2; return; }
   const e = JSON.parse(readFileSync(pfad, "utf-8")) as { bilder: { datei: string; t: number }[]; dauer: number; modus: string };
   console.log(`   Quelle: ${outDir}`);
   const liste = konkatListe(e.bilder.map((b) => ({ datei: b.datei, t: b.t })), e.dauer, VIDEO.fps);
-  const gif = join(IMAGES_DIR, "hero-demo.gif");
+  const readme = process.argv.includes("--readme");
+  const gif = readme ? join(IMAGES_DIR, "hero-demo.gif") : join(outDir, "hero-roh.gif");
+  const mp4 = readme ? join(IMAGES_DIR, "hero-demo.mp4") : join(outDir, "hero-roh.mp4");
   console.log(`   ${sequenzZuGif(outDir, liste, gif, VIDEO)}`);
-  console.log(`   ${sequenzZuMp4(outDir, liste, join(IMAGES_DIR, "hero-demo.mp4"), VIDEO)}`);
-  if (existsSync(gif) && statSizeKb(gif) > VIDEO.gifKb) console.log(`⚠️  hero-demo.gif ${statSizeKb(gif)} KB, Budget ${VIDEO.gifKb} KB — kuerzere Halte oder weniger Bilder`);
+  console.log(`   ${sequenzZuMp4(outDir, liste, mp4, VIDEO)}`);
+  if (existsSync(gif) && statSizeKb(gif) > VIDEO.gifKb) console.log(`⚠️  ${gif.split('/').pop()} ${statSizeKb(gif)} KB, Budget ${VIDEO.gifKb} KB — kuerzere Halte oder weniger Bilder`);
 }
 
 async function main(): Promise<void> {
