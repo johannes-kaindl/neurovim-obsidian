@@ -103,7 +103,7 @@ npm run sequenz -- --sequenz m08-hero --nur-video   # GIF/MP4 neu aus out/sequen
 python3 ~/.claude/hooks/obsidian-cdp-lock.py release
 ```
 
-Vor dem ersten Lauf bestätigt `prepareInstance` den Vertrauensdialog des frischen Profils und hebt den eingeschränkten Modus auf. Ein Messlauf: `--modus schritt|screencast --out out/messung-<x> --ohne-video`; die Messzeile steht nach `✅` in der Ausgabe und in `sequenz.json` → `messung`.
+Vor dem ersten Lauf bestätigt `prepareInstance` den Vertrauensdialog des frischen Profils und hebt den eingeschränkten Modus auf. Eine Aufnahme verlangt einen sauberen Arbeitsbaum (`git status --porcelain` leer), sonst beschreibt der Commit in `sequenz.json` → `herkunft` nicht den Stand, der sie erzeugt hat; `--herkunft-unsauber` erlaubt das nur für Messläufe und schreibt die abweichenden Dateien in die Herkunft. `--nur-video` schreibt ausschließlich `hero-demo.gif`/`.mp4` aus `out/sequenz/m08-hero/`. Ein Messlauf: `--modus schritt|screencast --out out/messung-<x> --ohne-video`; die Messzeile steht nach `✅` in der Ausgabe und in `sequenz.json` → `messung`.
 
 ### Bilder (reguläre Instanz oder Zweitinstanz)
 

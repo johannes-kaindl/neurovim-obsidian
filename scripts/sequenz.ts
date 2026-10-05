@@ -187,15 +187,26 @@ async function themePruefen(cdp: Cdp): Promise<void> {
   if (theme !== THEME_NAME) throw new PreconditionError(`Theme ist ${JSON.stringify(theme)}, erwartet ${JSON.stringify(THEME_NAME)} — \`npm run sequenz -- --setup\` und Zweitinstanz neu starten.`);
 }
 
-async function herkunft(cdp: Cdp): Promise<Record<string, unknown>> {
+/** Geänderte oder unversionierte Dateien im Repo (ohne ignorierte). Leer = der Commit beschreibt den Stand. */
+function arbeitsbaumUnsauber(): string[] {
+  return execFileSync("git", ["status", "--porcelain"], { cwd: REPO_ROOT, encoding: "utf-8" })
+    .split("\n").filter((z) => z.trim().length > 0).map((z) => z.slice(3));
+}
+
+/** Herkunft der Aufnahme (CORE-META-22: Inhalt und Herkunft aus derselben Ref). Der Commit beschreibt den
+ *  Stand nur, wenn der Arbeitsbaum sauber ist; sonst steht die Liste der abweichenden Dateien dabei
+ *  (`--herkunft-unsauber`, nur für Messläufe). Gemessen 2026-10-05 (Review I1): die ersten Aufnahmen
+ *  nannten einen Commit ohne das Rezept und ohne die M-08-Lösung. */
+async function herkunft(cdp: Cdp, unsauber: string[]): Promise<Record<string, unknown>> {
   const commit = execFileSync("git", ["rev-parse", "HEAD"], { cwd: REPO_ROOT, encoding: "utf-8" }).trim();
   const manifest = JSON.parse(readFileSync(join(REPO_ROOT, "manifest.json"), "utf-8")) as { version: string };
   const theme = JSON.parse(readFileSync(join(FIXTURE_DIR, "theme.json"), "utf-8")) as Record<string, string>;
   // Nicht `remote.app.getVersion()`: das ist die GEBUENDELTE Version der .app (1.12.4), der Renderer laeuft
   // aber mit der .asar im Profil (gemessen 2026-10-05: Titel „Obsidian 1.14.4“, getVersion 1.12.4).
-  const obsidian = await cdp.evaluate<string>("return (document.title.match(/Obsidian (\\d+\\.\\d+\\.\\d+)/) || [])[1] || window.require('electron').remote.app.getVersion();");
+  const obsidian = await cdp.evaluate<string>("return (document.title.match(/Obsidian (\\d+\\.\\d+\\.\\d+)/) || [])[1] || '';");
+  if (!obsidian) throw new PreconditionError(`Obsidian-Version nicht aus dem Fenstertitel lesbar (${JSON.stringify(await cdp.evaluate<string>("return document.title;"))}).`);
   return {
-    repo: "neurovim-obsidian", commit, plugin_version: manifest.version, license: "AGPL-3.0-or-later",
+    repo: "neurovim-obsidian", commit, unsauber, plugin_version: manifest.version, license: "AGPL-3.0-or-later",
     mission: "M-08", theme: { ...theme }, obsidian_version: obsidian, fixture: "docs/images/fixture",
     inhalt: "Missionstext aus src/vendor/neurovim (AGPL-3.0-or-later); Gedichtzeilen Edgar Allan Poe, The Raven (gemeinfrei)",
   };
@@ -240,6 +251,7 @@ function videoSchreiben(outDir: string): void {
   const pfad = join(outDir, "sequenz.json");
   if (!existsSync(pfad)) { console.error(`⛔ ${pfad} fehlt — erst aufnehmen.`); process.exitCode = 2; return; }
   const e = JSON.parse(readFileSync(pfad, "utf-8")) as { bilder: { datei: string; t: number }[]; dauer: number; modus: string };
+  console.log(`   Quelle: ${outDir}`);
   const liste = konkatListe(e.bilder.map((b) => ({ datei: b.datei, t: b.t })), e.dauer, VIDEO.fps);
   const gif = join(IMAGES_DIR, "hero-demo.gif");
   console.log(`   ${sequenzZuGif(outDir, liste, gif, VIDEO)}`);
@@ -258,7 +270,19 @@ async function main(): Promise<void> {
   if (!sequenz) { console.error(`Unbekannte Sequenz ${name}; bekannt: ${SEQUENZEN.map((s) => s.name).join(", ")}`); process.exitCode = 2; return; }
   const modus = (arg("modus", MODUS_STANDARD) as "schritt" | "screencast");
   const outDir = join(REPO_ROOT, arg("out", "out/sequenz") as string, sequenz.name);
-  if (process.argv.includes("--nur-video")) { videoSchreiben(outDir); return; }
+  if (process.argv.includes("--nur-video")) {
+    // Review I2: hero-demo.gif/.mp4 sind README-Dateien; eine andere Sequenz oder ein Messordner darf sie nicht überschreiben.
+    if (!sequenz.video) { console.error(`⛔ ${sequenz.name} ist keine README-Sequenz (video: false) — --nur-video schreibt nur hero-demo.gif/.mp4 aus der Hero-Sequenz.`); process.exitCode = 2; return; }
+    if (arg("out", "out/sequenz") !== "out/sequenz") { console.error("⛔ --nur-video liest nur out/sequenz/ (Messordner sind keine README-Quelle)."); process.exitCode = 2; return; }
+    videoSchreiben(outDir);
+    return;
+  }
+  const unsauber = arbeitsbaumUnsauber();
+  if (unsauber.length > 0 && !process.argv.includes("--herkunft-unsauber")) {
+    console.error(`⛔ Arbeitsbaum unsauber — die Herkunft (Commit) würde den Stand nicht beschreiben:\n   ${unsauber.join("\n   ")}\n   Erst committen; nur für Messläufe: --herkunft-unsauber.`);
+    process.exitCode = 2;
+    return;
+  }
 
   const cdp = await attachTo("workspace", port, vault);
   if (!cdp) {
@@ -287,7 +311,7 @@ async function main(): Promise<void> {
     if (!clip) throw new PreconditionError("Zuschnitt (Editor + HUD-Box) nicht bestimmbar.");
 
     const ergebnis = await aufnehmen(cdp, sequenz.name, sequenz.schritte, {
-      outDir, modus, clip, scale: 2, anschlag: ANSCHLAG, vorhalt: VORHALT, herkunft: await herkunft(cdp),
+      outDir, modus, clip, scale: 2, anschlag: ANSCHLAG, vorhalt: VORHALT, herkunft: await herkunft(cdp, unsauber),
     });
     const fehler = await sequenz.soll(cdp);
     if (fehler) throw new PreconditionError(`Sequenz ${sequenz.name} hat nicht gewirkt: ${fehler}`);
