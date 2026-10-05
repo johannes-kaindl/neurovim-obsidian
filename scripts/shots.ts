@@ -44,8 +44,8 @@ import { join } from "node:path";
 import { Cdp, attachTo, closeExtraLeaves, pollUntil } from "../../tools/obsidian-cdp/cdp.js";
 import { boxOf, capture, setWindowSize, writeShot, type Rect } from "../../tools/obsidian-cdp/shot.js";
 import { buildVault, stagingVaultDir } from "../../tools/obsidian-cdp/vault.js";
+import { PLUGIN_ID, PreconditionError, prepareInstance, sleep } from "./instanz.js";
 
-const PLUGIN_ID = "neurovim";
 const HUB_VIEW = "neurovim-hub";
 /** npm-Scripts laufen im Repo-Root. Nicht aus `import.meta.url` ableiten: das gebündelte
  *  `.shots.mjs` liegt selbst im Root, ein `..` darauf zeigt eine Ebene zu hoch. */
@@ -70,8 +70,6 @@ const SHOWCASE_STATE = {
 const FAKE_MODEL = "qwen3-8b";
 const CIPHER_QUESTION = "What does the w motion do?";
 const CIPHER_ANSWER = "Easy: w jumps you to the start of the next word. Prefix a count, like 3w, to hop three words at once. Try it on the intercept: fewer keystrokes, cleaner trace.";
-
-const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
 
 interface FakeEndpoint { url: string; close: () => Promise<void> }
 
@@ -129,26 +127,6 @@ function arg(name: string, fallback?: string): string | undefined {
   const i = process.argv.indexOf(`--${name}`);
   return i >= 0 && process.argv[i + 1] ? process.argv[i + 1] : fallback;
 }
-
-/** Fresh second-instance profile: confirm the "trust author" dialog, lift Restricted Mode, enable the
- *  plugin, English UI. No-op in an already prepared instance. */
-async function prepareInstance(cdp: Cdp): Promise<void> {
-  await pollUntil<{ ok: boolean }>(cdp, `
-    const btn = Array.from(document.querySelectorAll(".modal-container button")).find((b) => /trust|vertrau/i.test(b.textContent || ""));
-    if (btn) { btn.click(); return { ok: true }; }
-    return document.querySelector(".workspace") && app.plugins && app.plugins.manifests && app.plugins.manifests[${JSON.stringify(PLUGIN_ID)}] && !document.querySelector(".modal-container") ? { ok: false } : null;
-  `, 20_000, 500);
-  await sleep(800);
-  await cdp.evaluate(`
-    try { localStorage.setItem("language", "en"); } catch (e) {}
-    if (app.plugins.setEnable) await app.plugins.setEnable(true);
-    if (!app.plugins.plugins[${JSON.stringify(PLUGIN_ID)}]) await app.plugins.enablePluginAndSave(${JSON.stringify(PLUGIN_ID)});
-    await new Promise((r) => setTimeout(r, 1500));
-    return true;
-  `);
-}
-
-class PreconditionError extends Error {}
 
 // --- Zustand herstellen ------------------------------------------------------
 

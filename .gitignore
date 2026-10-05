@@ -6,3 +6,5 @@ data.json
 .remember/
 .gui-smoke.mjs
 .shots.mjs
+out/
+.sequenz.mjs
