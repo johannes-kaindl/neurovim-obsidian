@@ -11,6 +11,8 @@ All notable changes to this project are documented here. Format loosely follows
 
 ### Fixed
 
+- **Every mission now says exactly what to do.** Some missions could only be solved by guessing — M-04, for example, wanted five blocks in an order that was written nowhere. All 54 missions and katas now list every target (exact spellings, counts, order, what stays), and each was replayed blind from the text and that list alone. Several briefings that contradicted their own solution were corrected on the way (core v0.2.7).
+- **Mission M-08 starts again.** It failed with "has no solution — cannot play".
 - **Notes changed by other plugins no longer fail a mission.** Plugins such as Obsidian Linter add frontmatter (`title`, `created`, `updated`) to the mission note and strip trailing spaces; the check used to count that as wrong lines and the hint pointed at the `---` fence. Now frontmatter and trailing whitespace are ignored by the check, the line counter and the hint, and the hint's line number is the line you see in the editor.
 
 ### Changed
