@@ -333,8 +333,15 @@ export const CHEATSHEET: CheatsheetCategory[] = [
           { key: 'c',       description: 'change selection' },
           { key: 'I',       description: 'insert at block start' },
           { key: 'A',       description: 'append at block end' },
-          { key: 'Ctrl+a',  description: 'increment number' },
-          { key: 'Ctrl+x',  description: 'decrement number' },
+        ],
+      },
+      {
+        // Normal mode, not a selection action: the game's editor (codemirror-vim) changes only
+        // the number under or after the cursor, and reads `REF-4217` as minus 4217.
+        label: 'NUMBERS (CURSOR)',
+        keys: [
+          { key: 'Ctrl+a',  description: 'add [count] to the number at the cursor' },
+          { key: 'Ctrl+x',  description: 'subtract [count]; REF-4217 reads as minus 4217' },
         ],
       },
     ],

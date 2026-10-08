@@ -46,6 +46,7 @@ export * from './data/cipher-quotes';
 
 // ── Utils ────────────────────────────────────────────────────
 export * from './utils/diff';
+export * from './utils/objective';
 export * from './utils/time';
 export * from './utils/hints';
 export * from './utils/chapterNav';

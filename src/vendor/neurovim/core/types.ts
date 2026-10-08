@@ -31,6 +31,12 @@ export interface MissionFrontmatter {
   summary?: string;
   /** Authored CIPHER "why this skill matters" line. Optional; GuidanceEngine falls back to guideWhyFor. */
   why?: string;
+  /** The exact edits that turn the transmission into the solution, one concrete step per
+   *  entry, shown for the whole run. The game teaches motions, not guessing: every
+   *  difference between transmission and solution must be named here, so the player only
+   *  has to decide *how* to get there, never *what* the target is. No absolute line
+   *  numbers — a vault plugin may add frontmatter above the text and shift them. */
+  objective?: string[];
   /** Provenance stamp for machine-generated drills, e.g. "MissionGenerator/1".
    *  Absent on authored content — that asymmetry is the point: once a draft has
    *  been moved into the SSOT, this is the only thing that still says so. */

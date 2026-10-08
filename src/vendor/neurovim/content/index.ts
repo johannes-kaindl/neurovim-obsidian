@@ -31,6 +31,13 @@ export function getManual(): string {
   return e ? e.body : '';
 }
 
+/** Frontmatter `objective`: a YAML list of steps; a single string is one step. */
+function asObjective(v: unknown): string[] | undefined {
+  if (v == null) return undefined;
+  const steps = (Array.isArray(v) ? v : [v]).map((x) => asString(x).trim()).filter(Boolean);
+  return steps.length ? steps : undefined;
+}
+
 function toSummary(e: RawContentEntry): MissionSummary {
   const fm = e.frontmatter;
   return {
@@ -45,6 +52,7 @@ function toSummary(e: RawContentEntry): MissionSummary {
     par_keystrokes: fm.par_keystrokes != null ? Number(fm.par_keystrokes) : undefined,
     summary: fm.summary != null ? asString(fm.summary) : undefined,
     why: fm.why != null ? asString(fm.why) : undefined,
+    objective: asObjective(fm.objective),
     arc: e.arc,
     chapter: e.chapter,
   };
