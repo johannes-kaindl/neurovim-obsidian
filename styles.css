@@ -15,6 +15,9 @@
   --nv-submit-bg: #164a2c;
   --nv-submit-fg: #7dffab;
   --nv-danger: #ff6b6b;
+  /* Exact strings in the objective: phosphor on the pane's near-black, ~14:1. */
+  --nv-code-bg: #08120c;
+  --nv-code-fg: #45ff8a;
   /* Metal is metal: these three stay fixed in both schemes because no theme token
      names gold, silver or bronze. Deliberate exception to the mixing rule above. */
   --nv-tier-gold: #ffd24a;
@@ -34,6 +37,10 @@
   --nv-submit-bg: var(--interactive-accent);
   --nv-submit-fg: var(--text-on-accent);
   --nv-danger: var(--text-error, #e05252);
+  /* Exact strings in the objective: the editor ground inside the secondary-ground panel,
+     plain text color — text-accent drops to ~4.4:1 on white in the default light theme. */
+  --nv-code-bg: var(--background-primary);
+  --nv-code-fg: var(--text-normal);
   --nv-tier-gold: #ffd24a;
   --nv-tier-silver: #a8b3b8;
   --nv-tier-bronze: #b5722c;
@@ -119,6 +126,41 @@
 }
 .nv-hud .nv-hud-close:hover { color: var(--nv-danger); }
 .nv-hud-vimhint { margin-top: 4px; color: var(--nv-text-dim); font-size: 0.72em; }
+
+/* Objective panel: what to change, visible for the whole run (the challenge is the motion,
+   never guessing the target). Open by default, collapsible; scrolls inside a max-height so
+   the floating box never buries the note it sits on. */
+.nv-hud .nv-hud-objective { margin-top: 5px; align-self: stretch; min-width: 0; }
+/* In the floating box the metrics row sets the width; the objective wraps inside it.
+   Without this, a long step widens the box to its max-width and squeezes the row (mission
+   id and buttons wrap) — measured 2026-10-08 in a real Obsidian window. */
+.nv-float-hud-container .nv-hud-objective { contain: inline-size; }
+.nv-hud .nv-hud-objective-toggle {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 0; height: auto; background: transparent; border: none; box-shadow: none;
+  color: var(--nv-text-dim); font-family: inherit; font-size: 0.72em;
+  letter-spacing: 0.08em; text-transform: uppercase; cursor: pointer;
+}
+.nv-hud .nv-hud-objective-toggle:hover,
+.nv-hud .nv-hud-objective.is-open .nv-hud-objective-toggle { color: var(--nv-accent); }
+.nv-hud .nv-hud-objective-toggle:focus-visible { outline: 1px solid var(--nv-accent); outline-offset: 2px; }
+.nv-hud .nv-hud-objective-caret { display: inline-block; width: 1em; }
+.nv-hud .nv-hud-objective-body {
+  margin-top: 3px; max-height: min(30vh, 12em); overflow-y: auto;
+  color: var(--nv-text); font-size: 0.78em; line-height: 1.45;
+}
+.nv-nexus .nv-hud .nv-hud-objective-body { max-height: 40vh; }
+.nv-hud .nv-hud-objective-list { margin: 0; padding-left: 1.6em; }
+.nv-hud .nv-hud-objective-list li { margin: 0 0 2px; overflow-wrap: anywhere; }
+.nv-hud .nv-hud-objective-summary { margin: 0; overflow-wrap: anywhere; }
+/* Exact strings: kept verbatim (spaces included) and set apart from the prose. */
+.nv-hud .nv-hud-objective-code {
+  padding: 0 3px; border: 1px solid var(--nv-border-soft); border-radius: 3px;
+  background: var(--nv-code-bg); color: var(--nv-code-fg);
+  font-family: inherit; font-size: 1em; font-weight: 600; white-space: pre-wrap;
+  /* A string that wraps keeps its frame on both lines instead of an open-ended box. */
+  -webkit-box-decoration-break: clone; box-decoration-break: clone;
+}
 
 /* Floating box: positioned over the editor, width follows content (stays narrow). */
 /* ── Paused reminder (floats over the workspace, not over the mission editor —

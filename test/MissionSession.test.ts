@@ -223,3 +223,53 @@ describe('MissionSession trace recording', () => {
     expect(session.metrics.getEvents()).toEqual([]);
   });
 });
+
+describe('MissionSession hints and progress on host-modified notes', () => {
+  const LINTER_FM = '---\ntitle: M-01\ncreated: 2026-10-08\nupdated: 2026-10-08\n---\n';
+
+  async function solved() {
+    const ctx = makeSession();
+    await ctx.session.start('M-01');
+    const doc = await new BundledContent().getMission('M-01');
+    return { ...ctx, solution: doc.solution! };
+  }
+
+  it('gives no hint when the note is solved apart from Linter frontmatter and trailing spaces', async () => {
+    const { session, app, solution } = await solved();
+    const body = solution.split('\n').map((l) => (l ? `${l}  ` : l)).join('\n');
+    app.store[session.notePath!] = LINTER_FM + '\n' + body;
+    expect(await session.requestHint()).toBeNull();
+    const p = session.progressFor(app.store[session.notePath!]);
+    expect(p.matched).toBe(p.total);
+    const res = await session.submit();
+    expect(res.ok).toBe(true);
+  });
+
+  it('points the hint at the editor line below the frontmatter, never at the fence', async () => {
+    const { session, app, solution } = await solved();
+    const lines = solution.trim().split('\n');
+    lines[1] = lines[1] + ' XYZ';
+    app.store[session.notePath!] = LINTER_FM + lines.join('\n');
+    const hint = await session.requestHint();
+    expect(hint).not.toBeNull();
+    expect(hint).not.toContain('---');
+    // Frontmatter occupies document lines 1–5; scored line index 1 is editor line 7.
+    expect(hint).toMatch(/Line 7 differs/);
+    expect(hint).toContain('XYZ');
+  });
+
+  it('numbers hint lines by editor position when blank lines lead the note', async () => {
+    const { session, app, solution } = await solved();
+    const lines = solution.trim().split('\n');
+    lines[0] = 'WRONG';
+    app.store[session.notePath!] = '\n\n' + lines.join('\n');
+    expect(await session.requestHint()).toMatch(/Line 3 differs/);
+  });
+
+  it('reports a missing trailing line with the document line it belongs on', async () => {
+    const { session, app, solution } = await solved();
+    const lines = solution.trim().split('\n');
+    app.store[session.notePath!] = LINTER_FM + lines.slice(0, -1).join('\n');
+    expect(await session.requestHint()).toMatch(new RegExp(`Line ${5 + lines.length} differs`));
+  });
+});

@@ -5,6 +5,16 @@ All notable changes to this project are documented here. Format loosely follows
 
 ## [Unreleased]
 
+### Added
+
+- **Objective panel in the mission HUD.** The target is now visible for the whole run, not only in the briefing before the start: the HUD lists the concrete edits the mission asks for, with the exact strings set apart as code, so the only challenge left is the Vim motion. The panel is open by default and can be collapsed with its "Objective" toggle; that choice holds until the mission ends. Missions without listed steps show their summary instead. A long list scrolls inside the panel instead of covering the note.
+
+### Fixed
+
+- **Notes changed by other plugins no longer fail a mission.** Plugins such as Obsidian Linter add frontmatter (`title`, `created`, `updated`) to the mission note and strip trailing spaces; the check used to count that as wrong lines and the hint pointed at the `---` fence. Now frontmatter and trailing whitespace are ignored by the check, the line counter and the hint, and the hint's line number is the line you see in the editor.
+
+### Changed
+
 - Hero demo as GIF and MP4 in the README (recorded sequence on mission M-08, theme Birds of Yore); recipe `npm run sequenz`, contract in `docs/images/README.md` § Sequenzen.
 
 ## [0.11.1] — 2026-10-03

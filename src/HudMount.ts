@@ -1,5 +1,6 @@
 import type { ColorScheme } from './settings';
 import type { LineProgress } from './missionProgress';
+import type { MissionObjective } from './missionObjective';
 
 /** Data the HUD renders — the contract HudMount passes through to the view. */
 export interface HudRenderProps {
@@ -24,6 +25,12 @@ export interface HudRenderProps {
   hint: string | null;
   /** Show the hint in a Notice. */
   onHint: () => void;
+  /** What to change, shown for the whole run; null when the mission carries neither steps nor summary. */
+  objective: MissionObjective | null;
+  /** Whether the objective panel is expanded — held by the plugin, so it survives re-mounts within a run. */
+  objectiveOpen: boolean;
+  /** Collapse or expand the objective panel. */
+  onToggleObjective: () => void;
 }
 
 /** A live, mounted HUD instance. */

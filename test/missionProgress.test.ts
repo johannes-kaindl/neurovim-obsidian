@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { getDiff } from '@neurovim/core';
 import { countMatchingLines, markLineDelta, shouldShowPausedBanner } from '../src/missionProgress';
 
 describe('countMatchingLines', () => {
@@ -20,6 +21,27 @@ describe('countMatchingLines', () => {
 
   it('trims like getDiff so counter and submit never disagree', () => {
     expect(countMatchingLines('\n\na\nb\n\n', 'a\nb')).toEqual({ matched: 2, total: 2 });
+  });
+
+  it('ignores frontmatter a vault plugin added above the text', () => {
+    const note = '---\ntitle: M-01\ncreated: 2026-10-08\nupdated: 2026-10-08\n---\n\na\nb\nc';
+    expect(countMatchingLines(note, 'a\nb\nc')).toEqual({ matched: 3, total: 3 });
+  });
+
+  it('ignores trailing whitespace on either side', () => {
+    expect(countMatchingLines('a\nb\nc', 'a  \nb\t\nc ')).toEqual({ matched: 3, total: 3 });
+    expect(countMatchingLines('a \nb  \nc', 'a\nb\nc')).toEqual({ matched: 3, total: 3 });
+  });
+
+  it('agrees with the core check on a Linter-touched note', () => {
+    const note = '---\ntitle: x\n---\nalpha\nbeta  \ngamma\n';
+    const solution = 'alpha \nbeta\ngamma';
+    expect(countMatchingLines(note, solution)).toEqual({ matched: 3, total: 3 });
+    expect(getDiff(note, solution).matches).toBe(true);
+  });
+
+  it('keeps a lone leading rule as scored content', () => {
+    expect(countMatchingLines('---\na', 'a')).toEqual({ matched: 0, total: 1 });
   });
 });
 

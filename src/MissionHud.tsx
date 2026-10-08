@@ -1,8 +1,51 @@
 import type { HudRenderProps } from './HudMount';
+import type { MissionObjective } from './missionObjective';
 
 function fmt(ms: number): string {
   const s = Math.floor(ms / 1000);
   return `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
+}
+
+/**
+ * The mission's target, open by default and collapsible. Exact strings render as `<code>`
+ * so the part to match character for character stands apart from the prose. The panel
+ * scrolls inside a max-height, so a long list never buries the note under the floating box.
+ */
+function ObjectivePanel({ objective, open, onToggle, panelId }: {
+  objective: MissionObjective; open: boolean; onToggle: () => void; panelId: string;
+}) {
+  return (
+    <section class={`nv-hud-objective${open ? ' is-open' : ''}`} aria-labelledby={`${panelId}-label`}>
+      <button
+        type="button"
+        class="nv-hud-objective-toggle"
+        id={`${panelId}-label`}
+        aria-expanded={open}
+        aria-controls={panelId}
+        onClick={onToggle}
+      >
+        <span class="nv-hud-objective-caret" aria-hidden="true">{open ? '▾' : '▸'}</span>
+        Objective
+      </button>
+      {open && (
+        <div class="nv-hud-objective-body" id={panelId}>
+          {objective.kind === 'steps'
+            ? (
+              <ol class="nv-hud-objective-list">
+                {objective.steps.map((segs, i) => (
+                  <li key={i}>
+                    {segs.map((s, j) => (s.code
+                      ? <code key={j} class="nv-hud-objective-code">{s.text}</code>
+                      : <span key={j}>{s.text}</span>))}
+                  </li>
+                ))}
+              </ol>
+            )
+            : <p class="nv-hud-objective-summary">{objective.text}</p>}
+        </div>
+      )}
+    </section>
+  );
 }
 
 /**
@@ -37,6 +80,14 @@ export function MissionHud(p: HudRenderProps) {
           <button class="nv-hud-close" aria-label="Hide HUD (this mission)" onClick={p.onDismiss}>×</button>
         )}
       </div>
+      {p.objective && (
+        <ObjectivePanel
+          objective={p.objective}
+          open={p.objectiveOpen}
+          onToggle={p.onToggleObjective}
+          panelId={`nv-objective-${p.id}-${p.onDismiss ? 'box' : 'pane'}`}
+        />
+      )}
       {!p.vimActive && (
         <div class="nv-hud-vimhint">⚠ Vim mode off — Settings → Editor</div>
       )}

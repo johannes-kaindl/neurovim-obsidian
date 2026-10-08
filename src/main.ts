@@ -7,6 +7,7 @@ import { MissionSession } from './MissionSession';
 import { ObsidianMissionApp } from './ObsidianMissionApp';
 import { HubView, VIEW_TYPE_NEUROVIM } from './HubView';
 import { HudMount, type HudActive, type HudRenderProps } from './HudMount';
+import { objectiveFor } from './missionObjective';
 import { ObsidianHudDom } from './ObsidianHudDom';
 import { resolveHudTarget } from './hudPlacement';
 import { diffHighlightField, showDivergentLines, clearHighlight } from './diffHighlight';
@@ -71,6 +72,8 @@ export default class NeuroVimPlugin extends Plugin {
   private boxDismissed = false;
   /** Hint text for the first divergent line — set on failed submit, cleared on success/reset. */
   private hint: string | null = null;
+  /** Objective panel expanded? Run-scoped: open at every start, kept across HUD re-mounts. */
+  private objectiveOpen = true;
   private vimRestore: boolean | null = null;
   private tick: number | null = null;
   private cipherSession = new ChatSession();
@@ -389,6 +392,7 @@ export default class NeuroVimPlugin extends Plugin {
       await this.session.start(id);
       this.boxDismissed = false;
       this.hint = null;
+      this.objectiveOpen = true;
       this.enterAutoVim();
       const m = this.missions.find((x) => x.mission_id === id);
       this.cipherSession.setMission(m
@@ -563,6 +567,9 @@ export default class NeuroVimPlugin extends Plugin {
           onAbandon: () => this.handleAbandon(),
           hint: this.hint,
           onHint: () => { if (this.hint) { new Notice(this.hint); this.hint = null; this.repaint(); } },
+          objective: objectiveFor(this.missions.find((m) => m.mission_id === id)),
+          objectiveOpen: this.objectiveOpen,
+          onToggleObjective: () => { this.objectiveOpen = !this.objectiveOpen; this.repaint(); },
           onCipher: this.llmConfigured()
             ? () => { this.hubTab = 'uplink'; void this.activateView(); }
             : undefined,

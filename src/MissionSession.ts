@@ -1,5 +1,5 @@
 import {
-  MissionEngine, MetricsTracker, ProgressionEngine, getDivergentLines,
+  MissionEngine, MetricsTracker, ProgressionEngine, getDivergentLines, normalizeMissionText,
 } from '@neurovim/core';
 import type { PluginData, RunResult, DiffResult, MissionRecord, TraceEvent } from '@neurovim/core';
 import type { BundledContent } from './content/BundledContent';
@@ -101,7 +101,8 @@ export class MissionSession {
     return countMatchingLines(body, this._solution);
   }
 
-  /** 0-based indices of the lines in `body` that differ from the solution. */
+  /** 0-based editor (document) line indices of `body` that differ from the solution —
+   *  frontmatter a vault plugin added shifts them, it is never itself marked. */
   divergentLinesFor(body: string): number[] {
     return getDivergentLines(body, this._solution);
   }
@@ -195,19 +196,16 @@ export class MissionSession {
     try {
       body = await this.deps.app.readNote(this._notePath);
     } catch { return null; }
-    const current = body.trim();
-    const solution = this._solution.trim();
-    if (current === solution) return null;
-    const curLines = current.split('\n');
-    const solLines = solution.split('\n');
-    const maxLen = Math.max(curLines.length, solLines.length);
+    // Same normalization as the check: frontmatter and trailing spaces a vault plugin
+    // added are never the "difference". The line number is the editor line (1-based) the
+    // player sees, so it counts the frontmatter the scoring skips.
+    const cur = normalizeMissionText(body);
+    const sol = normalizeMissionText(this._solution).lines;
+    const maxLen = Math.max(cur.lines.length, sol.length);
     for (let i = 0; i < maxLen; i++) {
-      const cur = curLines[i] ?? '';
-      const sol = solLines[i] ?? '';
-      if (cur !== sol) {
-        const lineNum = i + 1;
-        return formatHint(lineNum, cur, sol);
-      }
+      const has = cur.lines[i] ?? '';
+      const want = sol[i] ?? '';
+      if (has !== want) return formatHint(i + cur.offset + 1, has, want);
     }
     return null;
   }
