@@ -5,6 +5,10 @@ All notable changes to this project are documented here. Format loosely follows
 
 ## [Unreleased]
 
+### Fixed
+
+- The store scan warned that the objective panel used a CSS feature (`box-decoration-break`) only partially supported by Obsidian 1.6.5. Removed; a code string that wraps now shows its frame open at the line break.
+
 ## [0.12.0] — 2026-10-08
 
 ### Added

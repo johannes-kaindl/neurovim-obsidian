@@ -158,8 +158,8 @@
   padding: 0 3px; border: 1px solid var(--nv-border-soft); border-radius: 3px;
   background: var(--nv-code-bg); color: var(--nv-code-fg);
   font-family: inherit; font-size: 1em; font-weight: 600; white-space: pre-wrap;
-  /* A string that wraps keeps its frame on both lines instead of an open-ended box. */
-  -webkit-box-decoration-break: clone; box-decoration-break: clone;
+  /* A wrapped string's frame stays open at the break: cloning the frame per line is only
+     partially supported by the minimum Obsidian version (store scan warning, 0.12.0). */
 }
 
 /* Floating box: positioned over the editor, width follows content (stays narrow). */
