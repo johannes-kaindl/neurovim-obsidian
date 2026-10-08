@@ -5,6 +5,8 @@ All notable changes to this project are documented here. Format loosely follows
 
 ## [Unreleased]
 
+## [0.12.0] — 2026-10-08
+
 ### Added
 
 - **Objective panel in the mission HUD.** The target is now visible for the whole run, not only in the briefing before the start: the HUD lists the concrete edits the mission asks for, with the exact strings set apart as code, so the only challenge left is the Vim motion. The panel is open by default and can be collapsed with its "Objective" toggle; that choice holds until the mission ends. Missions without listed steps show their summary instead. A long list scrolls inside the panel instead of covering the note.
