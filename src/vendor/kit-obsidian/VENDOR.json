@@ -1,7 +1,7 @@
 {
   "source": "obsidian-kit",
-  "version": "0.51.2",
-  "sha": "7699e21",
+  "version": "0.51.3",
+  "sha": "656ab02",
   "vendored": "backend-probe.ts, chat-client.ts, chat-transport.ts, clipboard.ts, clock.ts, collapsible.ts, endpoint-list.ts, endpoint-secrets.ts, endpoint-source.ts, folder-hide.ts, folder-suggest.ts, help-setting.ts, llm-connection.ts, llm-connection-strings.ts, model-picker.ts, request-section.ts, request-session.ts, secrets.ts, settings_walker.ts, shortcuts-bridge.ts",
   "note": "Verbatim snapshot. Pins in tools/kit-sync.json, re-vendor via tools/sync-kit.sh (zentrales kit-sync im Dach). Never hand-edit. collapsible.ts has no consumer in src/, checked by test/vendorKit.test.ts only. Import rewrites (chat-client.ts, endpoint-list.ts, model-picker.ts, folder-hide.ts, endpoint-source.ts) run as a `rewrite` rule in tools/kit-sync.json — the tool's dependency check replaces the old inline note. settings_walker.ts imports ./folder-suggest, both must stay vendored together."
 }
