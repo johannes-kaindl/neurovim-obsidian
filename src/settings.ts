@@ -95,7 +95,7 @@ function foldLegacyModel(eps: EndpointConfig[], legacyModel: string | undefined)
   return eps.map((cfg) => (cfg.model ? cfg : { ...cfg, model }));
 }
 
-/** CIPHER's request mode in the kit's profile table (see `llm/CipherClient.ts`). */
+/** CIPHER's request mode in the kit's profile table (see `llm/cipherRequest.ts`). */
 const REQUEST_MODE = 'companion';
 
 /** Sanitises the persisted `request` block and migrates the pre-0.11.0 `llmSuppressThinking`

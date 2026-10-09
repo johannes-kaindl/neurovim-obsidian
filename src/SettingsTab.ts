@@ -2,7 +2,7 @@ import { App, PluginSettingTab, Setting } from 'obsidian';
 import type { SettingDefinitionGroup, SettingDefinitionItem } from 'obsidian';
 import type NeuroVimPlugin from './main';
 import { githubHelpUrls, helpSettingDefinition, HELP_SETTING_TEXTS_EN } from './vendor/kit-obsidian/help-setting';
-import { installTabRefreshOnOpen, renderSettingDefinitions, refreshSettingsTab, settingBodyHost } from './vendor/kit-obsidian/settings_walker';
+import { installTabRefreshOnOpen, renderSettingDefinitions, settingBodyHost } from './vendor/kit-obsidian/settings_walker';
 import { probeModelContext } from './llm/modelContext';
 
 export class NeuroVimSettingTab extends PluginSettingTab {
@@ -127,12 +127,6 @@ export class NeuroVimSettingTab extends PluginSettingTab {
     this.cleanupPrevious();
     this.containerEl.empty();
     this.cleanupPrevious = renderSettingDefinitions(this.containerEl, this.getSettingDefinitions(), this, this.app);
-  }
-
-  /** Re-render the tab. On 1.13 the declarative framework exposes update(); on the <1.13
-   *  fallback that method doesn't exist → renderSettingsTab falls back to renderImperative(). */
-  private refreshUi(): void {
-    refreshSettingsTab(this, () => this.renderImperative());
   }
 
   // ── CIPHER render hatches (stateful rows) ────────────────────────────────
