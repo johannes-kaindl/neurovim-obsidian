@@ -5,6 +5,8 @@ All notable changes to this project are documented here. Format loosely follows
 
 ## [Unreleased]
 
+## [0.13.0] — 2026-10-09
+
 ### Changed
 
 - **Requires Obsidian 1.11.4 or newer** (was 1.7.2): API keys now live in Obsidian's keychain, which exists from that version on.
