@@ -1,7 +1,7 @@
 {
   "sources": {
-    "obsidian-kit": { "ref": "0.43.0" },
-    "code-kit": { "ref": "0.7.0" }
+    "obsidian-kit": { "ref": "0.51.2" },
+    "code-kit": { "ref": "0.15.0" }
   },
   "targets": [
     { "dir": "src/vendor/kit", "source": "code-kit", "from": "src/ts/web", "modules": ["clipboard"] },
@@ -9,7 +9,7 @@
       "dir": "src/vendor/kit",
       "source": "code-kit",
       "from": "src/ts/pure",
-      "modules": [{ "name": "sse", "ref": "0.8.0" }, "think-splitter", "error_body", "endpoint", "endpoint_diagnostics", "reasoning", "model-context", "endpoint_config", "model-choice", "model-list-cache", "timeout", "sampling-profiles", "capabilities"]
+      "modules": ["backend-probe", "capabilities", "endpoint", "endpoint_config", "endpoint_diagnostics", "error_body", "model-choice", "model-context", "model-list-cache", "reasoning", "redact", "sampling-profiles", "secrets", "sse", "think-splitter", "timeout"]
     },
     {
       "dir": "src/vendor/kit",
@@ -28,8 +28,14 @@
       "dir": "src/vendor/kit-obsidian",
       "source": "obsidian-kit",
       "from": "src/obsidian",
-      "modules": [{ "name": "chat-client", "ref": "0.44.0" }, "chat-transport", "clock", "collapsible", "endpoint-list", "model-picker", "folder-hide", "folder-suggest", "settings_walker", "endpoint-source", "help-setting", "clipboard", "request-section", "request-session"],
+      "modules": ["backend-probe", "chat-client", "chat-transport", "clipboard", "clock", "collapsible", "endpoint-list", "endpoint-secrets", "endpoint-source", "folder-hide", "folder-suggest", "help-setting", "llm-connection", "llm-connection-strings", "model-picker", "request-section", "request-session", "secrets", "settings_walker", "shortcuts-bridge"],
       "rewrite": [["../vendor/code-kit/pure/", "../kit/"], ["../vendor/code-kit/web/", "../kit/"], ["../pure/", "../kit/"]]
+    },
+    {
+      "dir": "test/vendor/kit",
+      "source": "obsidian-kit",
+      "from": "src/testing",
+      "modules": ["kit-css"]
     }
   ]
 }

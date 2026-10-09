@@ -27,6 +27,7 @@ const MODE_NAME: Record<ModeId, string> = {
   grounded: 'Grounded chat',
   companion: 'Companion',
   creative: 'Creative',
+  complete: 'Complete',
 };
 
 const FIELD_NAME: Record<FieldId, string> = {
