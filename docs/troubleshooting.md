@@ -60,15 +60,15 @@ Each entry starts with what you see — the wording is the plugin's own text —
 | no endpoint reachable | None of the addresses answered. |
 | no model set for the endpoint | The endpoint has no default model and you chose none. |
 
-**Fix:** open **Settings → NeuroVim → CIPHER uplink** and press **Test all**. Every endpoint shows its own status:
+**Fix:** open **Settings → NeuroVim → CIPHER uplink** and press **Test connection**. Every endpoint shows its own status:
 
 | Status | Meaning |
 |---|---|
 | Connection refused — server not running or wrong port. | The server is off, or the port is wrong. |
 | Unknown host — typo in the address? | The host name does not resolve. |
-| Timed out — network unreachable (wrong network / VPN off?). | You are on a network that cannot reach the server. |
-| Responds, but not an OpenAI-compatible endpoint — wrong path or service? | Check the address; enter the base URL without a trailing `/v1`. |
-| Access denied — missing or invalid API key. | Enter the key. |
+| Timed out — network unreachable. | You are on a network that cannot reach the server. |
+| Answers, but is not an OpenAI-compatible endpoint. | Check the address; enter the base URL without a trailing `/v1`. |
+| Access denied — API key missing or invalid. | Enter the key. |
 
 Also pick a **Model** from the dropdown. It is filled from the active endpoint; when the endpoint is unreachable you can type the name.
 

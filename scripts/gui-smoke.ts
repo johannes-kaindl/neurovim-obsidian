@@ -811,7 +811,7 @@ async function checkMasteryTier(cdp: Cdp, vault: string | undefined): Promise<vo
  * Warum dieser Abschnitt existiert: Seit Slice A (2026-08-18) kommen Prompt-Bau,
  * Chat-Session und Turn-Choreografie aus `@neurovim/core`; hier unten bleibt die
  * **Verdrahtung** — `uplink()` baut `CorePortAdapter` aus `isLlmConfigured(settings)`
- * und `effectiveModel(ep, settings.llmModel)`. Wäre sie falsch, blieben alle Kern- und
+ * und der Kit-Verbindung `plugin.llm`. Wäre sie falsch, blieben alle Kern- und
  * Adapter-Tests trotzdem grün: die bekommen ihre Settings vom Test, nicht vom Plugin.
  * `main.ts` hat keine Test-Naht — genau diese Lücke blieb nach der Trace-Rückportierung
  * schon einmal offen.
@@ -832,46 +832,42 @@ async function checkCipherUplink(cdp: Cdp): Promise<void> {
   // bevor der Knopf existiert).
   const patched = await cdp.evaluate<boolean>(`
     const p = app.plugins.plugins[${JSON.stringify(PLUGIN_ID)}];
-    if (!p || !p.cipherClient || !p.endpointResolver) return false;
+    if (!p || !p.llm) return false;
     window.__nvSmokeRestore = {
-      stream: p.cipherClient.stream.bind(p.cipherClient),
-      resolve: p.endpointResolver.resolve.bind(p.endpointResolver),
-      resolveSource: p.endpointResolver.resolveSource.bind(p.endpointResolver),
-      invalidate: p.endpointResolver.invalidate.bind(p.endpointResolver),
+      complete: p.llm.complete,
+      resolve: p.llm.resolve,
+      invalidate: p.llm.invalidate,
       endpoints: p.settings.llmEndpoints,
-      model: p.settings.llmModel,
     };
     // Konfiguriert-Gate erfüllen, ohne die echten Werte zu speichern.
     p.settings.llmEndpoints = [{ url: 'http://nv-smoke.invalid:1234', apiKey: '', model: 'stub' }];
-    p.settings.llmModel = 'stub';
-    p.endpointResolver.resolve = async () => ({ url: 'http://nv-smoke.invalid:1234', apiKey: '', model: 'stub' });
-    // Der Adapter fragt resolveSource() (volles Ergebnis mit Familie/Backend/Wire-Modell), nicht resolve().
-    p.endpointResolver.resolveSource = async () => ({
+    // Der Adapter fragt die Verbindung (llm.resolve / llm.complete), nicht Resolver und Client.
+    const SRC = {
       kind: 'local', config: { url: 'http://nv-smoke.invalid:1234', apiKey: '', model: 'stub' }, model: 'stub',
       family: null, familySource: 'none', backend: 'unknown', backendSource: 'none', sentModel: 'stub',
-    });
-    p.endpointResolver.invalidate = () => {};
+    };
+    const base = { reasoning: '', timing: { startedAt: 0, endedAt: 0 }, facts: null, deviations: [], source: SRC };
+    p.llm.resolve = async () => SRC;
+    p.llm.invalidate = () => {};
     // Der Stub haelt den Stream offen, bis der Treiber ihn freigibt (R3-3) oder die
     // Oberflaeche ihn abbricht (R3-1). KEINE Timer-Schleife: Obsidians Renderer drosselt
     // setTimeout auf 1 Hz (gemessen 2026-09-03, 7 Ticks in 6 s bei 100 ms Soll, mit und
     // ohne Fokus) — 40 × 100 ms wurden so zu 40 s, und R3-3 lief rot, obwohl die Antwort
     // spaeter korrekt landete. Ein Treiber-Befund, kein Plugin-Befund.
-    p.cipherClient.stream = (cfg, messages, onToken, signal) => new Promise((resolve) => {
-      window.__nvSmokeSawModel = cfg && cfg.sentModel;
+    p.llm.complete = (req, h) => new Promise((resolve) => {
+      const msgs = req && req.messages ? req.messages : [];
+      window.__nvSmokeSawModel = msgs.length > 0 && msgs.some((m) => m.role === 'user') ? 'stub' : null;
+      const onToken = (h && h.onToken) || (() => {});
+      const signal = h && h.signal;
       onToken('Use d');
+      const cut = () => resolve({ ok: false, kind: 'aborted', detail: 'stream aborted', partial: 'Use d', ...base });
       const finish = () => {
         onToken('w.');
-        resolve({ ok: true, content: 'Use dw.', facts: { status: 200, content: 'Use dw.', reasoning: '' } });
+        resolve({ ok: true, content: 'Use dw.', toolCalls: [], truncated: false, streamed: true, ...base });
       };
       window.__nvSmokeRelease = finish;
-      if (signal.aborted) {
-        resolve({ ok: false, kind: 'aborted', detail: 'stream aborted', partial: 'Use d', facts: null });
-        return;
-      }
-      signal.addEventListener('abort', () => {
-        window.__nvSmokeRelease = null;
-        resolve({ ok: false, kind: 'aborted', detail: 'stream aborted', partial: 'Use d', facts: null });
-      }, { once: true });
+      if (signal && signal.aborted) { cut(); return; }
+      if (signal) signal.addEventListener('abort', () => { window.__nvSmokeRelease = null; cut(); }, { once: true });
     });
     // Einen etwaigen zuvor gebauten Uplink verwerfen, damit er den Stub sieht.
     p.cipherUplink = null;
@@ -879,10 +875,10 @@ async function checkCipherUplink(cdp: Cdp): Promise<void> {
   `);
 
   if (!patched) {
-    // KEIN skipped(): dass cipherClient/endpointResolver nicht am Plugin hängen, ist
+    // KEIN skipped(): dass plugin.llm nicht am Plugin hängt, ist
     // genau die Verdrahtungsänderung in main.ts, für die dieser Abschnitt existiert.
     // Als Skip gemeldet würde R3 sich in seinem eigenen Fehlerfall selbst bestätigen.
-    record("R3 CIPHER-Uplink", false, "cipherClient/endpointResolver nicht am Plugin gefunden");
+    record("R3 CIPHER-Uplink", false, "Verbindung (plugin.llm) nicht am Plugin gefunden");
     return;
   }
   // Der Hub rendert im 500-ms-Takt; der Tab braucht einen Tick, um aufzutauchen.
@@ -918,12 +914,13 @@ async function checkCipherUplink(cdp: Cdp): Promise<void> {
       return;
     }
 
-    // Der Modellname muss aus den Settings durch den Adapter beim Client ankommen.
+    // Der Adapter muss die Frage als Nachricht an die Verbindung geben. Das Modell am Draht misst N2-1.
+    // (Umgeschrieben für Welle 15: vorher ging die Modellwahl durch `cipherClient.stream`.)
     const model = await cdp.evaluate<string | null>("return window.__nvSmokeSawModel ?? null;");
     record(
-      "R3-0 Modellwahl erreicht den Transport",
+      "R3-0 Die Frage erreicht die Verbindung",
       model === "stub",
-      model === "stub" ? "cfg.model === 'stub'" : `cfg.model war ${JSON.stringify(model)} statt 'stub'`,
+      model === "stub" ? "llm.complete bekam eine user-Nachricht" : "llm.complete bekam keine user-Nachricht",
     );
 
     await cdp.evaluate(`
@@ -1011,12 +1008,10 @@ async function checkCipherUplink(cdp: Cdp): Promise<void> {
         const p = app.plugins.plugins[${JSON.stringify(PLUGIN_ID)}];
         const r = window.__nvSmokeRestore;
         if (p && r) {
-          p.cipherClient.stream = r.stream;
-          p.endpointResolver.resolve = r.resolve;
-          p.endpointResolver.resolveSource = r.resolveSource;
-          p.endpointResolver.invalidate = r.invalidate;
+          p.llm.complete = r.complete;
+          p.llm.resolve = r.resolve;
+          p.llm.invalidate = r.invalidate;
           p.settings.llmEndpoints = r.endpoints;
-          p.settings.llmModel = r.model;
           p.cipherUplink = null;
           p.cipherSession.reset();
         }
@@ -1066,9 +1061,9 @@ const entferneManager = (cdp: Cdp): Promise<unknown> => cdp.evaluate(`
 `);
 const aufloesungNv = (cdp: Cdp): Promise<{ url: string | null; model: string | null }> => cdp.evaluate(`
   const p = app.plugins.plugins[${JSON.stringify(PLUGIN_ID)}];
-  p.endpointResolver.invalidate();
-  const ep = await p.endpointResolver.resolve();
-  return { url: ep ? ep.url : null, model: ep ? (ep.model ?? null) : null };
+  p.llm.invalidate();
+  const r = await p.llm.resolve();
+  return { url: r.config ? r.config.url : null, model: r.config ? (r.model || null) : null };
 `);
 
 /** Misst den Endpunkt-Abschnitt im Einstellungen-Fenster (eigenes CDP-Target ab 1.13). */
@@ -1217,8 +1212,8 @@ async function geladenesModell(url: string): Promise<string | null> {
   }
 }
 
-/** Der Kit-Chat-Client gegen einen ECHTEN Endpunkt: R3 stubbt `cipherClient.stream` und beruehrt
- *  ihn deshalb nie. Hier laeuft der echte Weg (Kit-Client + XHR-Transport im Renderer). */
+/** Die Kit-Verbindung gegen einen ECHTEN Endpunkt: R3 stubbt `llm.complete` und beruehrt sie
+ *  deshalb nie. Hier laeuft der echte Weg (Verbindung, Kit-Client + XHR-Transport im Renderer). */
 async function checkCipherReal(cdp: Cdp): Promise<void> {
   console.log("\nR7 · CIPHER gegen einen echten Endpunkt");
   const name = "R7 Kit-Chat-Client streamt gegen den echten Endpunkt";
@@ -1228,13 +1223,14 @@ async function checkCipherReal(cdp: Cdp): Promise<void> {
   await cdp.evaluate(`
     const p = app.plugins.plugins[${JSON.stringify(PLUGIN_ID)}];
     window.__nvSmokeReal = { tokens: 0, erster: null, t0: Date.now(), fertig: false, ergebnis: null };
-    p.cipherClient.stream(
-      { endpoint: { url: ${JSON.stringify(url)}, apiKey: "" }, sentModel: ${JSON.stringify(modell)}, params: { temperature: 0.7, max_tokens: 1024 } },
-      [{ role: "user", content: "Answer in exactly one short sentence: what does the vim command dw do?" }],
-      () => { const r = window.__nvSmokeReal; r.tokens += 1; r.erster ??= Date.now() - r.t0; },
-      new AbortController().signal,
+    const vorher = p.settings.llmEndpoints;
+    p.settings.llmEndpoints = [{ url: ${JSON.stringify(url)}, model: ${JSON.stringify(modell)} }];
+    p.llm.invalidate();
+    p.llm.complete(
+      { messages: [{ role: "user", content: "Answer in exactly one short sentence: what does the vim command dw do?" }] },
+      { onToken: () => { const r = window.__nvSmokeReal; r.tokens += 1; r.erster ??= Date.now() - r.t0; } },
     ).then((o) => { window.__nvSmokeReal.ergebnis = o; }).catch((e) => { window.__nvSmokeReal.ergebnis = { ok: false, kind: "threw", detail: String(e), partial: "" }; })
-      .finally(() => { window.__nvSmokeReal.fertig = true; });
+      .finally(() => { p.settings.llmEndpoints = vorher; p.llm.invalidate(); window.__nvSmokeReal.fertig = true; });
     return true;`);
   await pollUntil<boolean>(cdp, `return window.__nvSmokeReal?.fertig === true ? true : null;`, 180_000, 500).catch(() => null);
   const r = await cdp.evaluate<{ tokens: number; erster: number | null; fertig: boolean; ergebnis: { ok: boolean; content?: string; kind?: string; detail?: string } | null }>(`
@@ -1248,8 +1244,9 @@ async function checkCipherReal(cdp: Cdp): Promise<void> {
 /** Ein Fake-Endpunkt im Treiber-Prozess: beantwortet /v1/models und streamt auf
  *  /v1/chat/completions einen Satz — und hält jeden gesendeten Body fest. Nur so ist der Draht
  *  messbar; `lastRequest()` der Session zeigt, was das Plugin zu senden GLAUBT. */
-async function starteFakeEndpunkt(modell: string): Promise<{ url: string; bodies: Array<Record<string, unknown>>; stop: () => Promise<void> }> {
+async function starteFakeEndpunkt(modell: string, echo = false): Promise<{ url: string; bodies: Array<Record<string, unknown>>; headers: Array<Record<string, string | string[] | undefined>>; stop: () => Promise<void> }> {
   const bodies: Array<Record<string, unknown>> = [];
+  const headers: Array<Record<string, string | string[] | undefined>> = [];
   // CORS wie ein echter LM Studio: der Stream-Weg (XHR) laeuft im Renderer und braucht Preflight
   // und Header — ohne sie weicht der Client auf den Fallback ohne Stream aus (`stream:false`), und
   // der Prüfpunkt misst dann den Ausweichweg statt den Normalfall.
@@ -1266,8 +1263,13 @@ async function starteFakeEndpunkt(modell: string): Promise<{ url: string; bodies
       req.on("data", (c: Buffer) => { raw += c.toString("utf8"); });
       req.on("end", () => {
         try { bodies.push(JSON.parse(raw) as Record<string, unknown>); } catch { bodies.push({ _unparseable: raw }); }
+        headers.push({ ...req.headers });
+        // `echo`: die Antwort ist die letzte Nachricht des Spielers — so kommt ein Platzhalter zurück
+        // und der Prüfpunkt sieht, ob die Verbindung das Original wiederherstellt.
+        const msgs = ((bodies[bodies.length - 1] as { messages?: Array<{ content?: unknown }> }).messages ?? []);
+        const antwort = echo ? String(msgs[msgs.length - 1]?.content ?? "") : "Use dw.";
         res.writeHead(200, { "content-type": "text/event-stream", ...cors });
-        res.write('data: {"choices":[{"delta":{"content":"Use dw."}}]}\n\n');
+        res.write(`data: ${JSON.stringify({ choices: [{ delta: { content: antwort } }] })}\n\n`);
         res.write('data: {"choices":[{"delta":{},"finish_reason":"stop"}]}\n\n');
         res.end("data: [DONE]\n\n");
       });
@@ -1278,7 +1280,7 @@ async function starteFakeEndpunkt(modell: string): Promise<{ url: string; bodies
   await new Promise<void>((r) => server.listen(0, "127.0.0.1", r));
   const addr = server.address();
   const port = typeof addr === "object" && addr ? addr.port : 0;
-  return { url: `http://127.0.0.1:${port}`, bodies, stop: () => new Promise<void>((r) => { server.close(() => r()); }) };
+  return { url: `http://127.0.0.1:${port}`, bodies, headers, stop: () => new Promise<void>((r) => { server.close(() => r()); }) };
 }
 
 /** N2: was CIPHER tatsächlich auf den Draht schreibt. Die Kette ist die echte — Uplink → Adapter →
@@ -1289,11 +1291,11 @@ async function checkRequestBody(cdp: Cdp): Promise<void> {
   const frage = (ueberschreiben: string) => cdp.evaluate<{ ok: boolean; params: Record<string, unknown> | null }>(`
     const p = app.plugins.plugins[${JSON.stringify(PLUGIN_ID)}];
     ${ueberschreiben}
-    p.endpointResolver.invalidate();
+    p.llm.invalidate();
     p.cipherUplink = null;
     p.cipherSession.reset();
     await p.uplink().ask(p.cipherSession, "how do I delete a word?");
-    const last = p.requestSession.lastRequest();
+    const last = p.llm.session.lastRequest();
     const lines = p.cipherSession.lines ?? [];
     return { ok: true, params: last ? last.params : null };
   `);
@@ -1322,7 +1324,7 @@ async function checkRequestBody(cdp: Cdp): Promise<void> {
       b2 ? `temperature ${String(b2.temperature)}, reasoning_effort ${String(b2.reasoning_effort)}, top_p ${String(b2.top_p)}, max_tokens ${String(b2.max_tokens)}` : "kein zweiter Request angekommen",
     );
     const letzte = await cdp.evaluate<Record<string, unknown> | null>(`
-      const l = app.plugins.plugins[${JSON.stringify(PLUGIN_ID)}].requestSession.lastRequest();
+      const l = app.plugins.plugins[${JSON.stringify(PLUGIN_ID)}].llm.session.lastRequest();
       return l ? l.params : null;`);
     record(
       "N2-3 Die Session zeigt, was wirklich gesendet wurde",
@@ -1334,9 +1336,73 @@ async function checkRequestBody(cdp: Cdp): Promise<void> {
       const p = app.plugins.plugins[${JSON.stringify(PLUGIN_ID)}];
       const v = window.__nvVorherReq;
       if (v) { p.settings.llmEndpoints = v.eps; p.settings.request = v.request; delete window.__nvVorherReq; }
-      p.endpointResolver.invalidate();
+      p.llm.invalidate();
       p.cipherUplink = null;
       p.cipherSession.reset();
+      return true;
+    `).catch(() => undefined);
+    await fake.stop();
+  }
+}
+
+/** W1–W3 (Welle 15, Verbindungs-Tausch): was der Tausch dem Spieler zusagt, am echten Plugin gemessen.
+ *  W1 Schlüssel verlässt `data.json` (Klartext-Schlüssel gesetzt, `resolve({ force: true })`, Datei gelesen —
+ *  ohne vorher gesetzten Schlüssel misst der Punkt nichts), W2 der Schlüssel kommt als Bearer-Header am Draht an,
+ *  W3 ein Bearer-Token im Text geht als Platzhalter hinaus und kommt im Ergebnis im Original zurück. */
+async function checkConnectionSwap(cdp: Cdp): Promise<void> {
+  const modell = "qwen/qwen3.8-27b";
+  const schluessel = "sk-nv-smoke-0123456789abcdef";
+  const token = "Bearer abcdefghijklmnop1234567890";
+  const fake = await starteFakeEndpunkt(modell, true);
+  try {
+    await cdp.evaluate(`
+      const p = app.plugins.plugins[${JSON.stringify(PLUGIN_ID)}];
+      if (!("__nvVorherW" in window)) window.__nvVorherW = JSON.parse(JSON.stringify(p.settings.llmEndpoints));
+      p.settings.llmEndpoints = [{ url: ${JSON.stringify(fake.url)}, model: ${JSON.stringify(modell)}, apiKey: ${JSON.stringify(schluessel)} }];
+      p.llm.invalidate();
+      await p.llm.resolve({ force: true });
+      await p.saveSettings();
+      return true;
+    `);
+    const z = await cdp.evaluate<{ imSpeicher: boolean; secretId: boolean; datei: boolean }>(`
+      const p = app.plugins.plugins[${JSON.stringify(PLUGIN_ID)}];
+      const raw = await app.vault.adapter.read(app.vault.configDir + "/plugins/" + ${JSON.stringify(PLUGIN_ID)} + "/data.json");
+      const ep = p.settings.llmEndpoints[0] || {};
+      return { imSpeicher: JSON.stringify(p.settings.llmEndpoints).includes(${JSON.stringify(schluessel)}), secretId: Boolean(ep.secretId), datei: raw.includes(${JSON.stringify(schluessel)}) };
+    `);
+    record(
+      "W1 Kein apiKey in data.json (Schlüssel liegt im Schlüsselbund)",
+      !z.imSpeicher && !z.datei && z.secretId,
+      `Settings enthalten Schlüssel: ${z.imSpeicher}, data.json enthält Schlüssel: ${z.datei}, secretId gesetzt: ${z.secretId}`,
+    );
+    const antwort = await cdp.evaluate<{ ok: boolean; content: string }>(`
+      const p = app.plugins.plugins[${JSON.stringify(PLUGIN_ID)}];
+      const r = await p.llm.complete({ messages: [{ role: "user", content: ${JSON.stringify(`why does this fail: ${token}`)} }] });
+      return { ok: r.ok, content: r.ok ? r.content : String(r.detail) };
+    `);
+    const auth = String(fake.headers[0]?.authorization ?? "");
+    record(
+      "W2 Der Schlüssel kommt aus dem Schlüsselbund als Bearer-Header am Draht an",
+      auth === `Bearer ${schluessel}`,
+      auth === "" ? "kein Authorization-Header" : auth === `Bearer ${schluessel}` ? "Bearer <Schlüssel> am Draht" : "Header weicht ab",
+    );
+    const gesendet = JSON.stringify(fake.bodies[0] ?? {});
+    record(
+      "W3 Schwärzung: Token geht als Platzhalter hinaus und kommt im Original zurück",
+      !gesendet.includes("abcdefghijklmnop1234567890") && gesendet.includes("[redacted-") && antwort.ok && antwort.content.includes("abcdefghijklmnop1234567890"),
+      `am Draht ${gesendet.includes("abcdefghijklmnop1234567890") ? "KLARTEXT" : gesendet.includes("[redacted-") ? "Platzhalter" : "weder noch"}, im Ergebnis ${antwort.content.includes("abcdefghijklmnop1234567890") ? "Original" : "ohne Original"}`,
+    );
+  } finally {
+    await cdp.evaluate(`
+      const p = app.plugins.plugins[${JSON.stringify(PLUGIN_ID)}];
+      const v = window.__nvVorherW;
+      if (v) {
+        const sid = p.settings.llmEndpoints[0] && p.settings.llmEndpoints[0].secretId;
+        if (sid && app.secretStorage) app.secretStorage.setSecret(sid, "");
+        p.settings.llmEndpoints = v; delete window.__nvVorherW;
+        await p.saveSettings();
+      }
+      p.llm.invalidate();
       return true;
     `).catch(() => undefined);
     await fake.stop();
@@ -1436,7 +1502,7 @@ async function checkRequestSection(cdp: Cdp, port: number, vault: string | undef
       const p = app.plugins.plugins[${JSON.stringify(PLUGIN_ID)}];
       if (p.settings.request && p.settings.request.overrides && p.settings.request.overrides.companion) {
         delete p.settings.request.overrides.companion;
-        await p.saveRequestSettings(p.settings.request);
+        await p.saveSettings();
       }
       return true;
     `).catch(() => undefined);
@@ -1511,7 +1577,7 @@ async function checkEndpointSource(cdp: Cdp, port: number, vault: string | undef
     const p = app.plugins.plugins[${JSON.stringify(PLUGIN_ID)}];
     if (!("__nvVorherEps" in window)) window.__nvVorherEps = JSON.parse(JSON.stringify(p.settings.llmEndpoints));
     p.settings.llmEndpoints = [{ url: "http://127.0.0.1:9", model: "nv-lokal" }];
-    p.endpointResolver.invalidate();
+    p.llm.invalidate();
     return true;
   `);
   try {
@@ -1520,7 +1586,7 @@ async function checkEndpointSource(cdp: Cdp, port: number, vault: string | undef
     await cdp.evaluate(`
       const p = app.plugins.plugins[${JSON.stringify(PLUGIN_ID)}];
       if ("__nvVorherEps" in window) { p.settings.llmEndpoints = window.__nvVorherEps; delete window.__nvVorherEps; }
-      p.endpointResolver.invalidate();
+      p.llm.invalidate();
       return true;
     `).catch(() => undefined);
   }
@@ -1583,8 +1649,8 @@ async function main(): Promise<void> {
   // Node-Prozess sofort, bevor sie je erreicht werden. Vier Zustandssorten ueberleben das
   // sonst dauerhaft — bis zum naechsten Obsidian-Neustart, fuer die gesamte Instanz sichtbar:
   //  · Theme/Farbschema (R4-4) haengt im falschen Kombinationszustand fest.
-  //  · Der CIPHER-Stub (R3) ersetzt `cipherClient`/`endpointResolver` dauerhaft — ein echter
-  //    Uplink-Aufruf landete beim gestubbten Fake-Client statt beim echten Server.
+  //  · Der CIPHER-Stub (R3) ersetzt `llm.complete`/`resolve` dauerhaft — ein echter
+  //    Uplink-Aufruf landete bei der gestubbten Verbindung statt beim echten Server.
   //  · Eine aktive Mission haelt Vim-Modus/Editor-Capture fest (globale Tastatur-Wirkung).
   //  · `uiCollapsed` bleibt auf dem waehrend R2-2 gesetzten Testwert stehen.
   // Alle vier Wiederherstellungen sind idempotent (jede prueft ihre Vorbedingung selbst), die
@@ -1603,12 +1669,10 @@ async function main(): Promise<void> {
         if (p && tb) { p.settings.colorScheme = tb.scheme; await p.saveSettings(); app.vault.setConfig('theme', tb.theme); app.workspace.trigger('css-change'); }
         const r = window.__nvSmokeRestore;
         if (p && r) {
-          p.cipherClient.stream = r.stream;
-          p.endpointResolver.resolve = r.resolve;
-          p.endpointResolver.resolveSource = r.resolveSource;
-          p.endpointResolver.invalidate = r.invalidate;
+          p.llm.complete = r.complete;
+          p.llm.resolve = r.resolve;
+          p.llm.invalidate = r.invalidate;
           p.settings.llmEndpoints = r.endpoints;
-          p.settings.llmModel = r.model;
           p.cipherUplink = null;
           p.cipherSession.reset();
         }
@@ -1617,6 +1681,7 @@ async function main(): Promise<void> {
           if (p && leaf.view?.file?.path?.startsWith(p.settings.missionFolder)) leaf.detach();
         }
         if ("__nvVorherEps" in window && p) { p.settings.llmEndpoints = window.__nvVorherEps; delete window.__nvVorherEps; }
+        if ("__nvVorherW" in window && p) { p.settings.llmEndpoints = window.__nvVorherW; delete window.__nvVorherW; }
         if ("__nvVorherMgr" in window) {
           if (window.__nvVorherMgr === undefined) delete app.plugins.plugins["llm-endpoint-manager"];
           else app.plugins.plugins["llm-endpoint-manager"] = window.__nvVorherMgr;
@@ -1695,12 +1760,10 @@ async function main(): Promise<void> {
       const p = app.plugins.plugins[${JSON.stringify(PLUGIN_ID)}];
       const r = window.__nvSmokeRestore;
       if (!p || !r) return false;
-      p.cipherClient.stream = r.stream;
-      p.endpointResolver.resolve = r.resolve;
-      p.endpointResolver.resolveSource = r.resolveSource;
-      p.endpointResolver.invalidate = r.invalidate;
+      p.llm.complete = r.complete;
+      p.llm.resolve = r.resolve;
+      p.llm.invalidate = r.invalidate;
       p.settings.llmEndpoints = r.endpoints;
-      p.settings.llmModel = r.model;
       p.cipherUplink = null;
       p.cipherSession.reset();
       delete window.__nvSmokeRestore;
@@ -1732,6 +1795,7 @@ async function main(): Promise<void> {
     await checkMasteryTier(cdp, vault);
     await checkHelpRow(cdp, port, vault);
     await checkRequestBody(cdp);
+    await checkConnectionSwap(cdp);
     await checkRequestSection(cdp, port, vault);
     await checkEndpointSource(cdp, port, vault);
     await checkFolderHide(cdp);

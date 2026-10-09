@@ -23,19 +23,11 @@ import { authoredPar } from './masteryTier';
 import { ResultModal } from './result/ResultModal';
 import { BriefingModal } from './briefing/BriefingModal';
 import { LoreModal } from './lore/LoreModal';
-import { CipherClient, MODE as CIPHER_MODE, buildCipherParams } from './llm/CipherClient';
-import { createChatClient } from './vendor/kit-obsidian/chat-client';
-import { requestUrlTransport, xhrSseTransport } from './vendor/kit-obsidian/chat-transport';
+import { MODE as CIPHER_MODE, CIPHER_MAX_TOKENS, ENDPOINT_CALLER } from './llm/cipherRequest';
 import { CorePortAdapter } from './llm/CorePortAdapter';
-import { EndpointResolver } from './llm/endpointResolver';
+import { createLlmConnection, type LlmConnection } from './vendor/kit-obsidian/llm-connection';
 import { findEndpointManager } from './vendor/kit-obsidian/endpoint-source';
-import { probeEndpoint } from './llm/endpointProbe';
-import { cachedProbe } from './llm/backendProbe';
-import { deviationNotice, requestDroppedNotice } from './llm/requestStrings';
-import { createRequestSession, type RequestSession } from './vendor/kit-obsidian/request-session';
-import type { RequestSectionState } from './vendor/kit-obsidian/request-section';
-import { checkResponse, thinkingFor, type RequestSettings } from './vendor/kit/sampling-profiles';
-import type { EndpointConfig } from './vendor/kit/endpoint_config';
+import { requestDroppedNotice } from './llm/requestStrings';
 import { DEFAULT_SETTINGS, isLlmConfigured, loadRequestSettings, mergeStoredSettings, type VimDojoSettings } from './settings';
 import {
   buildRunTrace, TraceStore, CipherUplink, ChatSession, buildKnowledge, quickReference,
@@ -77,51 +69,33 @@ export default class NeuroVimPlugin extends Plugin {
   private vimRestore: boolean | null = null;
   private tick: number | null = null;
   private cipherSession = new ChatSession();
-  private cipherClient = new CipherClient(() => createChatClient({ transport: xhrSseTransport, fallbackTransport: requestUrlTransport }));
   /** Installed once after onLayoutReady, updated from applyMissionFolderVisibility(). */
   private folderHide: FolderHideHandle | null = null;
   private traceStore: TraceStore | null = null;
   private cipherUplink: CipherUplink | null = null;
-  private endpointResolver = new EndpointResolver(
-    () => this.settings.llmEndpoints,
-    async (cfg) => (await probeEndpoint(cfg)).status.reachable,
-    // The LLM Endpoint Manager, when installed, is the source — found fresh on every resolve.
-    {
-      manager: () => findEndpointManager(this.app),
-      choice: () => this.settings.choice,
-      // The manager reports its own backend; a local endpoint is probed (30 s cache per URL).
-      backendOf: (cfg) => cachedProbe(cfg.url, cfg.model ?? ''),
+  /** CIPHER's connection to the LLM: endpoint source (manager or local list with keychain),
+   *  remembered resolution, request values from the kit's profile table, client with time
+   *  limits, response check and the settings sections. Reasoning is never shown (`onReasoning`
+   *  is left out); a reply cut off at the token limit without text is an error (`truncated`). */
+  readonly llm: LlmConnection = createLlmConnection({
+    app: this.app,
+    pluginId: this.manifest.id,
+    caller: ENDPOINT_CALLER,
+    capability: 'chat',
+    mode: CIPHER_MODE,
+    maxTokens: CIPHER_MAX_TOKENS,
+    truncated: 'error',
+    getSettings: () => ({ endpoints: this.settings.llmEndpoints, choice: this.settings.choice, request: this.settings.request }),
+    // The patch lands in the settings BEFORE it is saved (the connection reads the rows back
+    // right away). Not `saveSettings()`: that would repaint on a call the connection makes
+    // from inside `resolve()`.
+    persist: async (patch) => {
+      if (patch.endpoints !== undefined) this.settings.llmEndpoints = patch.endpoints;
+      if (patch.choice !== undefined) this.settings.choice = patch.choice;
+      if (patch.request !== undefined) this.settings.request = patch.request;
+      await this.persist();
     },
-  );
-  /** Per-session record of what CIPHER's requests sent and which deviations the answers showed
-   *  (settings section "Request"). Not persisted. */
-  readonly requestSession: RequestSession = createRequestSession({ message: (d) => deviationNotice(d) });
-
-  /** Resolves the active endpoint (manager first, else the local list) with its model on
-   *  `config.model`. Fresh: the settings tab calls this after every edit or choice change. */
-  async resolveEndpointFresh(): Promise<EndpointConfig | null> {
-    this.endpointResolver.invalidate();
-    return this.endpointResolver.resolve();
-  }
-
-  /** What the "Request" settings section shows: the family/backend/wire model of the last
-   *  resolve (null parts until the first one). */
-  requestSectionState(): RequestSectionState {
-    const s = this.endpointResolver.lastSource();
-    return {
-      family: s?.family ?? null, familySource: s?.familySource ?? 'none',
-      backend: s?.backend ?? 'unknown', backendSource: s?.backendSource ?? 'none',
-      model: s?.model ?? '', sentModel: s?.sentModel ?? '',
-      ...(s?.defaultModel !== undefined ? { defaultModel: s.defaultModel } : {}),
-    };
-  }
-
-  /** Persists edited request settings. Not `saveSettings()`: a changed override does not move
-   *  the endpoint, so the resolver cache (and its pings) stays. */
-  async saveRequestSettings(next: RequestSettings): Promise<void> {
-    this.settings.request = next;
-    await this.persist();
-  }
+  });
 
   /** The CIPHER uplink is usable: with the manager installed it decides (endpoint and model
    *  come from it); without it every local endpoint needs its own model. */
@@ -329,14 +303,10 @@ export default class NeuroVimPlugin extends Plugin {
     return null;
   }
 
-  /** Every settings write goes through here — the settings tab's declarative controls, the
-   *  kit's endpoint-list commits and the thinking toggle all call it. The resolver caches the
-   *  WHOLE EndpointConfig (url + per-endpoint key + model override), so a saved edit to a key
-   *  or a model would otherwise not reach the next CIPHER request: the only other invalidation
-   *  is a `kind === 'network'` stream failure, and a 401 or a wrong-model answer is an `http`
-   *  failure, not a network one — the stale config would survive until Obsidian restarts. */
+  /** Every settings write goes through here — the settings tab's declarative controls and the
+   *  thinking toggle. Endpoint edits never come this way: the connection saves through its own
+   *  `persist` and invalidates its remembered resolution itself. */
   async saveSettings(): Promise<void> {
-    this.endpointResolver.invalidate();
     await this.persist();
     this.repaint();
   }
@@ -473,21 +443,7 @@ export default class NeuroVimPlugin extends Plugin {
    *  and the quick-reference note — not worth doing at load. */
   private uplink(): CipherUplink {
     this.cipherUplink ??= new CipherUplink(
-      new CorePortAdapter(this.cipherClient, this.endpointResolver, {
-        configured: () => this.llmConfigured(),
-        forSource: (src) => {
-          const family = src.family;
-          const thinking = thinkingFor(this.settings.request, CIPHER_MODE);
-          const overrides = this.settings.request.overrides[CIPHER_MODE]?.[family ?? 'unknown'] ?? {};
-          const { params } = buildCipherParams({ family, backend: src.backend, thinking, overrides });
-          this.requestSession.recordRequest(params);
-          return {
-            sentModel: src.sentModel,
-            params,
-            report: (facts) => this.requestSession.report(checkResponse({ family, thinking }, facts)),
-          };
-        },
-      }),
+      new CorePortAdapter(this.llm, () => this.llmConfigured()),
       buildKnowledge(quickReference(ENTRIES)),
       () => this.repaint(),
     );

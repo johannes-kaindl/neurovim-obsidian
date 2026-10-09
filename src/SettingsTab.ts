@@ -1,70 +1,14 @@
 import { App, PluginSettingTab, Setting } from 'obsidian';
 import type { SettingDefinitionGroup, SettingDefinitionItem } from 'obsidian';
 import type NeuroVimPlugin from './main';
-import { buildEndpointList, type EndpointListStrings } from './vendor/kit-obsidian/endpoint-list';
 import { githubHelpUrls, helpSettingDefinition, HELP_SETTING_TEXTS_EN } from './vendor/kit-obsidian/help-setting';
 import { installTabRefreshOnOpen, renderSettingDefinitions, refreshSettingsTab, settingBodyHost } from './vendor/kit-obsidian/settings_walker';
-import { buildRequestSection } from './vendor/kit-obsidian/request-section';
-import { CIPHER_MAX_TOKENS, MODE as CIPHER_MODE } from './llm/CipherClient';
-import { requestSectionStrings } from './llm/requestStrings';
-import { createModelListCache } from './vendor/kit/model-list-cache';
-import type { EndpointConfig } from './vendor/kit/endpoint_config';
-import { buildEndpointSourceSection } from './vendor/kit-obsidian/endpoint-source';
-import { ENDPOINT_CALLER } from './llm/endpointResolver';
-import type { EndpointStatus } from './vendor/kit/endpoint_diagnostics';
-import { endpointStatusEn, endpointWarningEn } from './llm/endpointText';
-import { probeEndpoint } from './llm/endpointProbe';
 import { probeModelContext } from './llm/modelContext';
 
-/** Every user-visible string of the kit's endpoint-list editor. The kit deliberately
- *  phrases nothing itself — wording and language belong to the consumer. */
-const ENDPOINT_STRINGS: EndpointListStrings = {
-  addPlaceholder: 'http://localhost:1234',
-  apiKeyPlaceholder: 'API key (optional)',
-  modelPlaceholder: 'qwen3-8b',
-  ariaUrl: 'Endpoint URL',
-  ariaAdd: 'Add endpoint URL',
-  ariaApiKey: (url) => `API key for ${url}`,
-  ariaModel: (url) => `Model override for ${url}`,
-  // No global model any more (0.9.0) — the vendored kit still calls this with one (always
-  // empty, see the `globalModel` wiring below), hence the unused parameter stays typed but
-  // ignored rather than removed.
-  emptyModelLabel: () => '— no model set —',
-  modelHint: (key) => (key === 'unreachable' ? 'Endpoint unreachable — last known value shown.'
-    : key === 'no-list' ? 'Endpoint doesn’t report a model list — type the model id.' : ''),
-  savedSuffix: '(saved)',
-  refreshModels: 'Refresh model list',
-  moveToFront: 'Use first',
-  remove: 'Remove',
-  thirdParty: 'This endpoint has an API key — requests leave your machine.',
-  probing: 'Testing…',
-  statusTooltip: (status) => endpointStatusEn(status.kind, status.raw),
-  role: (role) => (role.kind === 'active' ? 'Active'
-    : role.kind === 'unreachable' ? 'Unreachable'
-    : role.kind === 'skipped-model' ? 'Reachable, but skipped (model mismatch)'
-    : `Standby — position ${role.position}`),
-  warnings: (ws) => ws.map((w) => endpointWarningEn(w.rule)).join(' · '),
-  presetTooltip: (preset) => `Add ${preset.url}`,
-  presetLabel: (preset) => preset.label,
-  checkConnection: 'Test all',
-  saveFailed: 'Could not save — settings reverted, try again.',
-};
-
 export class NeuroVimSettingTab extends PluginSettingTab {
-  /** Model lists per endpoint + generation counter. Belongs to the lifetime of the
-   *  settings tab (survives every rebuild) — cleared in hide(). */
-  private readonly modelCache = createModelListCache();
-  /** Endpoint (by normalized url) resolved to active by the last reconnect() — drives the
-   *  row-active highlight, the context line, and `renderThinking`'s effective-model lookup. */
-  private activeEndpointUrl: string | null = null;
-  /** Context length of the selected model in tokens, null = endpoint doesn't report it. */
-  private contextLength: number | null = null;
-  /** One-shot latch for the reconnect() bootstrap in renderEndpointList. buildEndpointList only
-   *  reaches reconnect() through its own commit chains (blur, trash, "Use first", preset) — its
-   *  "Test all" button just re-renders — so without a kick-off on first render, activeEndpointUrl
-   *  and contextLength would stay null until the user happened to edit a row. Reset in hide(),
-   *  so the next tab-open probes afresh. */
-  private hasReconnectedThisOpen = false;
+  /** Context length per `url|model`, null = the endpoint doesn't report it. Lives as long as
+   *  the open tab (cleared in hide()): a closed tab may come back to a moved or restarted server. */
+  private readonly contextCache = new Map<string, number | null>();
   // The kit walker bundles every render-hatch cleanup from one renderSettingDefinitions()
   // call into a single function — run it before the next rebuild and on hide().
   private cleanupPrevious: () => void = () => {};
@@ -158,29 +102,16 @@ export class NeuroVimSettingTab extends PluginSettingTab {
     ] };
   }
 
-  /** The CIPHER uplink section is stateful throughout (async endpoint probing, dynamic
-   *  model dropdown, model-coupled context line, forced thinking toggle) — every row here
-   *  is a `render` hatch. The endpoint editor itself is the kit's `buildEndpointList`;
-   *  the rows' names/descs still feed Obsidian's settings search. */
+  /** The CIPHER uplink section is stateful throughout — every row is a `render` hatch. Endpoint
+   *  source, endpoint list and the "Request" section are the kit connection's (`renderSettings`),
+   *  drawn in one hatch with a host of its own; the rows' names/descs still feed Obsidian's
+   *  settings search. */
   private cipherGroup(): SettingDefinitionGroup {
     return { type: 'group', heading: 'CIPHER uplink (experimental)', items: [
       { name: 'CIPHER uplink', desc: 'Ask CIPHER for Vim advice via any OpenAI-compatible endpoint.', render: this.renderCipherIntro },
-      { name: 'Endpoints', desc: 'Ordered fallback list — the first reachable one is used. Each row sets its own model (and optionally its own API key).', render: this.renderEndpointList },
+      { name: 'Endpoints and request', desc: 'Ordered fallback list — the first reachable one is used; each row sets its own model and optionally its own API key. Below it: what CIPHER sends with each question (sampling values and thinking level, per model family).', render: this.renderConnection },
       { name: 'Context', desc: 'Context window of the selected model.', render: this.renderContext },
-      { name: 'Request', desc: 'What CIPHER sends with each question: sampling values and thinking level, per model family.', render: this.renderRequest },
     ] };
-  }
-
-  /** Re-derives the active endpoint through the SAME resolver the CIPHER requests use
-   *  (manager first, else the local list, first reachable wins) — no second copy of that
-   *  logic just because this caller wants a fresh answer. Refreshes the context-length line
-   *  for whatever comes back. Called by buildEndpointList after every save that can change
-   *  which endpoint is active, and by the manager section after a choice change. */
-  private async reconnect(): Promise<void> {
-    const active = await this.plugin.resolveEndpointFresh();
-    this.activeEndpointUrl = active ? active.url : null;
-    const model = active?.model?.trim() ?? '';
-    this.contextLength = active && model ? await probeModelContext(active, model) : null;
   }
 
   // ── Imperative fallback (Obsidian < 1.13) ───────────────────────────────
@@ -223,130 +154,35 @@ export class NeuroVimSettingTab extends PluginSettingTab {
     });
   };
 
-  private renderEndpointList = (setting: Setting): void => {
-    const host = settingBodyHost(setting);
-    // Bootstrap: buildEndpointList reaches reconnect() ONLY through its own commit chains (url/
-    // apiKey/model blur, trash, "Use first", preset) — its "Test all" button merely re-renders.
-    // Without this kick-off, a freshly opened tab would leave activeEndpointUrl null (every row
-    // reading "Standby — position N" while the kit's own status icons already show them
-    // reachable) and contextLength null (blank Context row) until the user edited something.
-    // The latch is raised BEFORE the call, not after: the .then() below re-enters this very
-    // hatch via refreshUi(). Raise it after that refreshUi() and the re-entry still reads false
-    // and starts a second reconnect — measured: two reconnects and four endpoint probes per
-    // tab-open instead of one and two. It converges rather than looping forever (the latch does
-    // get raised once the first refreshUi() returns), so the symptom is a doubled probe storm on
-    // every open, not a hang — quiet enough to survive review, which is why it's pinned here.
-    if (!this.hasReconnectedThisOpen) {
-      this.hasReconnectedThisOpen = true;
-      void this.reconnect().then(() => this.refreshUi());
-    }
-    buildEndpointSourceSection({
-      app: this.app, containerEl: host, capability: 'chat', caller: ENDPOINT_CALLER,
-      choice: () => this.plugin.settings.choice,
-      setChoice: async (c) => { this.plugin.settings.choice = c; await this.plugin.saveSettings(); await this.reconnect(); },
-      local: () => this.plugin.settings.llmEndpoints,
-      strings: {
-        managed: 'Endpoints come from the LLM Endpoint Manager',
-        managedDesc: 'This plugin uses the endpoints configured in the LLM Endpoint Manager plugin. Your local list stays as a fallback.',
-        openManager: 'Open manager settings',
-        pickEndpoint: 'Endpoint',
-        automatic: 'automatic (first reachable)',
-        model: 'Model',
-        importLocal: 'Copy local endpoints into the manager',
-        imported: (r) => `Copied: ${r.added.length} new, ${r.merged.length} merged.`,
-        importFailed: 'Copying failed.',
-        modelHint: (key) => ENDPOINT_STRINGS.modelHint(key),
-        savedSuffix: ENDPOINT_STRINGS.savedSuffix,
-        refreshModels: ENDPOINT_STRINGS.refreshModels,
-        saveFailed: 'Could not save the endpoint choice.',
-      },
-      renderLocalList: () => { this.renderLocalEndpointList(host); },
-      rerender: () => this.refreshUi(),
-    });
+  /** The kit connection draws source, list and request section. `renderSettings` empties its
+   *  container when it redraws, so it gets a host of its own — never the tab. */
+  private renderConnection = (setting: Setting): void => {
+    this.plugin.llm.renderSettings(settingBodyHost(setting).createDiv());
   };
 
-  /** The local list editor — only shown while no LLM Endpoint Manager is installed. */
-  private renderLocalEndpointList(host: HTMLElement): void {
-    buildEndpointList({
-      containerEl: host,
-      label: 'Endpoints',
-      desc: 'Ordered fallback list — the first reachable one is used.',
-      placeholder: 'http://localhost:1234',
-      strings: ENDPOINT_STRINGS,
-      cache: this.modelCache,
-      get: () => this.plugin.settings.llmEndpoints,
-      set: (eps) => { this.plugin.settings.llmEndpoints = eps; },
-      active: () => this.activeEndpointUrl,
-      // probeEndpoint() already returns BOTH status and models in one round trip, so a client
-      // handed out here memoizes its single in-flight probe and serves .probe()/.listModels()
-      // from it. What that saves is precise: buildEndpointList calls clientFor(cfg) TWICE per row
-      // (once for the model-list cache, once for the status icon) and each call gets its own fresh
-      // closure — the memo does NOT dedupe across those two. It dedupes INSIDE the cache's load(),
-      // which calls listModels() on the client and then, when the list comes back empty, probe()
-      // on that same object; without the memo that pair would be two round trips.
-      clientFor: (cfg: EndpointConfig) => {
-        let inFlight: ReturnType<typeof probeEndpoint> | null = null;
-        const probeOnce = (): ReturnType<typeof probeEndpoint> => (inFlight ??= probeEndpoint(cfg));
-        return {
-          // Return type spelled out on purpose: `clientFor`'s declared type is an INTERSECTION
-          // of two `probe()` signatures ({ probe(): Promise<EndpointStatus> } & ModelListClient,
-          // whose probe() only promises { reachable }). Contextually typing an object literal
-          // against that intersection makes TS infer .then()'s result as the UNION of both
-          // returns, which then satisfies neither member. The kit's own callers hand back class
-          // instances (vault-rag: ChatClient/EmbeddingClient) whose declared methods sidestep
-          // this; a literal has to say which one it means.
-          probe: (): Promise<EndpointStatus> => probeOnce().then((r) => r.status),
-          listModels: (): Promise<string[]> => probeOnce().then((r) => r.models),
-        };
-      },
-      // No global model any more (0.9.0) — the vendored kit's EndpointListOptions still
-      // requires this callback (obsidian-kit@0.27.0 predates the optional-globalModel
-      // change), so it stays wired but always answers empty.
-      globalModel: () => '',
-      save: () => this.plugin.saveSettings(),
-      reconnect: () => this.reconnect(),
-      rerender: () => this.refreshUi(),
-    });
-  }
-
+  /** Context window of the model the connection resolves to. The kit draws the endpoint rows in
+   *  its own host and does not tell the tab about edits, so this row asks again whenever the tab
+   *  redraws (open, or after a setting change) — answers are cached per `url|model`. */
   private renderContext = (setting: Setting): void => {
     const host = settingBodyHost(setting);
-    if (this.contextLength !== null) {
-      host.createDiv({
-        text: `Context: ${this.contextLength.toLocaleString('en-US')} tokens`,
-        cls: 'setting-item-description',
-      });
-    }
-  };
-
-  /** The kit's "Request" section (mode companion): what goes out per question, overrides per
-   *  model family, thinking level, last request and deviations. Its state is the resolver's
-   *  last result, so it follows the endpoint `reconnect()` picked. */
-  private renderRequest = (setting: Setting): void => {
-    buildRequestSection({
-      containerEl: settingBodyHost(setting),
-      modes: [CIPHER_MODE],
-      state: () => this.plugin.requestSectionState(),
-      settings: () => this.plugin.settings.request,
-      save: (next) => this.plugin.saveRequestSettings(next),
-      // CIPHER's token budget is the plugin's own, not a user field — but it goes out with every
-      // request, so the section must explain the request WITH it.
-      maxTokens: () => CIPHER_MAX_TOKENS,
-      session: this.plugin.requestSession,
-      rerender: () => this.refreshUi(),
-      strings: requestSectionStrings(),
-    });
+    void (async () => {
+      const src = await this.plugin.llm.resolve();
+      const model = src.sentModel.trim();
+      if (src.config === null || model === '') return;
+      const key = `${src.config.url}|${model}`;
+      if (!this.contextCache.has(key)) this.contextCache.set(key, await probeModelContext(src.config, model));
+      const tokens = this.contextCache.get(key) ?? null;
+      if (tokens !== null && host.isConnected) {
+        host.createDiv({ text: `Context: ${tokens.toLocaleString('en-US')} tokens`, cls: 'setting-item-description' });
+      }
+    })();
   };
 
   hide(): void {
-    // Mandatory per the kit's MIGRATION.md: the model-list cache holds promises and
-    // deliberately outlives every tab rebuild. Without clearing it here, an endpoint that
-    // failed one probe stays "unreachable" for the rest of the session — a user who then
-    // starts their LLM server and reopens settings would keep seeing the stale state.
-    this.modelCache.clear();
-    // Latch down with the cache: the next tab-open must re-probe which endpoint is active, for
-    // the same reason the cache is dropped — the world may have changed while settings were shut.
-    this.hasReconnectedThisOpen = false;
+    // Drops the connection's model lists: they hold promises and outlive every tab rebuild,
+    // so an endpoint that failed one probe would stay "unreachable" for the rest of the session.
+    this.plugin.llm.hideSettings();
+    this.contextCache.clear();
     this.cleanupPrevious();
     super.hide();
   }

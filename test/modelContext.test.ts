@@ -10,7 +10,7 @@ beforeEach(() => { requestUrl.mockReset(); });
 
 // realClock's default uses window.setTimeout, which doesn't exist in vitest's node
 // environment — inject a clock whose timer never fires so the real request always wins
-// the race (mirrors the fakeClock pattern in test/endpointProbe.test.ts, Task 3).
+// the race (the same pattern as the fake clock in test/request-golden.test.ts).
 const fakeClock: ClockPort = {
   now: () => 0,
   setTimeout: () => 0,

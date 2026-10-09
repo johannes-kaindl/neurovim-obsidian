@@ -5,6 +5,16 @@ All notable changes to this project are documented here. Format loosely follows
 
 ## [Unreleased]
 
+### Changed
+
+- **Requires Obsidian 1.11.4 or newer** (was 1.7.2): API keys now live in Obsidian's keychain, which exists from that version on.
+- **API keys leave `data.json`.** A key from an earlier version moves into the keychain the first time CIPHER connects or you open the settings; the settings show it as "saved" with change and remove buttons, and `data.json` no longer carries it.
+- **CIPHER's connection is the kit's shared one.** The endpoint list, "Request" section and request values come from the same building block as the other plugins, so some wording changed: "Test connection" (was "Test all"), "Try this endpoint first" (was "Use first"), "Timed out — network unreachable." The "Level picker in chat" row is gone (it never did anything here), and the context-length line now sits below the "Request" section.
+- **A slow model gets time to load.** CIPHER waits up to 10 minutes for the first word instead of 2, so a model that LM Studio loads on demand no longer aborts the question.
+- **The server's own error message comes through in full** when it rejects a question (it used to be cut to the status line).
+- **Secrets in your questions are not sent.** Keys, tokens (`Bearer …`) and private-key blocks are replaced by placeholders before the question leaves your machine; the reply shows them in the original again.
+- Unchanged on purpose: CIPHER still hides the model's reasoning, still treats an answer cut off at the token limit without any text as an error, and still shows replies as plain text.
+
 ## [0.12.1] — 2026-10-08
 
 ### Fixed

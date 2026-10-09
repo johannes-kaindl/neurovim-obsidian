@@ -6,7 +6,7 @@
 [![Docs: CC BY-SA 4.0](https://img.shields.io/badge/docs-CC%20BY--SA%204.0-lightgrey.svg)](https://github.com/johannes-kaindl/neurovim-obsidian/blob/main/LICENSE-DOCS)
 [![Release](https://img.shields.io/github/v/release/johannes-kaindl/neurovim-obsidian?label=release)](https://github.com/johannes-kaindl/neurovim-obsidian/releases)
 [![Downloads](https://img.shields.io/badge/dynamic/json?logo=obsidian&color=%23483699&label=downloads&query=%24%5B%22neurovim%22%5D.downloads&url=https%3A%2F%2Fraw.githubusercontent.com%2Fobsidianmd%2Fobsidian-releases%2Fmaster%2Fcommunity-plugin-stats.json)](https://obsidian.md/plugins?id=neurovim)
-![Platform](https://img.shields.io/badge/platform-Obsidian%201.7.2%2B%20·%20desktop%20%26%20mobile-7c3aed)
+![Platform](https://img.shields.io/badge/platform-Obsidian%201.11.4%2B%20·%20desktop%20%26%20mobile-7c3aed)
 
 > Learn Vim by playing a cyberpunk spy-thriller — inside Obsidian.
 
@@ -46,7 +46,7 @@ Obsidian). **vim-dojo** brings it back home as a first-class, standalone Obsidia
 
 ## Requirements
 
-- **Obsidian 1.7.2 or newer**, desktop or mobile.
+- **Obsidian 1.11.4 or newer**, desktop or mobile.
 - **Obsidian's Vim mode** (Settings → Editor → Vim key bindings) for the intended
   experience. Without it the game still works — you just fix transmissions without Vim
   keybindings, which rather misses the point.
@@ -123,15 +123,15 @@ each section remembers whether you left it open or closed.
 - **Endpoints** — an ordered list rather than a single URL. The first reachable endpoint
   wins, so one synced list covers the same local LLM server showing up as `localhost` at
   your desk and as a LAN IP on the road. Add endpoints via presets or by typing a URL;
-  "Test all" probes every entry and marks the active one. Existing single-endpoint configs
+  "Test connection" probes every entry and marks the active one. Existing single-endpoint configs
   from 0.4.x migrate automatically — nothing to do on upgrade.
 
 If the **LLM Endpoint Manager** plugin is installed, the endpoints (and their keys) come from it instead: the settings then offer an endpoint and model choice, and your local list stays as a fallback for when the manager is off. If the manager reports no endpoint, there is no fallback to the local list.
 - **Model** — picked from a dropdown populated by the active endpoint's `/v1/models`, with
   a free-text fallback if the list is empty or the endpoint is unreachable. When the
   endpoint reports it (LM Studio, Ollama), the model's context length is shown alongside.
-- **Request** — what CIPHER sends with each question: sampling values (temperature, top_p, top_k, …) and the thinking level. The defaults come from a profile table per model family (Qwen, Gemma, gpt-oss) and backend, so a model gets the settings its vendor recommends instead of one fixed set for all. The section (collapsed by default) shows what is sent and what has an effect, lets you override a value per model family, and lists the last request and any deviations seen this session. Thinking is off by default, which is the faster path: CIPHER answers straight away instead of deliberating; set a level to let the model reason first. gpt-oss cannot be switched off entirely, so its lowest level is sent. The row "Level picker in chat" has no effect in this plugin (there is no chat button to show it on).
-- **API key** — optional, for endpoints that require one.
+- **Request** — what CIPHER sends with each question: sampling values (temperature, top_p, top_k, …) and the thinking level. The defaults come from a profile table per model family (Qwen, Gemma, gpt-oss) and backend, so a model gets the settings its vendor recommends instead of one fixed set for all. The section (collapsed by default) shows what is sent and what has an effect, lets you override a value per model family, and lists the last request and any deviations seen this session. Thinking is off by default, which is the faster path: CIPHER answers straight away instead of deliberating; set a level to let the model reason first. gpt-oss cannot be switched off entirely, so its lowest level is sent.
+- **API key** — optional, for endpoints that require one. It is kept in Obsidian's keychain, not in the plugin's `data.json`; a key from an earlier version moves there the first time CIPHER connects (or when you open these settings).
 
 <img src="https://raw.githubusercontent.com/johannes-kaindl/neurovim-obsidian/main/docs/images/settings.png" width="820" alt="The NeuroVim settings: the Appearance section with HUD placement and the CRT colour scheme, followed by the CIPHER uplink section with an active endpoint and its model">
 

@@ -117,6 +117,7 @@ async function useFakeEndpoint(cdp: Cdp, fake: FakeEndpoint): Promise<void> {
   await cdp.evaluate(`
     const p = app.plugins.plugins[${JSON.stringify(PLUGIN_ID)}];
     p.settings.llmEndpoints = [{ url: ${JSON.stringify(fake.url)}, model: ${JSON.stringify(FAKE_MODEL)} }];
+    p.llm.invalidate();
     await p.saveSettings();
     await new Promise((r) => setTimeout(r, 500));
     return true;

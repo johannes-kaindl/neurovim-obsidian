@@ -6,7 +6,7 @@
 [![Docs: CC BY-SA 4.0](https://img.shields.io/badge/docs-CC%20BY--SA%204.0-lightgrey.svg)](https://github.com/johannes-kaindl/neurovim-obsidian/blob/main/LICENSE-DOCS)
 [![Release](https://img.shields.io/github/v/release/johannes-kaindl/neurovim-obsidian?label=release)](https://github.com/johannes-kaindl/neurovim-obsidian/releases)
 [![Downloads](https://img.shields.io/badge/dynamic/json?logo=obsidian&color=%23483699&label=downloads&query=%24%5B%22neurovim%22%5D.downloads&url=https%3A%2F%2Fraw.githubusercontent.com%2Fobsidianmd%2Fobsidian-releases%2Fmaster%2Fcommunity-plugin-stats.json)](https://obsidian.md/plugins?id=neurovim)
-![Platform](https://img.shields.io/badge/platform-Obsidian%201.7.2%2B%20·%20desktop%20%26%20mobile-7c3aed)
+![Platform](https://img.shields.io/badge/platform-Obsidian%201.11.4%2B%20·%20desktop%20%26%20mobile-7c3aed)
 
 > Lerne Vim, indem du einen Cyberpunk-Agententhriller spielst — mitten in Obsidian.
 
@@ -47,7 +47,7 @@ NeuroVim begann als Obsidian-Plugin, wuchs dann zu einem Multi-Target-Spiel hera
 
 ## Voraussetzungen
 
-- **Obsidian 1.7.2 oder neuer**, Desktop oder Mobil.
+- **Obsidian 1.11.4 oder neuer**, Desktop oder Mobil.
 - **Obsidians Vim-Modus** (Einstellungen → Editor → Vim-Tastenbelegung) für das gedachte
   Erlebnis. Ohne ihn funktioniert das Spiel zwar weiterhin — du reparierst Transmissionen
   dann nur ohne Vim-Tastenbelegung, was den Sinn der Sache verfehlt.
@@ -125,7 +125,7 @@ jede Gruppe merkt sich, ob du sie offen oder geschlossen gelassen hast.
 - **Endpoints** — eine geordnete Liste statt einer einzelnen URL. Der erste erreichbare
   Endpunkt gewinnt, sodass eine synchronisierte Liste denselben lokalen LLM-Server abdeckt,
   der am Schreibtisch als `localhost` und unterwegs als LAN-IP auftaucht. Endpunkte lassen
-  sich über Vorlagen oder durch Eintippen einer URL hinzufügen; „Test all" prüft jeden
+  sich über Vorlagen oder durch Eintippen einer URL hinzufügen; „Test connection" prüft jeden
   Eintrag und markiert den aktiven. Bestehende Einzel-Endpunkt-Konfigurationen aus 0.4.x
   werden automatisch migriert — beim Update ist nichts zu tun.
 
@@ -134,8 +134,8 @@ Ist das Plugin **LLM Endpoint Manager** installiert, kommen die Endpunkte (samt 
   freier Texteingabe als Rückfallebene, falls die Liste leer oder der Endpunkt nicht
   erreichbar ist. Meldet der Endpunkt sie (LM Studio, Ollama), wird die Kontextlänge des
   Modells daneben angezeigt.
-- **Request** — was CIPHER mit jeder Frage mitschickt: Sampling-Werte (temperature, top_p, top_k, …) und die Denkstufe. Die Voreinstellungen kommen aus einer Profiltabelle je Modellfamilie (Qwen, Gemma, gpt-oss) und Backend, das Modell bekommt also die Werte, die sein Hersteller empfiehlt, statt eines festen Satzes für alle. Der Abschnitt (standardmäßig eingeklappt) zeigt, was gesendet wird und was davon wirkt, erlaubt pro Modellfamilie eigene Werte, und listet die letzte Anfrage und die Abweichungen dieser Sitzung. Denken ist standardmäßig aus, das ist der schnellere Weg: CIPHER antwortet direkt, statt zu überlegen; mit einer Stufe darf das Modell vorher nachdenken. gpt-oss lässt sich nicht ganz abschalten, dort geht die niedrigste Stufe raus. Die Zeile „Level picker in chat“ hat in diesem Plugin keine Wirkung (es gibt keinen Chat-Knopf, auf dem sie wirken könnte).
-- **API key** — optional, für Endpunkte, die einen verlangen.
+- **Request** — was CIPHER mit jeder Frage mitschickt: Sampling-Werte (temperature, top_p, top_k, …) und die Denkstufe. Die Voreinstellungen kommen aus einer Profiltabelle je Modellfamilie (Qwen, Gemma, gpt-oss) und Backend, das Modell bekommt also die Werte, die sein Hersteller empfiehlt, statt eines festen Satzes für alle. Der Abschnitt (standardmäßig eingeklappt) zeigt, was gesendet wird und was davon wirkt, erlaubt pro Modellfamilie eigene Werte, und listet die letzte Anfrage und die Abweichungen dieser Sitzung. Denken ist standardmäßig aus, das ist der schnellere Weg: CIPHER antwortet direkt, statt zu überlegen; mit einer Stufe darf das Modell vorher nachdenken. gpt-oss lässt sich nicht ganz abschalten, dort geht die niedrigste Stufe raus.
+- **API key** — optional, für Endpunkte, die einen verlangen. Er liegt im Schlüsselbund von Obsidian, nicht in der `data.json` des Plugins; ein Schlüssel aus einer früheren Version zieht dorthin um, sobald CIPHER das erste Mal verbindet (oder du diese Einstellungen öffnest).
 
 <img src="https://raw.githubusercontent.com/johannes-kaindl/neurovim-obsidian/main/docs/images/settings.png" width="820" alt="The NeuroVim settings: the Appearance section with HUD placement and the CRT colour scheme, followed by the CIPHER uplink section with an active endpoint and its model">
 

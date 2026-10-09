@@ -1,6 +1,6 @@
 # Getting started
 
-This takes you from the install to your first finished mission. You need Obsidian 1.7.2 or newer and the plugin installed (see the [README](https://github.com/johannes-kaindl/neurovim-obsidian/blob/main/README.md#install)). CIPHER, the LLM handler, is optional and not needed here.
+This takes you from the install to your first finished mission. You need Obsidian 1.11.4 or newer and the plugin installed (see the [README](https://github.com/johannes-kaindl/neurovim-obsidian/blob/main/README.md#install)). CIPHER, the LLM handler, is optional and not needed here.
 
 ## 1. Turn on Vim mode
 
