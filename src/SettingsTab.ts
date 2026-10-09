@@ -4,6 +4,7 @@ import type NeuroVimPlugin from './main';
 import { githubHelpUrls, helpSettingDefinition, HELP_SETTING_TEXTS_EN } from './vendor/kit-obsidian/help-setting';
 import { installTabRefreshOnOpen, renderSettingDefinitions, settingBodyHost } from './vendor/kit-obsidian/settings_walker';
 import { probeModelContext } from './llm/modelContext';
+import type { EndpointSourceResult } from './vendor/kit/endpoint-source';
 
 export class NeuroVimSettingTab extends PluginSettingTab {
   /** Context length per `url|model`, null = the endpoint doesn't report it. Lives as long as
@@ -154,29 +155,51 @@ export class NeuroVimSettingTab extends PluginSettingTab {
     this.plugin.llm.renderSettings(settingBodyHost(setting).createDiv());
   };
 
+  /** The context row's body while the tab is open (null otherwise). */
+  private contextHost: HTMLElement | null = null;
+  /** Counts context lookups: an answer from an overtaken lookup must not overwrite a newer one. */
+  private contextRun = 0;
+
   /** Context window of the model the connection resolves to. The kit draws the endpoint rows in
-   *  its own host and does not tell the tab about edits, so this row asks again whenever the tab
-   *  redraws (open, or after a setting change) — answers are cached per `url|model`. */
+   *  its own host and does not tell the tab about edits — the connection does, through
+   *  `onResolved` (see `showContext`); this hatch only fills the row on every redraw. Answers are
+   *  cached per `url|model`. */
   private renderContext = (setting: Setting): void => {
-    const host = settingBodyHost(setting);
-    void (async () => {
-      const src = await this.plugin.llm.resolve();
-      const model = src.sentModel.trim();
-      if (src.config === null || model === '') return;
+    this.contextHost = settingBodyHost(setting);
+    void this.plugin.llm.resolve().then((src) => this.showContext(src), () => undefined);
+  };
+
+  /** Called by the connection after every finished resolution (endpoint or model edited, choice
+   *  changed): redraws the context row so it follows the change without reopening the tab. */
+  onResolved(src: EndpointSourceResult): void {
+    void this.showContext(src);
+  }
+
+  private async showContext(src: EndpointSourceResult): Promise<void> {
+    const host = this.contextHost;
+    if (host === null) return;
+    const run = ++this.contextRun;
+    const model = src.sentModel.trim();
+    let tokens: number | null = null;
+    if (src.config !== null && model !== '') {
       const key = `${src.config.url}|${model}`;
       if (!this.contextCache.has(key)) this.contextCache.set(key, await probeModelContext(src.config, model));
-      const tokens = this.contextCache.get(key) ?? null;
-      if (tokens !== null && host.isConnected) {
-        host.createDiv({ text: `Context: ${tokens.toLocaleString('en-US')} tokens`, cls: 'setting-item-description' });
-      }
-    })();
-  };
+      tokens = this.contextCache.get(key) ?? null;
+    }
+    if (run !== this.contextRun || !host.isConnected) return;
+    host.empty();
+    if (tokens !== null) {
+      host.createDiv({ text: `Context: ${tokens.toLocaleString('en-US')} tokens`, cls: 'setting-item-description' });
+    }
+  }
 
   hide(): void {
     // Drops the connection's model lists: they hold promises and outlive every tab rebuild,
     // so an endpoint that failed one probe would stay "unreachable" for the rest of the session.
     this.plugin.llm.hideSettings();
     this.contextCache.clear();
+    this.contextHost = null;
+    this.contextRun += 1;
     this.cleanupPrevious();
     super.hide();
   }

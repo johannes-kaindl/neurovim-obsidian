@@ -73,6 +73,7 @@ export default class NeuroVimPlugin extends Plugin {
   private folderHide: FolderHideHandle | null = null;
   private traceStore: TraceStore | null = null;
   private cipherUplink: CipherUplink | null = null;
+  private settingTab: NeuroVimSettingTab | null = null;
   /** CIPHER's connection to the LLM: endpoint source (manager or local list with keychain),
    *  remembered resolution, request values from the kit's profile table, client with time
    *  limits, response check and the settings sections. Reasoning is never shown (`onReasoning`
@@ -85,6 +86,8 @@ export default class NeuroVimPlugin extends Plugin {
     mode: CIPHER_MODE,
     maxTokens: CIPHER_MAX_TOKENS,
     truncated: 'error',
+    // The context-length row in the settings follows an endpoint or model change.
+    onResolved: (r) => this.settingTab?.onResolved(r),
     getSettings: () => ({ endpoints: this.settings.llmEndpoints, choice: this.settings.choice, request: this.settings.request }),
     // The patch lands in the settings BEFORE it is saved (the connection reads the rows back
     // right away). Not `saveSettings()`: that would repaint on a call the connection makes
@@ -173,7 +176,8 @@ export default class NeuroVimPlugin extends Plugin {
       this.session.metrics.addKeystroke(record ? e.key : undefined);
     }, { capture: true });
 
-    this.addSettingTab(new NeuroVimSettingTab(this.app, this));
+    this.settingTab = new NeuroVimSettingTab(this.app, this);
+    this.addSettingTab(this.settingTab);
     // Not before the layout is ready: the target document is the main window's (rootSplit.doc), and
     // a restored pop-out may be the ACTIVE document while loading.
     this.app.workspace.onLayoutReady(() => {
