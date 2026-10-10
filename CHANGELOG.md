@@ -5,6 +5,10 @@ All notable changes to this project are documented here. Format loosely follows
 
 ## [Unreleased]
 
+### Documentation
+
+- Re-captured the settings screenshot to show the shared endpoint list; refreshed two stale test/smoke doc references to the removed `effectiveModel`.
+
 ## [0.13.0] — 2026-10-09
 
 ### Changed

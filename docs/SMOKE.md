@@ -120,7 +120,7 @@ bleibt unberührt, der Stub wird im `finally` zurückgebaut.
 
 | Prüfpunkt | Was er misst |
 |---|---|
-| R3-0 Modellwahl erreicht den Transport | `effectiveModel(ep, settings.llmModel)` kommt als `cfg.model` beim Client an |
+| R3-0 Die Frage erreicht die Verbindung | `llm.complete` bekommt die Frage des Spielers als user-Nachricht (das Modell am Draht misst N2-1) |
 | R3-1 CUT behält das Teilergebnis und gibt die Eingabe frei | Der abgebrochene Turn behält seine Identität, hängt `— signal cut` an und räumt `busy` ab |
 | R3-2 RST leert den Kanal | Der enteignete Turn schreibt nicht mehr in den geleerten Verlauf |
 | R3-3 ein voller Turn landet als Antwort | Genau zwei Zeilen: `user`, `assistant` |

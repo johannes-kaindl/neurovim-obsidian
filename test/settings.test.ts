@@ -32,8 +32,8 @@ describe('LLM settings', () => {
   });
 
   it('stays unconfigured when even one endpoint carries no model of its own', () => {
-    // There is no global fallback any more (model belongs on the endpoint row, per
-    // code-kit's effectiveModel deprecation) — a mixed list with one bare endpoint reads
+    // There is no global fallback any more (model belongs on the endpoint row; code-kit
+    // 0.16.0 removed the old effectiveModel fallback) — a mixed list with one bare endpoint reads
     // as unconfigured, same as before the migration.
     expect(isLlmConfigured({
       llmEndpoints: [{ url: 'http://a:1', model: 'qwen3' }, { url: 'http://b:2' }],
