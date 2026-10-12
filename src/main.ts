@@ -28,7 +28,8 @@ import { CorePortAdapter } from './llm/CorePortAdapter';
 import { createLlmConnection, type LlmConnection } from './vendor/kit-obsidian/llm-connection';
 import { findEndpointManager } from './vendor/kit-obsidian/endpoint-source';
 import { requestDroppedNotice } from './llm/requestStrings';
-import { DEFAULT_SETTINGS, isLlmConfigured, loadRequestSettings, mergeStoredSettings, type VimDojoSettings } from './settings';
+import { DEFAULT_SETTINGS, isLlmConfigured, mergeStoredSettings, REQUEST_MIGRATIONS, type VimDojoSettings } from './settings';
+import { loadRequestSettings } from './vendor/kit/sampling-profiles';
 import {
   buildRunTrace, TraceStore, CipherUplink, ChatSession, buildKnowledge, quickReference,
   type RunTrace, type LlmResult, type MissionContext,
@@ -73,7 +74,6 @@ export default class NeuroVimPlugin extends Plugin {
   private folderHide: FolderHideHandle | null = null;
   private traceStore: TraceStore | null = null;
   private cipherUplink: CipherUplink | null = null;
-  private settingTab: NeuroVimSettingTab | null = null;
   /** CIPHER's connection to the LLM: endpoint source (manager or local list with keychain),
    *  remembered resolution, request values from the kit's profile table, client with time
    *  limits, response check and the settings sections. Reasoning is never shown (`onReasoning`
@@ -86,8 +86,6 @@ export default class NeuroVimPlugin extends Plugin {
     mode: CIPHER_MODE,
     maxTokens: CIPHER_MAX_TOKENS,
     truncated: 'error',
-    // The context-length row in the settings follows an endpoint or model change.
-    onResolved: (r) => this.settingTab?.onResolved(r),
     getSettings: () => ({ endpoints: this.settings.llmEndpoints, choice: this.settings.choice, request: this.settings.request }),
     // The patch lands in the settings BEFORE it is saved (the connection reads the rows back
     // right away). Not `saveSettings()`: that would repaint on a call the connection makes
@@ -118,7 +116,7 @@ export default class NeuroVimPlugin extends Plugin {
     this.settings = mergeStoredSettings(blob?.__settings);
     // Invalid saved request settings were reset to the profile — say so once instead of
     // dropping the user's value silently.
-    const { dropped } = loadRequestSettings(blob?.__settings);
+    const { dropped } = loadRequestSettings(blob?.__settings, REQUEST_MIGRATIONS);
     if (dropped.length > 0) {
       new Notice(requestDroppedNotice(dropped.length));
       console.warn('NeuroVim: request settings dropped', dropped);
@@ -176,8 +174,7 @@ export default class NeuroVimPlugin extends Plugin {
       this.session.metrics.addKeystroke(record ? e.key : undefined);
     }, { capture: true });
 
-    this.settingTab = new NeuroVimSettingTab(this.app, this);
-    this.addSettingTab(this.settingTab);
+    this.addSettingTab(new NeuroVimSettingTab(this.app, this));
     // Not before the layout is ready: the target document is the main window's (rootSplit.doc), and
     // a restored pop-out may be the ACTIVE document while loading.
     this.app.workspace.onLayoutReady(() => {

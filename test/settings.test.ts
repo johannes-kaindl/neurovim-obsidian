@@ -1,5 +1,8 @@
 import { describe, it, expect } from 'vitest';
-import { DEFAULT_SETTINGS, isLlmConfigured, loadRequestSettings, mergeStoredSettings } from '../src/settings';
+import { DEFAULT_SETTINGS, isLlmConfigured, mergeStoredSettings, REQUEST_MIGRATIONS } from '../src/settings';
+import { loadRequestSettings as kitLoad } from '../src/vendor/kit/sampling-profiles';
+
+const loadRequestSettings = (raw: unknown) => kitLoad(raw, REQUEST_MIGRATIONS);
 import { thinkingFor } from '../src/vendor/kit/sampling-profiles';
 
 describe('LLM settings', () => {

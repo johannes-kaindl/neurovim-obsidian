@@ -129,7 +129,7 @@ each section remembers whether you left it open or closed.
 If the **LLM Endpoint Manager** plugin is installed, the endpoints (and their keys) come from it instead: the settings then offer an endpoint and model choice, and your local list stays as a fallback for when the manager is off. If the manager reports no endpoint, there is no fallback to the local list.
 - **Model** — picked from a dropdown populated by the active endpoint's `/v1/models`, with
   a free-text fallback if the list is empty or the endpoint is unreachable. When the
-  endpoint reports it (LM Studio, Ollama), the model's context length is shown alongside.
+  endpoint reports it (LM Studio, Ollama), the model's context length is shown below the endpoint row.
 - **Request** — what CIPHER sends with each question: sampling values (temperature, top_p, top_k, …) and the thinking level. The defaults come from a profile table per model family (Qwen, Gemma, gpt-oss) and backend, so a model gets the settings its vendor recommends instead of one fixed set for all. The section (collapsed by default) shows what is sent and what has an effect, lets you override a value per model family, and lists the last request and any deviations seen this session. Thinking is off by default, which is the faster path: CIPHER answers straight away instead of deliberating; set a level to let the model reason first. gpt-oss cannot be switched off entirely, so its lowest level is sent.
 - **API key** — optional, for endpoints that require one. It is kept in Obsidian's keychain, not in the plugin's `data.json`; a key from an earlier version moves there the first time CIPHER connects (or when you open these settings).
 

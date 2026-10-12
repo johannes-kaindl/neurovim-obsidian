@@ -3,13 +3,8 @@ import type { SettingDefinitionGroup, SettingDefinitionItem } from 'obsidian';
 import type NeuroVimPlugin from './main';
 import { githubHelpUrls, helpSettingDefinition, HELP_SETTING_TEXTS_EN } from './vendor/kit-obsidian/help-setting';
 import { installTabRefreshOnOpen, renderSettingDefinitions, settingBodyHost } from './vendor/kit-obsidian/settings_walker';
-import { probeModelContext } from './llm/modelContext';
-import type { EndpointSourceResult } from './vendor/kit/endpoint-source';
 
 export class NeuroVimSettingTab extends PluginSettingTab {
-  /** Context length per `url|model`, null = the endpoint doesn't report it. Lives as long as
-   *  the open tab (cleared in hide()): a closed tab may come back to a moved or restarted server. */
-  private readonly contextCache = new Map<string, number | null>();
   // The kit walker bundles every render-hatch cleanup from one renderSettingDefinitions()
   // call into a single function — run it before the next rebuild and on hide().
   private cleanupPrevious: () => void = () => {};
@@ -111,7 +106,6 @@ export class NeuroVimSettingTab extends PluginSettingTab {
     return { type: 'group', heading: 'CIPHER uplink (experimental)', items: [
       { name: 'CIPHER uplink', desc: 'Ask CIPHER for Vim advice via any OpenAI-compatible endpoint.', render: this.renderCipherIntro },
       { name: 'Endpoints and request', desc: 'Ordered fallback list — the first reachable one is used; each row sets its own model and optionally its own API key. Below it: what CIPHER sends with each question (sampling values and thinking level, per model family).', render: this.renderConnection },
-      { name: 'Context', desc: 'Context window of the selected model.', render: this.renderContext },
     ] };
   }
 
@@ -155,51 +149,10 @@ export class NeuroVimSettingTab extends PluginSettingTab {
     this.plugin.llm.renderSettings(settingBodyHost(setting).createDiv());
   };
 
-  /** The context row's body while the tab is open (null otherwise). */
-  private contextHost: HTMLElement | null = null;
-  /** Counts context lookups: an answer from an overtaken lookup must not overwrite a newer one. */
-  private contextRun = 0;
-
-  /** Context window of the model the connection resolves to. The kit draws the endpoint rows in
-   *  its own host and does not tell the tab about edits — the connection does, through
-   *  `onResolved` (see `showContext`); this hatch only fills the row on every redraw. Answers are
-   *  cached per `url|model`. */
-  private renderContext = (setting: Setting): void => {
-    this.contextHost = settingBodyHost(setting);
-    void this.plugin.llm.resolve().then((src) => this.showContext(src), () => undefined);
-  };
-
-  /** Called by the connection after every finished resolution (endpoint or model edited, choice
-   *  changed): redraws the context row so it follows the change without reopening the tab. */
-  onResolved(src: EndpointSourceResult): void {
-    void this.showContext(src);
-  }
-
-  private async showContext(src: EndpointSourceResult): Promise<void> {
-    const host = this.contextHost;
-    if (host === null) return;
-    const run = ++this.contextRun;
-    const model = src.sentModel.trim();
-    let tokens: number | null = null;
-    if (src.config !== null && model !== '') {
-      const key = `${src.config.url}|${model}`;
-      if (!this.contextCache.has(key)) this.contextCache.set(key, await probeModelContext(src.config, model));
-      tokens = this.contextCache.get(key) ?? null;
-    }
-    if (run !== this.contextRun || !host.isConnected) return;
-    host.empty();
-    if (tokens !== null) {
-      host.createDiv({ text: `Context: ${tokens.toLocaleString('en-US')} tokens`, cls: 'setting-item-description' });
-    }
-  }
-
   hide(): void {
     // Drops the connection's model lists: they hold promises and outlive every tab rebuild,
     // so an endpoint that failed one probe would stay "unreachable" for the rest of the session.
     this.plugin.llm.hideSettings();
-    this.contextCache.clear();
-    this.contextHost = null;
-    this.contextRun += 1;
     this.cleanupPrevious();
     super.hide();
   }

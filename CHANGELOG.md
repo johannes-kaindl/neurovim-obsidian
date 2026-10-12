@@ -5,6 +5,25 @@ All notable changes to this project are documented here. Format loosely follows
 
 ## [Unreleased]
 
+### Changed
+
+- **The context length now sits on the endpoint row.** Below an endpoint that is reachable and has a model, the settings show "Context: loaded N · max M tokens" (only "max M" when the model is not loaded; nothing when the server names no number). It used to be a separate "Context" row under the list. Each lookup now gives up after 5 seconds instead of waiting on a server that never answers.
+- **A model chosen on an endpoint row can be set back to "— (server picks)".** The model dropdown has that empty option again; picking it removes the row's model, and the server answers with whatever it has loaded. The global-model option of the 0.51 line is gone, and a stored global value is no longer read.
+- **Without the LLM Endpoint Manager the model choice counts for the active row only.**
+- **More precise endpoint hints.** The status icons say more about a timeout and about a server that does not speak an LLM API ("Not reachable" no longer ends in a stray dash); the input hints and tooltips come in the kit's English or German wording.
+- **Secrets in your questions are caught more widely.** The `Bearer <token>` rule now matches from 8 characters and ignores case, so prose such as "Bearer authentication" is replaced too; the reply still shows your original text.
+- Removing the model's `<think>` blocks from a reply is linear now; a degenerate answer with tens of thousands of open `<think>` tags used to stall for seconds.
+
+### Fixed
+
+- **A damaged `data.json` no longer stops the plugin from starting.** A non-text value in the old `llmModel` field (for example a number) made loading fail with a TypeError.
+
+### Internal
+
+- Kit pins raised to obsidian-kit 0.56.0 / code-kit 0.23.0 (new vendored modules: `embedding-connection`, `endpoint-plumbing`, `endpoint-status-text`, `embeddings-client`); the endpoint list's context-line CSS is part of `styles.css`.
+- The old-setting migrations use the kit's `fillMissingRowModels` and `loadRequestSettings` (the `llmSuppressThinking` switch stays here as a migration callback with `foldLegacyThinking`); the plugin's own context lookup and its test are removed.
+- GUI smoke W4 measures the kit's context line (two fake endpoints, plus a counter-probe: no number from the server, no line); the screenshot recipe's fake endpoint reports a context length so `settings.png` shows the line.
+
 ## [0.13.1] — 2026-10-10
 
 ### Documentation

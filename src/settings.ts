@@ -2,7 +2,7 @@ import type { HudPlacement } from './hudPlacement';
 import { fillMissingRowModels, migrateEndpointList, type EndpointConfig } from './vendor/kit/endpoint_config';
 import type { EndpointChoice } from './vendor/kit/endpoint-source';
 import {
-  DEFAULT_REQUEST_SETTINGS, foldLegacyThinking, loadRequestSettings as kitLoadRequestSettings,
+  DEFAULT_REQUEST_SETTINGS, foldLegacyThinking, loadRequestSettings,
   type LegacyRequestMigration, type RequestSettings,
 } from './vendor/kit/sampling-profiles';
 
@@ -85,18 +85,12 @@ function foldLegacyApiKey(eps: EndpointConfig[], legacyKey: string | undefined):
 /** CIPHER's request mode in the kit's profile table (see `llm/cipherRequest.ts`). */
 const REQUEST_MODE = 'companion';
 
-/** The pre-0.11.0 `llmSuppressThinking` switch: migrated once into `request.thinking.companion`,
- *  and only while nothing is set there explicitly (the rule itself is the kit's `foldLegacyThinking`). */
-const migrateSuppressThinking: LegacyRequestMigration = (raw, request) => {
-  foldLegacyThinking(request, REQUEST_MODE, raw.llmSuppressThinking);
-};
-
-/** The persisted `request` block out of the whole stored data, with the legacy switch folded in.
- *  `dropped` lists settings that failed validation; the caller reports them (a silent reset
- *  would hide that the user's value is gone). Pure. */
-export function loadRequestSettings(raw: unknown): { request: RequestSettings; dropped: string[] } {
-  return kitLoadRequestSettings(raw, [migrateSuppressThinking]);
-}
+/** The persisted `request` block is loaded with the kit's `loadRequestSettings(raw, REQUEST_MIGRATIONS)`.
+ *  The pre-0.11.0 `llmSuppressThinking` switch is migrated once into `request.thinking.companion`, and only
+ *  while nothing is set there explicitly (the rule itself is the kit's `foldLegacyThinking`). */
+export const REQUEST_MIGRATIONS: readonly LegacyRequestMigration[] = [
+  (raw, request) => { foldLegacyThinking(request, REQUEST_MODE, raw.llmSuppressThinking); },
+];
 
 /** Merge a raw `data.json` `__settings` blob onto the defaults, migrating both the 0.4.x
  *  single `llmEndpoint` field and the pre-0.8.0 global `llmApiKey` on the way in. Both legacy
@@ -124,7 +118,7 @@ export function mergeStoredSettings(raw: unknown): VimDojoSettings {
     ...rest,
     llmEndpoints: fillMissingRowModels(foldLegacyApiKey(migrated, llmApiKey), llmModel),
     choice: sanitizeChoice(rest.choice),
-    request: loadRequestSettings(raw).request,
+    request: loadRequestSettings(raw, REQUEST_MIGRATIONS).request,
     uiCollapsed: { ...DEFAULT_SETTINGS.uiCollapsed, ...rest.uiCollapsed },
   };
 }

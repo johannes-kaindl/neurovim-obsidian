@@ -1414,62 +1414,61 @@ async function checkConnectionSwap(cdp: Cdp): Promise<void> {
   }
 }
 
-/** W4 (Welle 15, `onResolved`): die Kontext-Zeile der Einstellungen folgt einer Endpunkt-Änderung, ohne dass der
- *  Tab neu geöffnet wird. Zwei Fake-Endpunkte melden verschiedene Kontextlängen. Gegenprobe: mit abgeklemmtem
- *  Hook (`onResolved` der Tab-Instanz ein No-op) bleibt die Zeile beim alten Wert — sonst wäre der Punkt
- *  auch ohne den Hook grün (die Zeile könnte sich aus einem anderen Grund neu zeichnen). */
+/** W4 (Welle 18): die Kontextlänge steht an der Endpunkt-Zeile (Kit-Zeile `.okit-ep-context`, kommt aus
+ *  `renderSettings`). Zwei Fake-Endpunkte melden verschiedene Längen; nach dem Wechsel und neuem Öffnen des
+ *  Tabs zeigt die Zeile die neue. Gegenprobe: ein Endpunkt, der keine Länge meldet, bekommt keine Zeile — sonst
+ *  wäre der Punkt auch grün, wenn die Zeile ein fester Text wäre. */
 async function checkContextFollows(cdp: Cdp, port: number, vault: string | undefined): Promise<void> {
-  const name = "W4 Kontext-Zeile folgt einer Endpunkt-Änderung";
+  const name = "W4 Kontextlänge steht an der Endpunkt-Zeile";
   const a = await starteFakeEndpunkt("ctx-a", false, 1111);
   const b = await starteFakeEndpunkt("ctx-b", false, 2222);
+  const c = await starteFakeEndpunkt("ctx-c", false);
   const setze = (fake: { url: string }, modell: string): string => `
     const p = app.plugins.plugins[${JSON.stringify(PLUGIN_ID)}];
     p.settings.llmEndpoints = [{ url: ${JSON.stringify(fake.url)}, model: ${JSON.stringify(modell)} }];
     p.llm.invalidate();
     await p.llm.resolve({ force: true });
     return true;`;
-  let sicht: Awaited<ReturnType<typeof attachTo>> | null = null;
+  const oeffne = `
+    app.setting.close();
+    await new Promise((r) => setTimeout(r, 500));
+    app.setting.open();
+    app.setting.openTabById(${JSON.stringify(PLUGIN_ID)});
+    await new Promise((r) => setTimeout(r, 2500));
+    return true;`;
+  let sicht = null as Awaited<ReturnType<typeof attachTo>> | null;
   try {
     await cdp.evaluate(`
       const p = app.plugins.plugins[${JSON.stringify(PLUGIN_ID)}];
       if (!("__nvVorherCtx" in window)) window.__nvVorherCtx = JSON.parse(JSON.stringify(p.settings.llmEndpoints));
       return true;`);
-    await cdp.evaluate(setze(a, "ctx-a"));
-    await cdp.evaluate(`
-      app.setting.open();
-      app.setting.openTabById(${JSON.stringify(PLUGIN_ID)});
-      await new Promise((r) => setTimeout(r, 2500));
-      return true;`);
-    sicht = await attachTo("settings", port, vault).catch(() => null);
-    if (!sicht) { skipped(name, "kein Einstellungen-Fenster am Port — nichts gemessen"); return; }
     const zeile = `
-      const t = [...document.querySelectorAll(".setting-item-description")].map((e) => e.textContent.trim()).find((x) => x.startsWith("Context:"));
-      return t ?? null;`;
-    const warte = (erwartet: string): Promise<string | null> =>
-      pollUntil<string>(sicht as NonNullable<typeof sicht>, `${zeile.replace("return t ?? null;", `return t === ${JSON.stringify(erwartet)} ? t : null;`)}`, 8_000, 300).catch(() => null);
-    const erst = await warte("Context: 1,111 tokens");
-    // Änderung 1 mit Hook: die Zeile muss ohne Neuöffnen auf 2.222 springen.
-    await cdp.evaluate(setze(b, "ctx-b"));
-    const folgt = await warte("Context: 2,222 tokens");
-    // Gegenprobe: Hook abklemmen, zurück auf A — die Zeile darf NICHT folgen.
-    await cdp.evaluate(`
-      const p = app.plugins.plugins[${JSON.stringify(PLUGIN_ID)}];
-      window.__nvOnResolved = p.settingTab.onResolved;
-      p.settingTab.onResolved = () => {};
-      return true;`);
-    await cdp.evaluate(setze(a, "ctx-a"));
-    await new Promise((r) => setTimeout(r, 2500));
-    const stehtNoch = await sicht.evaluate<string | null>(zeile);
+      const t = [...document.querySelectorAll(".okit-ep-context")].map((e) => e.textContent.trim());
+      return t.length ? t.join(" | ") : null;`;
+    const messe = async (fake: { url: string }, modell: string, erwartet: string | null): Promise<string | null> => {
+      await cdp.evaluate(setze(fake, modell));
+      await cdp.evaluate(oeffne);
+      sicht?.close?.();
+      sicht = await attachTo("settings", port, vault).catch(() => null);
+      if (!sicht) return "kein Einstellungen-Fenster";
+      if (erwartet === null) {
+        await new Promise((r) => setTimeout(r, 3000));
+        return await sicht.evaluate<string | null>(zeile);
+      }
+      return pollUntil<string>(sicht, zeile.replace("return t.length", `return t.join(" | ") === ${JSON.stringify(erwartet)} && t.length`), 8_000, 300).catch(() => null);
+    };
+    const erst = await messe(a, "ctx-a", "Context: loaded 1,111 tokens");
+    if (erst === "kein Einstellungen-Fenster") { skipped(name, "kein Einstellungen-Fenster am Port — nichts gemessen"); return; }
+    const danach = await messe(b, "ctx-b", "Context: loaded 2,222 tokens");
+    const ohne = await messe(c, "ctx-c", null);
     record(
       name,
-      erst !== null && folgt !== null && stehtNoch === "Context: 2,222 tokens",
-      `erst ${erst ?? "nicht erschienen"}; nach Änderung ${folgt ?? "folgte NICHT"}; Gegenprobe ohne Hook: ${stehtNoch ?? "leer"} (soll 2,222 bleiben)`,
+      erst !== null && danach !== null && ohne === null,
+      `A: ${erst ?? "keine Zeile"}; nach Wechsel auf B: ${danach ?? "keine/falsche Zeile"}; Gegenprobe ohne Länge: ${ohne ?? "keine Zeile (soll so sein)"}`,
     );
   } finally {
     await cdp.evaluate(`
       const p = app.plugins.plugins[${JSON.stringify(PLUGIN_ID)}];
-      if (window.__nvOnResolved && p.settingTab) { p.settingTab.onResolved = window.__nvOnResolved; }
-      delete window.__nvOnResolved;
       if ("__nvVorherCtx" in window) { p.settings.llmEndpoints = window.__nvVorherCtx; delete window.__nvVorherCtx; }
       p.llm.invalidate();
       app.setting.close();
@@ -1477,6 +1476,7 @@ async function checkContextFollows(cdp: Cdp, port: number, vault: string | undef
     sicht?.close?.();
     await a.stop();
     await b.stop();
+    await c.stop();
   }
 }
 
@@ -1752,7 +1752,6 @@ async function main(): Promise<void> {
           if (p && leaf.view?.file?.path?.startsWith(p.settings.missionFolder)) leaf.detach();
         }
         if ("__nvVorherEps" in window && p) { p.settings.llmEndpoints = window.__nvVorherEps; delete window.__nvVorherEps; }
-        if ("__nvOnResolved" in window && p && p.settingTab) { p.settingTab.onResolved = window.__nvOnResolved; delete window.__nvOnResolved; }
         if ("__nvVorherCtx" in window && p) { p.settings.llmEndpoints = window.__nvVorherCtx; delete window.__nvVorherCtx; }
         if ("__nvVorherW" in window && p) { p.settings.llmEndpoints = window.__nvVorherW; delete window.__nvVorherW; }
         if ("__nvVorherMgr" in window) {

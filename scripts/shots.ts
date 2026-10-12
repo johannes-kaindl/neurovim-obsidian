@@ -87,6 +87,12 @@ async function startFakeEndpoint(): Promise<FakeEndpoint> {
       res.end(JSON.stringify({ data: [{ id: FAKE_MODEL, object: "model" }] }));
       return;
     }
+    if (req.url?.includes("/api/v0/models") === true) {
+      // like LM Studio: the loaded context length, so the endpoint row shows its context line
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ data: [{ id: FAKE_MODEL, loaded_context_length: 8192, max_context_length: 32768 }] }));
+      return;
+    }
     if (req.method === "POST" && req.url?.includes("/v1/chat/completions") === true) {
       req.on("data", () => undefined);
       req.on("end", () => {
@@ -329,6 +335,9 @@ const SHOTS: Shot[] = [
           await new Promise((r) => setTimeout(r, 500));
           return true;
         `);
+        // The context line of the endpoint row arrives after the probe — wait for it, or the picture is early.
+        await pollUntil<boolean>(win, "return document.querySelector('.okit-ep-context') ? true : null;", 10_000, 300).catch(() => null);
+        await sleep(300);
         const box = await visibleBox(win, asModal ? ".modal.mod-settings" : ".vertical-tab-content", 0);
         return await capture(win, box ?? undefined);
       } finally {
