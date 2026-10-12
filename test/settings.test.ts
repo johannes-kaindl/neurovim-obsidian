@@ -111,6 +111,18 @@ describe('mergeStoredSettings — endpoint migration', () => {
     expect(settings.llmEndpoints).toEqual([{ url: 'http://a:1' }]);
   });
 
+  it('a non-text legacy llmModel from a damaged data.json does not abort the load', () => {
+    // it used to call .trim() on the value and threw a TypeError in onload
+    const settings = mergeStoredSettings({ llmEndpoints: ['http://a:1'], llmModel: 5 });
+    expect(settings.llmEndpoints).toEqual([{ url: 'http://a:1' }]);
+  });
+
+  it('loading twice gives the same endpoints (second run changes nothing)', () => {
+    const first = mergeStoredSettings({ llmEndpoints: ['http://a:1'], llmModel: 'qwen3-8b' });
+    const second = mergeStoredSettings(first);
+    expect(second.llmEndpoints).toEqual(first.llmEndpoints);
+  });
+
   it('merges defaults with a raw blob that has no legacy field', () => {
     const settings = mergeStoredSettings({ missionFolder: 'Custom/' });
     expect(settings.missionFolder).toBe('Custom/');

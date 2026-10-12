@@ -1,8 +1,9 @@
 import type { HudPlacement } from './hudPlacement';
-import { migrateEndpointList, type EndpointConfig } from './vendor/kit/endpoint_config';
+import { fillMissingRowModels, migrateEndpointList, type EndpointConfig } from './vendor/kit/endpoint_config';
 import type { EndpointChoice } from './vendor/kit/endpoint-source';
 import {
-  DEFAULT_REQUEST_SETTINGS, onLevelFor, sanitizeRequestSettings, type RequestSettings,
+  DEFAULT_REQUEST_SETTINGS, foldLegacyThinking, loadRequestSettings as kitLoadRequestSettings,
+  type LegacyRequestMigration, type RequestSettings,
 } from './vendor/kit/sampling-profiles';
 
 export type ColorScheme = 'crt' | 'native';
@@ -20,7 +21,7 @@ export interface VimDojoSettings {
   /** Ordered fallback list of OpenAI-compatible endpoints — the first reachable one
    *  wins. Each entry carries its own model (and optionally its own API key) — a model
    *  name only means something on the endpoint that reports it in `/v1/models`, so there
-   *  is deliberately no global fallback (removed in 0.9.0, see `foldLegacyModel`). Empty =
+   *  is deliberately no global fallback (removed in 0.9.0, see `fillMissingRowModels`). Empty =
    *  feature off. */
   llmEndpoints: EndpointConfig[];
   /** Choice against the LLM Endpoint Manager (endpoint + model). Empty = automatic. Only
@@ -81,34 +82,20 @@ function foldLegacyApiKey(eps: EndpointConfig[], legacyKey: string | undefined):
   return eps.map((cfg) => (cfg.apiKey ? cfg : { ...cfg, apiKey: key }));
 }
 
-/** Applies a legacy GLOBAL model onto every migrated endpoint that doesn't already carry its
- *  own — pre-0.9.0 vim-dojo had one `llmModel` shared by every endpoint in the list; the
- *  kit's per-endpoint EndpointConfig has no equivalent global field, so a plain merge would
- *  silently drop a configured model on upgrade and every endpoint would go from "configured"
- *  to "off" (isLlmConfigured requires a model on EVERY endpoint) without any signal. Same
- *  shape as foldLegacyApiKey — kept separate because the two legacy fields migrate
- *  independently (a data.json can carry one without the other). Pure — no Obsidian
- *  dependency. */
-function foldLegacyModel(eps: EndpointConfig[], legacyModel: string | undefined): EndpointConfig[] {
-  const model = legacyModel?.trim();
-  if (!model) return eps;
-  return eps.map((cfg) => (cfg.model ? cfg : { ...cfg, model }));
-}
-
 /** CIPHER's request mode in the kit's profile table (see `llm/cipherRequest.ts`). */
 const REQUEST_MODE = 'companion';
 
-/** Sanitises the persisted `request` block and migrates the pre-0.11.0 `llmSuppressThinking`
- *  switch once into `request.thinking.companion` — only while nothing is set there explicitly.
+/** The pre-0.11.0 `llmSuppressThinking` switch: migrated once into `request.thinking.companion`,
+ *  and only while nothing is set there explicitly (the rule itself is the kit's `foldLegacyThinking`). */
+const migrateSuppressThinking: LegacyRequestMigration = (raw, request) => {
+  foldLegacyThinking(request, REQUEST_MODE, raw.llmSuppressThinking);
+};
+
+/** The persisted `request` block out of the whole stored data, with the legacy switch folded in.
  *  `dropped` lists settings that failed validation; the caller reports them (a silent reset
  *  would hide that the user's value is gone). Pure. */
 export function loadRequestSettings(raw: unknown): { request: RequestSettings; dropped: string[] } {
-  const r = raw !== null && typeof raw === 'object' ? (raw as Record<string, unknown>) : {};
-  const { settings, dropped } = sanitizeRequestSettings(r.request);
-  if (typeof r.llmSuppressThinking === 'boolean' && settings.thinking[REQUEST_MODE] === undefined) {
-    settings.thinking[REQUEST_MODE] = r.llmSuppressThinking ? 'off' : onLevelFor(settings, REQUEST_MODE);
-  }
-  return { request: settings, dropped };
+  return kitLoadRequestSettings(raw, [migrateSuppressThinking]);
 }
 
 /** Merge a raw `data.json` `__settings` blob onto the defaults, migrating both the 0.4.x
@@ -135,7 +122,7 @@ export function mergeStoredSettings(raw: unknown): VimDojoSettings {
   return {
     ...DEFAULT_SETTINGS,
     ...rest,
-    llmEndpoints: foldLegacyModel(foldLegacyApiKey(migrated, llmApiKey), llmModel),
+    llmEndpoints: fillMissingRowModels(foldLegacyApiKey(migrated, llmApiKey), llmModel),
     choice: sanitizeChoice(rest.choice),
     request: loadRequestSettings(raw).request,
     uiCollapsed: { ...DEFAULT_SETTINGS.uiCollapsed, ...rest.uiCollapsed },
