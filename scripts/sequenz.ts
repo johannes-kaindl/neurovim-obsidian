@@ -24,12 +24,15 @@ import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
-import { Cdp, attachTo, clearNotices, closeExtraLeaves, notices, pollUntil } from "../../tools/obsidian-cdp/cdp.js";
+import { Cdp, attachTo, bereiteInstanzVor, clearNotices, closeExtraLeaves, notices, pollUntil } from "../../tools/obsidian-cdp/cdp.js";
+import { Vorbedingung } from "../../tools/obsidian-cdp/bilanz.js";
 import { boxAround, setWindowSize } from "../../tools/obsidian-cdp/shot.js";
 import { buildVault, stagingVaultDir } from "../../tools/obsidian-cdp/vault.js";
 import { konkatListe, sequenzZuGif, sequenzZuMp4, type Schritt } from "../../tools/obsidian-cdp/sequenz.js";
 import { aufnehmen, ergebnisSchreiben, messzeile } from "../../tools/obsidian-cdp/sequenz-aufnahme.js";
-import { PLUGIN_ID, PreconditionError, prepareInstance, sleep } from "./instanz.js";
+
+const PLUGIN_ID = "neurovim";
+const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
 
 const REPO_ROOT = process.cwd();
 const FIXTURE_DIR = join(REPO_ROOT, "docs/images/fixture");
@@ -157,7 +160,7 @@ async function cursorAufHeroZeile(cdp: Cdp): Promise<void> {
     await new Promise((r) => setTimeout(r, 400));
     return Boolean(document.activeElement && cm.contentDOM.contains(document.activeElement));
   `);
-  if (!ok) throw new PreconditionError("Hero-Zeile nicht gefunden oder Editor ohne Fokus.");
+  if (!ok) throw new Vorbedingung("Hero-Zeile nicht gefunden oder Editor ohne Fokus.");
 }
 
 async function missionStarten(cdp: Cdp): Promise<void> {
@@ -177,15 +180,15 @@ async function missionStarten(cdp: Cdp): Promise<void> {
     return true;
   `);
   const hud = await pollUntil<boolean>(cdp, "return document.querySelector('.nv-hud') ? true : null;", 20_000, 500);
-  if (!hud) throw new PreconditionError("HUD (.nv-hud) erschien nach beginMission('M-08') nicht.");
+  if (!hud) throw new Vorbedingung("HUD (.nv-hud) erschien nach beginMission('M-08') nicht.");
   const vorher = await textDerZeile(cdp, "Once upon a");
-  if (vorher !== ZEILE_HERO_VORHER) throw new PreconditionError(`Missionsnotiz zeigt ${JSON.stringify(vorher)}, erwartet ${JSON.stringify(ZEILE_HERO_VORHER)}.`);
+  if (vorher !== ZEILE_HERO_VORHER) throw new Vorbedingung(`Missionsnotiz zeigt ${JSON.stringify(vorher)}, erwartet ${JSON.stringify(ZEILE_HERO_VORHER)}.`);
   await cursorAufHeroZeile(cdp);
 }
 
 async function themePruefen(cdp: Cdp): Promise<void> {
   const theme = await cdp.evaluate<string>("return app.customCss?.theme ?? '';");
-  if (theme !== THEME_NAME) throw new PreconditionError(`Theme ist ${JSON.stringify(theme)}, erwartet ${JSON.stringify(THEME_NAME)} — \`npm run sequenz -- --setup\` und Zweitinstanz neu starten.`);
+  if (theme !== THEME_NAME) throw new Vorbedingung(`Theme ist ${JSON.stringify(theme)}, erwartet ${JSON.stringify(THEME_NAME)} — \`npm run sequenz -- --setup\` und Zweitinstanz neu starten.`);
 }
 
 /** Geänderte oder unversionierte Dateien im Repo (ohne ignorierte). Leer = der Commit beschreibt den Stand. */
@@ -205,7 +208,7 @@ async function herkunft(cdp: Cdp, unsauber: string[]): Promise<Record<string, un
   // Nicht `remote.app.getVersion()`: das ist die GEBUENDELTE Version der .app (1.12.4), der Renderer laeuft
   // aber mit der .asar im Profil (gemessen 2026-10-05: Titel „Obsidian 1.14.4“, getVersion 1.12.4).
   const obsidian = await cdp.evaluate<string>("return (document.title.match(/Obsidian (\\d+\\.\\d+\\.\\d+)/) || [])[1] || '';");
-  if (!obsidian) throw new PreconditionError(`Obsidian-Version nicht aus dem Fenstertitel lesbar (${JSON.stringify(await cdp.evaluate<string>("return document.title;"))}).`);
+  if (!obsidian) throw new Vorbedingung(`Obsidian-Version nicht aus dem Fenstertitel lesbar (${JSON.stringify(await cdp.evaluate<string>("return document.title;"))}).`);
   return {
     repo: "neurovim-obsidian", commit, unsauber, plugin_version: manifest.version, license: "AGPL-3.0-or-later",
     mission: "M-08", theme: { ...theme }, obsidian_version: obsidian, fixture: "docs/images/fixture",
@@ -296,9 +299,9 @@ async function main(): Promise<void> {
     return;
   }
   try {
-    await prepareInstance(cdp);
+    await bereiteInstanzVor(cdp, { pluginIds: [PLUGIN_ID], nurVault: vault, sprache: "en" });
     const loaded = await cdp.evaluate<boolean>(`return Boolean(app.plugins.plugins[${JSON.stringify(PLUGIN_ID)}]);`);
-    if (!loaded) throw new PreconditionError(`Plugin "${PLUGIN_ID}" ist im Vault "${vault}" nicht aktiv.`);
+    if (!loaded) throw new Vorbedingung(`Plugin "${PLUGIN_ID}" ist im Vault "${vault}" nicht aktiv.`);
     await themePruefen(cdp);
     await setWindowSize(cdp, 1280, 860);
     await closeExtraLeaves(cdp);
@@ -313,20 +316,20 @@ async function main(): Promise<void> {
     await sleep(500);
 
     const clip = await boxAround(cdp, [".workspace-leaf.mod-active .cm-editor", ".nv-float-hud-container"], 8);
-    if (!clip) throw new PreconditionError("Zuschnitt (Editor + HUD-Box) nicht bestimmbar.");
+    if (!clip) throw new Vorbedingung("Zuschnitt (Editor + HUD-Box) nicht bestimmbar.");
 
     const ergebnis = await aufnehmen(cdp, sequenz.name, sequenz.schritte, {
       outDir, modus, clip, scale: 2, anschlag: ANSCHLAG, vorhalt: VORHALT, herkunft: await herkunft(cdp, unsauber),
     });
     const fehler = await sequenz.soll(cdp);
-    if (fehler) throw new PreconditionError(`Sequenz ${sequenz.name} hat nicht gewirkt: ${fehler}`);
+    if (fehler) throw new Vorbedingung(`Sequenz ${sequenz.name} hat nicht gewirkt: ${fehler}`);
     console.log(`✅ ${ergebnisSchreiben(outDir, ergebnis)}`);
     console.log(`   ${messzeile(join(outDir, "sequenz.json"))}`);
 
     if (sequenz.video && modus === "schritt" && !process.argv.includes("--ohne-video")) videoSchreiben(outDir);
     console.log("\nJetzt die Bilder ANSEHEN — der Standard prueft die Form, nie die Aussage.");
   } catch (err) {
-    if (err instanceof PreconditionError) {
+    if (err instanceof Vorbedingung) {
       console.error(`\n⛔ Abbruch — Voraussetzung nicht erfuellt:\n   ${err.message}\n`);
       process.exitCode = 2;
       return;

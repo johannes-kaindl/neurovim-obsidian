@@ -6,30 +6,16 @@
  * dieser Treiber ist nur das Rezept dazu. Der Standard (Klassen, Maße, Budgets) liegt
  * zentral in `_docs/readme/readme-spec.json` und wird hier nie dupliziert.
  *
- * ## Ablauf
+ * ## Ablauf (Zweitinstanz, eigener Port, Lock je Port — Dach-AGENTS.md § Staging-Vaults)
  *
- * ⚠️ **Vor dem Quit koordinieren — Obsidian ist geteilte Infrastruktur.** Dieses Rezept
- * braucht den frischen Start (ein Bild pro Start, jeder Lauf hinterlässt Zustand); Mitnutzen ist
- * hier keine Alternative. Aber Obsidian ist Single-Instance: der Quit trifft die Instanz, an der
- * möglicherweise eine andere Session arbeitet, und zerstört deren Zustand. Der eigene Lauf ist
- * danach sauber grün; der Schaden fällt nicht auf.
+ * Kein Quit und kein Neustart der regulaeren Instanz. Das Rezept (Profil, `.asar`, `obsidian.json`,
+ * Lock) steht in `docs/images/README.md` § Reproduktion. `--port` ist Pflicht.
  *
  * ```bash
- * lsof -nP -iTCP:9222 -sTCP:LISTEN >/dev/null && echo "belegt — erst fragen, wem"
- * ```
- *
- * Hört der Port, hängt jemand dran: **erst fragen, dann quitten.** ⚠️ Und die Prüfung ersetzt die
- * Frage nicht — sie zeigt aktive CDP-Treiber, aber nicht, wer ein Fenster offen hält oder auf den
- * Port wartet; am 2026-08-30 hätte sie einen zwei Stunden alten Reindex nicht gezeigt, denn der
- * hing an Ollama, nicht am Port.
- *
- * ```bash
- * export STAGING_VAULTS_DIR="$HOME/Work/StagingVaults"
- * npm run shots -- --setup                 # Vault bauen, danach Obsidian NEU STARTEN
- * osascript -e 'quit app "Obsidian"'
- * open -a Obsidian --args --remote-debugging-port=9222
- * npm run shots -- --vault neurovim-obsidian
- * npm run shots -- --vault neurovim-obsidian --only hero
+ * npm run shots -- --setup                              # Vault bauen
+ * # Zweitinstanz starten (eigenes Profil, eigener Port, Lock), dann:
+ * npm run shots -- --vault neurovim-obsidian --port <port>
+ * npm run shots -- --vault neurovim-obsidian --port <port> --only hero
  * ```
  *
  * ⚠️ Der Aufnahme-Vault ist NICHT der Arbeits-Vault. Alles, was hier in ein Bild gerät,
@@ -41,10 +27,13 @@ import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import { join } from "node:path";
 
-import { Cdp, attachTo, closeExtraLeaves, pollUntil } from "../../tools/obsidian-cdp/cdp.js";
+import { Cdp, attachTo, bereiteInstanzVor, closeExtraLeaves, pollUntil } from "../../tools/obsidian-cdp/cdp.js";
+import { Vorbedingung } from "../../tools/obsidian-cdp/bilanz.js";
 import { boxOf, capture, setWindowSize, writeShot, type Rect } from "../../tools/obsidian-cdp/shot.js";
 import { buildVault, stagingVaultDir } from "../../tools/obsidian-cdp/vault.js";
-import { PLUGIN_ID, PreconditionError, prepareInstance, sleep } from "./instanz.js";
+
+const PLUGIN_ID = "neurovim";
+const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
 
 const HUB_VIEW = "neurovim-hub";
 /** npm-Scripts laufen im Repo-Root. Nicht aus `import.meta.url` ableiten: das gebündelte
@@ -74,8 +63,8 @@ const CIPHER_ANSWER = "Easy: w jumps you to the start of the next word. Prefix a
 interface FakeEndpoint { url: string; close: () => Promise<void> }
 
 /** Fake LLM endpoint: no model runs, the answer is fixed and generic. The UI is real, only the
- *  words are canned. Port 8766 (not 1234 — a regular LM Studio instance may hold that one);
- *  if it is taken, any free port. */
+ *  words are canned. A free port chosen by the OS (`listen(0)`), never a standard port: a fixed
+ *  one would block whatever else wants it (voicelab serves on 8766). */
 async function startFakeEndpoint(): Promise<FakeEndpoint> {
   const server: Server = createServer((req, res) => {
     res.setHeader("Access-Control-Allow-Origin", "*");
@@ -110,10 +99,7 @@ async function startFakeEndpoint(): Promise<FakeEndpoint> {
     res.writeHead(404);
     res.end();
   });
-  await new Promise<void>((resolve) => {
-    server.once("error", () => { server.listen(0, "127.0.0.1", resolve); });
-    server.listen(8766, "127.0.0.1", resolve);
-  });
+  await new Promise<void>((resolve) => { server.listen(0, "127.0.0.1", resolve); });
   const port = (server.address() as AddressInfo).port;
   return { url: `http://127.0.0.1:${port}`, close: () => new Promise<void>((resolve) => { server.close(() => { resolve(); }); server.closeAllConnections(); }) };
 }
@@ -160,7 +146,7 @@ async function openHub(cdp: Cdp): Promise<void> {
     return true;
   `);
   const ready = await pollUntil<boolean>(cdp, "return Boolean(document.querySelector('.nv-tabs'));", 20_000, 500);
-  if (!ready) throw new PreconditionError("Hub-Pane öffnete sich nicht.");
+  if (!ready) throw new Vorbedingung("Hub-Pane öffnete sich nicht.");
   // Sidebar breit genug, dass die Karten lesbar sind — das Panel ist der Bildgegenstand.
   await cdp.evaluate(`
     const s = app.workspace.rightSplit;
@@ -179,7 +165,7 @@ async function selectTab(cdp: Cdp, label: string): Promise<void> {
     await new Promise((r) => setTimeout(r, 800));
     return true;
   `);
-  if (!ok) throw new PreconditionError(`Tab "${label}" nicht gefunden.`);
+  if (!ok) throw new Vorbedingung(`Tab "${label}" nicht gefunden.`);
 }
 
 // --- Die einzelnen Bilder ----------------------------------------------------
@@ -412,11 +398,16 @@ async function main(): Promise<void> {
       if (existsSync(p)) { rmSync(p); console.log(`   entfernt: .obsidian/${f}`); }
     }
     console.log(`\n✅ Vault gebaut: ${vaultDir}`);
-    console.log("   Jetzt Obsidian NEU STARTEN, dann ohne --setup erneut aufrufen.");
+    console.log("   Jetzt die Zweitinstanz (neu) starten, dann ohne --setup erneut aufrufen.");
     return;
   }
 
-  const port = Number(arg("port", "9222"));
+  const port = Number(arg("port", ""));
+  if (!Number.isInteger(port) || port <= 0) {
+    console.error("⛔ --port <port> ist Pflicht (Zweitinstanz, siehe Kopf dieser Datei); kein Standardport.");
+    process.exitCode = 2;
+    return;
+  }
   const vault = arg("vault", "neurovim-obsidian");
   const only = arg("only");
 
@@ -424,7 +415,7 @@ async function main(): Promise<void> {
   if (!cdp) {
     console.error(
       `⛔ Kein Obsidian-Fenster auf Port ${port} mit Vault "${vault}".\n`
-      + `   osascript -e 'quit app "Obsidian"' && open -a Obsidian --args --remote-debugging-port=${port}`,
+      + `   Zweitinstanz starten (docs/images/README.md § Reproduktion), nicht die regulaere Instanz neu starten.`,
     );
     process.exitCode = 2;
     return;
@@ -432,11 +423,11 @@ async function main(): Promise<void> {
 
   let fake: FakeEndpoint | null = null;
   try {
-    await prepareInstance(cdp);
+    await bereiteInstanzVor(cdp, { pluginIds: [PLUGIN_ID], nurVault: vault, sprache: "en" });
     const loaded = await cdp.evaluate<boolean>(
       `return Boolean(app.plugins.plugins[${JSON.stringify(PLUGIN_ID)}]);`,
     );
-    if (!loaded) throw new PreconditionError(`Plugin "${PLUGIN_ID}" ist im Vault "${vault}" nicht aktiv.`);
+    if (!loaded) throw new Vorbedingung(`Plugin "${PLUGIN_ID}" ist im Vault "${vault}" nicht aktiv.`);
 
     await setWindowSize(cdp, 1280, 860);
     await closeExtraLeaves(cdp);
@@ -446,7 +437,7 @@ async function main(): Promise<void> {
     fake = await startFakeEndpoint();
     console.log(`Fake endpoint: ${fake.url} (canned answer, no model)`);
     const todo = only ? SHOTS.filter((s) => s.name.startsWith(only)) : SHOTS;
-    if (todo.length === 0) throw new PreconditionError(`Kein Bild passt auf --only ${only}`);
+    if (todo.length === 0) throw new Vorbedingung(`Kein Bild passt auf --only ${only}`);
 
     for (const shot of todo) {
       try {
@@ -467,7 +458,7 @@ async function main(): Promise<void> {
     }
     console.log("\nJetzt jedes Bild ANSEHEN — der Standard prüft die Form, nie die Aussage.");
   } catch (err) {
-    if (err instanceof PreconditionError) {
+    if (err instanceof Vorbedingung) {
       console.error(`\n⛔ Abbruch — Voraussetzung nicht erfüllt:\n   ${err.message}\n`);
       process.exitCode = 2;
       return;

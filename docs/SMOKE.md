@@ -9,34 +9,28 @@ eigene `<button>`-Defaults, echte Panel-Breiten, echtes Markdown-Rendering.
 
 ## Ausführen
 
-⚠️ **Zuerst prüfen, wer sonst an Obsidian hängt.** Obsidian ist Single-Instance — ein
-`quit` trifft die Instanz, an der möglicherweise eine andere Session arbeitet, und zerstört
-deren Zustand. Der eigene Lauf ist danach sauber grün; der Schaden entsteht woanders und
-fällt nicht auf.
+Der Smoke läuft in einer **Zweitinstanz** mit eigenem Profil und eigenem Port (`--port` ist Pflicht); die reguläre Instanz wird nie beendet oder neu gestartet. Ein Lauf braucht den Lock für den eigenen Port.
 
 ```bash
-lsof -nP -iTCP:9222 -sTCP:LISTEN >/dev/null && echo "läuft bereits — NICHT beenden"
+UD=/tmp/obs-test-neurovim-obsidian; mkdir -p "$UD"
+lsof -nP -iTCP:<port> -sTCP:LISTEN; pgrep -f "user-data-dir=$UD"      # beides leer
+cp ~/Library/Application\ Support/obsidian/obsidian-<version>.asar "$UD"/
+# $UD/obsidian.json: {"vaults":{"v":{"path":"$STAGING_VAULTS_DIR/neurovim-obsidian","ts":<ms>,"open":true}},"language":"en"}
+
+# Bauen, Staging-Vault aus dem Fixture herstellen (Spielstand geseedet für R4)
+npm run build && npm run smoke:gui -- --setup
+
+python3 ~/.claude/hooks/obsidian-cdp-lock.py acquire --label neurovim-obsidian --intent "GUI-Smoke" --exclusive focus --port <port> --ttl 300
+/Applications/Obsidian.app/Contents/MacOS/Obsidian --user-data-dir="$UD" --remote-debugging-port=<port> &
+
+# Fahren (Default-Vault neurovim-obsidian; je Lauf ein frischer Prozess)
+npm run smoke:gui -- --port <port>
+npm run smoke:gui -- --port <port> --reload       # lädt das Plugin vorher neu
+npm run smoke:gui -- --port <port> --ohne-modell  # R7 (echter Endpunkt) überspringen
+python3 ~/.claude/hooks/obsidian-cdp-lock.py release
 ```
 
-Hört der Port schon, dann **mitnutzen statt neu starten**: ein eigenes Fenster per
-`vault-open` über IPC öffnen, dann `attachTo("workspace", port, vault)` — der Vault-Name
-wählt, nicht die Reihenfolge. ⚠️ Die Port-Prüfung ersetzt die Frage nicht: sie zeigt aktive
-CDP-Treiber, aber nicht, wer ein Fenster offen hält oder auf den Port wartet.
-
-Erst wenn nichts läuft — oder nach Absprache mit dem, der es benutzt — gilt das Rezept unten.
-
-```bash
-# Einmalig: Obsidian mit offenem Debug-Port (der einzige Handgriff von Hand)
-osascript -e 'quit app "Obsidian"'
-open -a Obsidian --args --remote-debugging-port=9222
-
-# Bauen + in den Vault legen
-OBSIDIAN_PLUGIN_DIR="$VAULT/.obsidian/plugins/neurovim" npm run deploy
-
-# Fahren
-npm run smoke:gui -- --vault <vault-name>
-npm run smoke:gui -- --vault <vault-name> --reload   # lädt das Plugin vorher neu
-```
+Vertrauensdialog, eingeschränkter Modus und Aktivierung erledigt der Treiber selbst (`bereiteInstanzVor`). Die Bilanz hat vier Zustände: grün, rot, übersprungen (nicht anwendbar, z. B. R4 außerhalb des Staging-Vaults) und **nichts gemessen** (Gegenstand nicht erreicht, z. B. R7 ohne geladenes Modell auf `:1234`); Rot und „nichts gemessen" setzen Exit 1, ein Abbruch Exit 2. Der Nenner ist die Soll-Liste im Treiber.
 
 `--reload` schaltet das Plugin im laufenden Obsidian aus und wieder ein, damit neu
 deployter Code übernommen wird — ein Obsidian-Neustart würde den Debug-Port schließen.
@@ -99,9 +93,9 @@ Material für die spätere Kit-Extraktion (Dach-`AGENTS.md`, Extraktions-Schwell
   `reopenNote`, `openExisting`) braucht vim-dojo nicht: geprüft wird eine **Sidebar-View**,
   keine Notiz im Hauptbereich. Das ist der erste sichtbare Schnitt zwischen „Brücke" und
   „Notiz-Werkzeug".
-- Neu gegenüber der Vorlage: **`PreconditionError`** — eine verletzte Umgebungsbedingung
-  bricht mit Ansage ab, statt rote Prüfpunkte am Plugin zu melden (LESSONS.md 2026-08-14,
-  paperless-storage). Kandidat für die Brücke, sobald ein zweites Repo ihn braucht.
+- Eine verletzte Umgebungsbedingung (`Vorbedingung` aus `bilanz.ts`) bricht den Lauf mit Ansage
+  ab (Exit 2), statt rote Prüfpunkte am Plugin zu melden (LESSONS.md 2026-08-14, paperless-storage);
+  innerhalb einer Prüfgruppe macht sie deren offene Punkte zu „nichts gemessen".
 - Neu: **`--reload`**. In `3d-codeblocks` steht das Neuladen nur als Snippet in der Anleitung;
   als Schalter im Treiber ist es bei jeder Gegenprobe einen Handgriff weniger.
 

@@ -18,7 +18,7 @@ Erzeugt von `npm run shots`, geprüft von `npm run shots:check`
 | `briefing.png` | feature | README, README.de | Das Briefing-Modal vor dem Missionsstart: CIPHERs Ansprache **vollständig lesbar**, der Knopf `▶ BEGIN MISSION` sichtbar. Aufgenommen an **M-01**, nicht an M-05: dessen Briefing trägt einen langen Log-Auszug, der das Modal über die Fensterhöhe schiebt (2026-08-16 gemessen). Dass der DIRECTIVE-Block unten angeschnitten ist, ist in Ordnung — das Modal scrollt, und der Charakter des Spiels steckt in der CIPHER-Passage. |
 | `guide.png` | feature | README, README.de | Der GUIDE-Tab mit **aktiver Suche**: ein Suchbegriff im Feld und die gefilterte Trefferliste. Ein ungefiltertes Cheatsheet zeigt nicht, dass es durchsuchbar ist. |
 | `settings.png` | feature | README, README.de | Der Einstellungen-Tab ab dem Abschnitt **Appearance**: HUD-Platzierung, CRT-Farbschema, darunter der Abschnitt CIPHER uplink mit der Kit-Endpunkt-Liste (ein aktiver Endpunkt samt Modell) und dem eingeklappten Anfrage-Abschnitt. Neu aufgenommen nach dem Verbindungs-Tausch (Welle 15). Der Tab ist länger als jeder Bildschirm (949 px gemessen), deshalb zeigt das Bild nicht auch den Missionsordner. Ab Obsidian 1.13 sind die Einstellungen ein **eigenes Fenster ohne Workspace** (in der Zweitinstanz ein Pop-out); der Treiber verbindet sich dafür ein zweites Mal (`attachTo("settings", …)`). |
-| `uplink.png` | feature | README, README.de | Der UPLINK-Tab mit einem CIPHER-Wortwechsel — Frage des Spielers, Antwort in der Rolle. Der Treiber startet dafür einen **Fake-Endpunkt** (`node:http`, Port 8766, feste generische Antwort): die Oberfläche ist echt, nur die Worte sind festgelegt. |
+| `uplink.png` | feature | README, README.de | Der UPLINK-Tab mit einem CIPHER-Wortwechsel — Frage des Spielers, Antwort in der Rolle. Der Treiber startet dafür einen **Fake-Endpunkt** (`node:http`, vom Betriebssystem gewählter freier Port, feste generische Antwort): die Oberfläche ist echt, nur die Worte sind festgelegt. |
 | `hero-demo.gif` | hero-video | README, README.de | Die Hero-Demo als Komposition aus clipwerk (`projects/neurovim-hero`, Commit 785096f, Storyboard v2): die Aufnahme `m08-hero` auf dem Grund von birds of yore, Zoom 2,2× auf die Zeile bei `ESC`, Tastenkappen für `ESC` · `3w` · `ciw` aus dem Eingabe-Log, Tippen `midnight` mit Rampe 1,5×, eine Sekunde Stand, Schleife. Am Ende liest die Zeile `Once upon a midnight dreary, …`, das HUD zeigt 15 keys und 33/45 lines. 800×450, 20 fps, 9 s, ≤ 2048 KB; `hero-demo.mp4` daneben mit demselben Inhalt (D13). Quelle der Aufnahme: `out/sequenz/m08-hero/` (Rezept `npm run sequenz`, Herkunft in `sequenz.json`), nicht im Repo; die Rohfassung des Rezepts (hero-roh, siehe § Sequenzen) ist nur Platzhalter. |
 
 ## Sequenzen
@@ -103,36 +103,28 @@ npm run sequenz -- --sequenz m08-hero --nur-video [--readme]   # Rohfassung neu,
 python3 ~/.claude/hooks/obsidian-cdp-lock.py release
 ```
 
-Vor dem ersten Lauf bestätigt `prepareInstance` den Vertrauensdialog des frischen Profils und hebt den eingeschränkten Modus auf. Eine Aufnahme verlangt einen sauberen Arbeitsbaum (`git status --porcelain` leer), sonst beschreibt der Commit in `sequenz.json` → `herkunft` nicht den Stand, der sie erzeugt hat; `--herkunft-unsauber` erlaubt das nur für Messläufe und schreibt die abweichenden Dateien in die Herkunft. `--nur-video` schreibt die Rohfassung `hero-roh.gif`/`.mp4` in `out/sequenz/m08-hero/`; `docs/images/hero-demo.*` gehören der Komposition aus clipwerk (Spec § 5, Gate 5) und werden vom Rezept nur mit `--readme` überschrieben (Rohfassung als Platzhalter, bis die Komposition da ist). Ein Messlauf: `--modus schritt|screencast --out out/messung-<x> --ohne-video`; die Messzeile steht nach `✅` in der Ausgabe und in `sequenz.json` → `messung`.
+Vor dem ersten Lauf bestätigt `bereiteInstanzVor` (zentrale Brücke) den Vertrauensdialog des frischen Profils, hebt den eingeschränkten Modus auf und stellt die Oberfläche auf Englisch. Eine Aufnahme verlangt einen sauberen Arbeitsbaum (`git status --porcelain` leer), sonst beschreibt der Commit in `sequenz.json` → `herkunft` nicht den Stand, der sie erzeugt hat; `--herkunft-unsauber` erlaubt das nur für Messläufe und schreibt die abweichenden Dateien in die Herkunft. `--nur-video` schreibt die Rohfassung `hero-roh.gif`/`.mp4` in `out/sequenz/m08-hero/`; `docs/images/hero-demo.*` gehören der Komposition aus clipwerk (Spec § 5, Gate 5) und werden vom Rezept nur mit `--readme` überschrieben (Rohfassung als Platzhalter, bis die Komposition da ist). Ein Messlauf: `--modus schritt|screencast --out out/messung-<x> --ohne-video`; die Messzeile steht nach `✅` in der Ausgabe und in `sequenz.json` → `messung`.
 
-### Bilder (reguläre Instanz oder Zweitinstanz)
+### Bilder (Zweitinstanz, eigener Port, Lock je Port)
 
-⚠️ **Vor dem Quit koordinieren — Obsidian ist geteilte Infrastruktur.** Dieses Rezept
-braucht den frischen Start (ein Bild pro Start, jeder Lauf hinterlässt Zustand); Mitnutzen ist
-hier keine Alternative. Aber Obsidian ist Single-Instance: der Quit trifft die Instanz, an der
-möglicherweise eine andere Session arbeitet, und zerstört deren Zustand. Der eigene Lauf ist
-danach sauber grün; der Schaden fällt nicht auf.
+Das Rezept läuft in einer Zweitinstanz mit eigenem Profil und eigenem Port; die reguläre Instanz wird nie beendet oder neu gestartet. `--port` ist Pflicht.
 
 ```bash
-lsof -nP -iTCP:9222 -sTCP:LISTEN >/dev/null && echo "belegt — erst fragen, wem"
-```
+npm run shots -- --setup          # Vault aus fixture/ bauen ($STAGING_VAULTS_DIR muss gesetzt sein)
+UD=/tmp/obs-test-neurovim-obsidian; pgrep -f "user-data-dir=$UD" && echo "Profil belegt"; mkdir -p "$UD"
+lsof -nP -iTCP:<port> -sTCP:LISTEN                                              # leer, sonst anderen Port nehmen
+cp ~/Library/Application\ Support/obsidian/obsidian-<version>.asar "$UD"/      # sonst startet die gebündelte Version
+# $UD/obsidian.json mit {"vaults":{"v":{"path":"$STAGING_VAULTS_DIR/neurovim-obsidian","ts":<ms>,"open":true}},"language":"en"}
+python3 ~/.claude/hooks/obsidian-cdp-lock.py acquire --label neurovim-obsidian --intent "README-Bilder" --ttl 900 --exclusive focus --port <port>
+/Applications/Obsidian.app/Contents/MacOS/Obsidian --user-data-dir="$UD" --remote-debugging-port=<port> &
 
-Hört der Port, hängt jemand dran: **erst fragen, dann quitten.** ⚠️ Und die Prüfung ersetzt die
-Frage nicht — sie zeigt aktive CDP-Treiber, aber nicht, wer ein Fenster offen hält oder auf den
-Port wartet; am 2026-08-30 hätte sie einen zwei Stunden alten Reindex nicht gezeigt, denn der
-hing an Ollama, nicht am Port.
-
-```bash
-export STAGING_VAULTS_DIR="$STAGING_VAULTS"   # Sammelordner der Aufnahme-Vaults
-
-npm run shots -- --setup          # Vault aus fixture/ bauen; danach Obsidian NEU STARTEN
-osascript -e 'quit app "Obsidian"'
-open -a Obsidian --args --remote-debugging-port=9222
-
-npm run shots -- --vault neurovim-obsidian             # alle Bilder
-npm run shots -- --vault neurovim-obsidian --only hero # ein einzelnes
+npm run shots -- --vault neurovim-obsidian --port <port>             # alle Bilder
+npm run shots -- --vault neurovim-obsidian --port <port> --only hero # ein einzelnes
 npm run shots:check                            # gegen den Standard prüfen
+python3 ~/.claude/hooks/obsidian-cdp-lock.py release
 ```
+
+Der Fake-Endpunkt für das UPLINK-Bild liegt auf einem vom Betriebssystem gewählten freien Port, nie auf einem Standardport.
 
 Der Vault entsteht unter `$STAGING_VAULTS_DIR/neurovim-obsidian` — die Variable ist Pflicht, ein
 fest eingebauter Pfad wäre für jeden außer einer Person falsch. `check-no-abs-paths`
