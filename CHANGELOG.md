@@ -5,6 +5,10 @@ All notable changes to this project are documented here. Format loosely follows
 
 ## [Unreleased]
 
+### Changed
+
+- Kit pins raised to obsidian-kit 0.57.0 / code-kit 0.24.0. The stored endpoint choice in `data.json` is now cleaned by the kit's shared `sanitizeChoice` instead of a local copy; the result is identical for every stored value (only non-empty strings survive), so nothing changes for you.
+
 ## [0.14.0] — 2026-10-12
 
 ### Changed

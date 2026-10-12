@@ -1,6 +1,6 @@
 import type { HudPlacement } from './hudPlacement';
 import { fillMissingRowModels, migrateEndpointList, type EndpointConfig } from './vendor/kit/endpoint_config';
-import type { EndpointChoice } from './vendor/kit/endpoint-source';
+import { sanitizeChoice, type EndpointChoice } from './vendor/kit/endpoint-source';
 import {
   DEFAULT_REQUEST_SETTINGS, foldLegacyThinking, loadRequestSettings,
   type LegacyRequestMigration, type RequestSettings,
@@ -58,16 +58,6 @@ export const DEFAULT_SETTINGS: VimDojoSettings = {
 export function isLlmConfigured(s: Pick<VimDojoSettings, 'llmEndpoints'>): boolean {
   return s.llmEndpoints.length > 0
     && s.llmEndpoints.every((ep) => (ep.model ?? '').trim() !== '');
-}
-
-/** `choice` comes from a data.json and is therefore untrusted: only non-empty strings survive. */
-export function sanitizeChoice(raw: unknown): EndpointChoice {
-  if (raw === null || typeof raw !== 'object') return {};
-  const { endpointId, model } = raw as EndpointChoice;
-  return {
-    ...(typeof endpointId === 'string' && endpointId ? { endpointId } : {}),
-    ...(typeof model === 'string' && model ? { model } : {}),
-  };
 }
 
 /** Applies a legacy GLOBAL API key onto every migrated endpoint that doesn't already carry
