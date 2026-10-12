@@ -10,44 +10,28 @@
  *
  * ## Voraussetzung
  *
- * ⚠️ **Zuerst prüfen, wer sonst an Obsidian hängt.** Obsidian ist Single-Instance — ein
- * `quit` trifft die Instanz, an der möglicherweise eine andere Session arbeitet, und zerstört
- * deren Zustand. Der eigene Lauf ist danach sauber grün; der Schaden entsteht woanders und
- * fällt nicht auf.
+ * Zweitinstanz mit eigenem Profil und eigenem Port, nie die regulaere Instanz (kein `quit`,
+ * kein Neustart fremder Fenster). `--port` ist Pflicht.
  *
  * ```bash
- * lsof -nP -iTCP:9222 -sTCP:LISTEN >/dev/null && echo "läuft bereits — NICHT beenden"
+ * UD=/tmp/obs-test-neurovim-obsidian; mkdir -p "$UD"
+ * lsof -nP -iTCP:<port> -sTCP:LISTEN; pgrep -f "user-data-dir=$UD"      # beides leer
+ * cp ~/Library/Application\ Support/obsidian/obsidian-*.asar "$UD"/      # aktuelle Version
+ * # $UD/obsidian.json: {"vaults":{"v":{"path":"$STAGING_VAULTS_DIR/neurovim-obsidian","ts":1,"open":true}},"language":"en"}
+ * npm run build && npm run smoke:gui -- --setup     # baut den Staging-Vault aus dem Fixture, seedet den Spielstand
+ * python3 ~/.claude/hooks/obsidian-cdp-lock.py acquire --label neurovim-obsidian --intent "GUI-Smoke" --exclusive focus --port <port> --ttl 300
+ * /Applications/Obsidian.app/Contents/MacOS/Obsidian --user-data-dir="$UD" --remote-debugging-port=<port> &
+ * npm run smoke:gui -- --port <port>
+ * python3 ~/.claude/hooks/obsidian-cdp-lock.py release
  * ```
  *
- * Hört der Port schon, dann **mitnutzen statt neu starten**: ein eigenes Fenster per
- * `vault-open` über IPC öffnen, dann `attachTo("workspace", port, vault)` — der Vault-Name
- * wählt, nicht die Reihenfolge. ⚠️ Die Port-Prüfung ersetzt die Frage nicht: sie zeigt aktive
- * CDP-Treiber, aber nicht, wer ein Fenster offen hält oder auf den Port wartet.
+ * Vertrauensdialog, Restricted Mode und Aktivierung erledigt `bereiteInstanzVor` im Treiber.
+ * Je Messlauf ein frischer Prozess; der erste Lauf nach einer Profilanlage ist ein Aufwaermlauf.
+ * Flags: `--vault <name>` (Default `neurovim-obsidian`; Abschnitt R4 laeuft nur dort, weil er einen
+ * geseedeten Bestwert braucht), `--reload` (Plugin neu laden), `--ohne-modell` (R7 ueberspringen:
+ * kein Lauf gegen einen echten Endpunkt, z. B. weil LM Studio belegt ist).
  *
- * Erst wenn nichts läuft — oder nach Absprache mit dem, der es benutzt — gilt das Rezept unten.
- *
- * Obsidian muss mit offenem Debug-Port laufen (der einzige Handgriff, der Handarbeit
- * bleibt — die App muss dafür neu gestartet werden):
- *
- * ```bash
- * osascript -e 'quit app "Obsidian"'
- * open -a Obsidian --args --remote-debugging-port=9222
- * ```
- *
- * Dann, mit deployter Plugin-Version (`npm run deploy`):
- *
- * ```bash
- * npm run smoke:gui -- --vault 10_Pallas
- * npm run smoke:gui -- --vault 10_Pallas --port 9222
- * ```
- *
- * Abschnitt R4 (Wertungs-Anzeige) läuft nur im Staging-Vault, weil er einen geseedeten
- * Bestwert auf einer Par-Mission braucht — gegen 10_Pallas wird er übersprungen:
- *
- * ```bash
- * npm run build && npm run smoke:gui -- --setup   # baut + öffnet $STAGING_VAULTS_DIR/neurovim-obsidian
- * npm run smoke:gui -- --vault neurovim-obsidian --reload
- * ```
+ * Exit 0 gruen/uebersprungen, 1 bei Rot oder „nichts gemessen", 2 bei Abbruch (Vorbedingung).
  *
  * ⚠️ Chromium drosselt nicht-fokussierte Fenster: ohne Fokus bleibt die View leer und man
  * debuggt ein Phantom. `main()` holt das Fenster deshalb aktiv nach vorn.
@@ -58,7 +42,8 @@ import { createServer, type Server } from "node:http";
 import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
-import { Cdp, attachTo, closeExtraLeaves, pollUntil, setAppConfig, setPluginSetting } from "../../tools/obsidian-cdp/cdp.js";
+import { Cdp, attachTo, bereiteInstanzVor, closeExtraLeaves, pollUntil, setAppConfig, setPluginSetting } from "../../tools/obsidian-cdp/cdp.js";
+import { createBilanz, parseArgs, runDriver, Vorbedingung } from "../../tools/obsidian-cdp/bilanz.js";
 import { buildHerkunft, buildVault, requireEigenerBuild, stagingVaultDir } from "../../tools/obsidian-cdp/vault.js";
 
 const PLUGIN_ID = "neurovim";
@@ -69,26 +54,94 @@ const CRT_ACCENT = "rgb(69, 255, 138)";
 
 // --- Prüfpunkte -------------------------------------------------------------
 
-interface Check {
-  name: string;
-  /** Drei Zustände, nicht zwei: ein übersprungener Prüfpunkt hat NICHTS gemessen und
-   *  darf deshalb weder als grüner noch als roter gezählt werden. Vorher trug er
-   *  `passed: true` — dann meldet der Lauf "N/N grün", während der Punkt, wegen dessen
-   *  er gefahren wurde, stillschweigend ausfiel. */
-  status: "gruen" | "rot" | "uebersprungen";
-  detail: string;
-}
+const args = parseArgs(process.argv.slice(2));
 
-const checks: Check[] = [];
+/** Soll-Liste je Gruppe — der Nenner der Bilanz (CORE-TEST-19). Ein Punkt, der nie aufgezeichnet
+ *  wird (Gruppe abgebrochen, Vorbedingung fehlt), zaehlt als „nichts gemessen" und setzt Exit 1;
+ *  er erscheint nie als gruen. Zweig-Alternativen eines Punkts tragen denselben Namen. */
+const GRUPPEN = {
+  tabs: ["R2-1 alle Tabs lesbar bei schmaler Sidebar"],
+  klappen: ["R2-2 Gruppe klappt zu", "R2-2 Zähler bleibt eingeklappt sichtbar", "R2-2 Klappzustand ist persistiert"],
+  karten: ["R2-5 Karten richten sich einheitlich aus"],
+  reader: [
+    "R2-3 Reader trägt denselben Grund wie der Hub",
+    "R2-4 ASCII-Rahmen brechen nicht um",
+    "R2-4 Kopier-Knopf ist ausgeblendet",
+  ],
+  wertung: [
+    "R4-1 Chip nur bei autorisiertem Par",
+    "R4-2 Chip bricht die Missionszeile nicht um",
+    "R4-4 Tier-Farben lesbar in allen vier Schema/Theme-Kombinationen",
+    "R4-3 Result-Modal trägt Badge und Par",
+    "R4-5 Aktionsleiste bleibt bei langem Debrief-Text erreichbar",
+  ],
+  hilfe: ["R6 Hilfe-Zeile steht als erste Zeile der Einstellungen, mit Doku-Knopf und Bug-Icon"],
+  body: [
+    "N2-1 Body am Draht trägt Profilwerte, nicht feste Werte",
+    "N2-2 Überschreibung und Denkstufe ändern den Body (Gegenprobe zu N2-1)",
+    "N2-3 Die Session zeigt, was wirklich gesendet wurde",
+  ],
+  verbindung: [
+    "W1 Kein apiKey in data.json (Schlüssel liegt im Schlüsselbund)",
+    "W2 Der Schlüssel kommt aus dem Schlüsselbund als Bearer-Header am Draht an",
+    "W3 Schwärzung: Token geht als Platzhalter hinaus und kommt im Original zurück",
+  ],
+  kontext: ["W4 Kontextlänge steht an der Endpunkt-Zeile"],
+  anfrage: [
+    "N1 Abschnitt Request ist vorhanden, klappt auf und zeigt Modus, Felder und Denkstufe",
+    "N1-2 Zweites Öffnen zeigt die Anfrage aus N2 („Last request“ ist frisch)",
+    "N1-3 Überschreiben und Zurücksetzen nacheinander: Abschnitt bleibt offen, Wert wird gespeichert und wieder gelöscht",
+  ],
+  quelle: [
+    "R5-1 Manager an: Settings zeigen den Baustein statt der lokalen Liste",
+    "R5-2 Manager an: der Resolver nimmt Manager-Endpunkt und Default-Modell",
+    "R5-3 Manager aus: lokale Liste zurueck (Gegenprobe zu R5-1/R5-2)",
+  ],
+  ordner: [
+    "F1 Ausblenden versteckt den Ordner UND seinen Inhalt",
+    "F1b Inhalt des Ordners ist mitgemessen",
+    "F2 Einblenden macht ihn wieder sichtbar",
+    "F3 Pop-out aktiv: Regel greift im Hauptfenster, nicht im Pop-out",
+    "F4 Laden bei aktivem Pop-out: Ordner ist ausgeblendet",
+  ],
+  cipher: [
+    "R3-0 Die Frage erreicht die Verbindung",
+    "R3-1 CUT behält das Teilergebnis und gibt die Eingabe frei",
+    "R3-2 RST leert den Kanal",
+    "R3-3 ein voller Turn landet als Antwort",
+  ],
+  echt: ["R7 Kit-Chat-Client streamt gegen den echten Endpunkt"],
+} as const satisfies Record<string, readonly string[]>;
+type Gruppe = keyof typeof GRUPPEN;
+const C0 = "C0 Kein liegen gebliebener CIPHER-Stub aus einem abgebrochenen Vorlauf";
+const PUNKTE: readonly string[] = [C0, ...Object.values(GRUPPEN).flat()];
+
+const bilanz = createBilanz({ punkte: PUNKTE });
 
 function record(name: string, passed: boolean, detail: string): void {
-  checks.push({ name, status: passed ? "gruen" : "rot", detail });
-  console.log(`${passed ? "✅" : "❌"} ${name} — ${detail}`);
+  bilanz.record(name, passed, detail);
 }
 
+/** Nicht anwendbar in dieser Lage (Staging-Vault fehlt, natives Schema, kein Code-Block, Flag). */
 function skipped(name: string, reason: string): void {
-  checks.push({ name, status: "uebersprungen", detail: `übersprungen: ${reason}` });
-  console.log(`⏭️  ${name} — übersprungen: ${reason}`);
+  bilanz.skipped(name, reason);
+}
+
+/** Gegenstand nicht erreicht (Zugang oder Vorbedingung fehlt) — „nichts gemessen", Exit 1. */
+function unmeasured(name: string, reason: string): void {
+  bilanz.unmeasured(name, reason);
+}
+
+/** Fuehrt eine Pruefgruppe aus. Eine `Vorbedingung` oder ein Fehler darin macht jeden noch nicht
+ *  aufgezeichneten Punkt der Gruppe zu „nichts gemessen" — nie zu rot und nie zu gruen. */
+async function gruppe(name: Gruppe, lauf: () => Promise<void>): Promise<void> {
+  try {
+    await lauf();
+  } catch (e) {
+    const grund = e instanceof Vorbedingung ? e.message : `Abbruch im Treiber: ${(e as Error).message}`;
+    const da = new Set(bilanz.eintraege().map((x) => x.name));
+    for (const n of GRUPPEN[name]) if (!da.has(n)) unmeasured(n, grund);
+  }
 }
 
 /**
@@ -99,12 +152,11 @@ function skipped(name: string, reason: string): void {
  * Werkzeug sie als roten Punkt, beginnt die Fehlersuche an der falschen Stelle — die
  * Lehre aus paperless-storage (LESSONS.md, 2026-08-14).
  */
-class PreconditionError extends Error {}
 
 async function requireEnvironment(cdp: Cdp, vault: string | undefined): Promise<void> {
   const name = await cdp.evaluate<string>("return app.vault.getName() || '';");
   if (vault && name !== vault) {
-    throw new PreconditionError(
+    throw new Vorbedingung(
       `Verbunden mit Vault "${name}", erwartet "${vault}". Mehrere Vault-Fenster offen?`,
     );
   }
@@ -112,7 +164,7 @@ async function requireEnvironment(cdp: Cdp, vault: string | undefined): Promise<
     `return Boolean(app.plugins.plugins[${JSON.stringify(PLUGIN_ID)}]);`,
   );
   if (!active) {
-    throw new PreconditionError(
+    throw new Vorbedingung(
       `Plugin "${PLUGIN_ID}" ist in "${name}" nicht aktiv. Deployt (npm run deploy) und eingeschaltet?`,
     );
   }
@@ -141,11 +193,11 @@ async function requireEnvironment(cdp: Cdp, vault: string | undefined): Promise<
   // Deploy-Fehler.
   const css = buildHerkunft(join(pluginDir, "styles.css"), join(process.cwd(), "styles.css"));
   if (css.art === "fehlt") {
-    throw new PreconditionError(`Im Vault liegt kein styles.css: ${css.pfad}\nZuerst deployen.`);
+    throw new Vorbedingung(`Im Vault liegt kein styles.css: ${css.pfad}\nZuerst deployen.`);
   }
   if (css.art === "fremd") {
     const z = (n: number) => n.toLocaleString("de-DE");
-    throw new PreconditionError(
+    throw new Vorbedingung(
       `Das styles.css im Vault ist nicht der gebaute Repo-Stand: ${css.pfad}\n`
       + `  im Vault: ${z(css.bytes)} Bytes · gebaut: ${z(css.erwarteteBytes)} Bytes\n`
       + "R2-1/R2-3 messen gerendertes CSS. Zuerst deployen, dann erneut laufen.",
@@ -168,7 +220,7 @@ async function openHub(cdp: Cdp): Promise<void> {
     500,
   );
   if (!registered) {
-    throw new PreconditionError(
+    throw new Vorbedingung(
       `View-Typ "${HUB_VIEW}" ist nicht registriert — Plugin geladen, aber onload nicht durch?`,
     );
   }
@@ -193,7 +245,7 @@ async function openHub(cdp: Cdp): Promise<void> {
     20_000,
     500,
   );
-  if (!ready) throw new PreconditionError("Hub-Pane öffnete sich nicht (.nv-tabs nie erschienen).");
+  if (!ready) throw new Vorbedingung("Hub-Pane öffnete sich nicht (.nv-tabs nie erschienen).");
 }
 
 /** Wechselt auf einen Hub-Tab, indem der Knopf mit dem Label geklickt wird. */
@@ -259,8 +311,7 @@ async function checkTabWrap(cdp: Cdp): Promise<void> {
     };
   `);
   if (!result) {
-    record("R2-1 alle Tabs lesbar bei schmaler Sidebar", false, "Tab-Leiste nicht gefunden — Hub nicht offen?");
-    return;
+    throw new Vorbedingung("Tab-Leiste nicht gefunden — Hub nicht offen?");
   }
   const problems = [
     result.overflow > 0 ? `${result.overflow} über der Kante` : "",
@@ -288,8 +339,7 @@ async function checkCollapse(cdp: Cdp): Promise<void> {
     };
   `);
   if (!before || before.cards === 0) {
-    record("R2-2 Gruppen klappen", false, "keine Archiv-Gruppe mit Karten gefunden");
-    return;
+    throw new Vorbedingung("keine Archiv-Gruppe mit Karten gefunden");
   }
   const after = await cdp.evaluate<{ cards: number; count: string; expanded: string } | null>(`
     const group = document.querySelector('.nv-archive-group');
@@ -365,7 +415,7 @@ async function checkCardAlignment(cdp: Cdp): Promise<void> {
     };
   `);
   if (!result || result.open === null || result.locked === null) {
-    skipped("R2-5 Karten-Ausrichtung", "keine offene UND gesperrte Karte gleichzeitig sichtbar");
+    unmeasured("R2-5 Karten richten sich einheitlich aus", "keine offene UND gesperrte Karte gleichzeitig sichtbar");
     return;
   }
   const equal = Math.abs(result.open - result.locked) <= 1;
@@ -389,9 +439,7 @@ async function checkReader(cdp: Cdp): Promise<void> {
     return Boolean(document.querySelector('.nv-lore-modal'));
   `);
   if (!opened) {
-    record("R2-3 Reader trägt das CRT-Schema", false, "Reader ließ sich nicht öffnen");
-    skipped("R2-4 ASCII-Rahmen scrollen", "Reader nicht offen");
-    return;
+    throw new Vorbedingung("Reader ließ sich nicht öffnen");
   }
 
   // R2-3: Effekt messen — die tatsächlich gemalte Farbe, nicht die gesetzte Klasse.
@@ -418,9 +466,9 @@ async function checkReader(cdp: Cdp): Promise<void> {
     };
   `);
   if (!colors) {
-    record("R2-3 Reader trägt das CRT-Schema", false, "Reader-Körper nicht gefunden");
+    throw new Vorbedingung("Reader-Körper nicht gefunden");
   } else if (colors.scheme !== "crt") {
-    skipped("R2-3 Reader trägt das CRT-Schema", `natives Schema aktiv (${colors.scheme}) — Punkt gilt nur für CRT`);
+    skipped("R2-3 Reader trägt denselben Grund wie der Hub", `natives Schema aktiv (${colors.scheme}) — Punkt gilt nur für CRT`);
   } else {
     // Der Reader muss denselben Grund tragen wie der Hub dahinter — genau dieser
     // Unterschied war auf dem Smoke-Screenshot vom 2026-08-15 zu sehen.
@@ -468,6 +516,7 @@ async function checkReader(cdp: Cdp): Promise<void> {
   `);
   if (!ascii || !ascii.found) {
     skipped("R2-4 ASCII-Rahmen brechen nicht um", "dieses Artefakt enthält keinen Code-Block");
+    skipped("R2-4 Kopier-Knopf ist ausgeblendet", "dieses Artefakt enthält keinen Code-Block");
   } else {
     const ok = ascii.renderedLines === ascii.textLines;
     record(
@@ -520,11 +569,9 @@ function setupStagingVault(): void {
   const seed = join(process.cwd(), "scripts/smoke-fixture/plugin-data.json");
   writeFileSync(join(vaultDir, ".obsidian", "plugins", PLUGIN_ID, "data.json"), readFileSync(seed));
   console.log(`   Spielstand geseedet aus scripts/smoke-fixture/plugin-data.json (${PAR_MISSION} gespielt)`);
-  // Ein frisch gebauter Vault ist Obsidian unbekannt; der Pfad-URI öffnet ihn als weiteres
-  // Fenster der laufenden Instanz und registriert ihn dabei (Dach-AGENTS, 2026-09-01).
-  const uri = `obsidian://open?path=${encodeURIComponent(join(vaultDir, "Welcome.md"))}`;
-  execFileSync("open", [uri]);
-  console.log(`\n✅ Vault gebaut und geöffnet: ${vaultDir}\n   Dann: npm run smoke:gui -- --vault ${STAGING_VAULT}`);
+  // Den Vault oeffnet die Zweitinstanz: Eintrag in `$UD/obsidian.json`, dann starten (Kopf dieser
+  // Datei). Ein `obsidian://`-Link ginge an die reguelaere Instanz.
+  console.log(`\n✅ Vault gebaut: ${vaultDir}\n   Dann Zweitinstanz starten und: npm run smoke:gui -- --port <port>`);
 }
 
 /**
@@ -539,12 +586,11 @@ function setupStagingVault(): void {
  */
 async function checkMasteryTier(cdp: Cdp, vault: string | undefined): Promise<void> {
   if (vault !== STAGING_VAULT) {
-    skipped("R4 Wertungs-Anzeige", `läuft nur im Staging-Vault "${STAGING_VAULT}" (--setup, dann --vault ${STAGING_VAULT})`);
+    for (const n of GRUPPEN.wertung) skipped(n, `läuft nur im Staging-Vault "${STAGING_VAULT}" (--setup, dann --vault ${STAGING_VAULT})`);
     return;
   }
   if (!(await selectTab(cdp, "MISSIONS"))) {
-    record("R4 Wertungs-Anzeige", false, "MISSIONS-Tab nicht gefunden");
-    return;
+    throw new Vorbedingung("MISSIONS-Tab nicht gefunden");
   }
 
   // --- R4-1: Chip nur dort, wo jemand ein Par autorisiert hat ---------------------
@@ -570,9 +616,7 @@ async function checkMasteryTier(cdp: Cdp, vault: string | undefined): Promise<vo
     return { par: measure(row(${JSON.stringify(PAR_MISSION)})), noPar: measure(row(${JSON.stringify(NO_PAR_MISSION)})) };
   `);
   if (!rows.par || !rows.noPar) {
-    record("R4-1 Chip nur bei autorisiertem Par", false,
-      `Missionszeilen nicht gefunden (${PAR_MISSION}: ${Boolean(rows.par)}, ${NO_PAR_MISSION}: ${Boolean(rows.noPar)})`);
-    return;
+    throw new Vorbedingung(`Missionszeilen nicht gefunden (${PAR_MISSION}: ${Boolean(rows.par)}, ${NO_PAR_MISSION}: ${Boolean(rows.noPar)})`);
   }
   const chipOk = rows.par.chip !== null && rows.par.chip.includes("nv-tier-gold") && rows.noPar.chip === null;
   record(
@@ -684,8 +728,7 @@ async function checkMasteryTier(cdp: Cdp, vault: string | undefined): Promise<vo
       return document.querySelectorAll('.nv-result-modal').length;
     `);
     if (stale > 0) {
-      record("R4-3 Result-Modal trägt Badge und Par", false, `${stale} Result-Modal(e) ließen sich vor dem Lauf nicht schließen`);
-      return;
+      throw new Vorbedingung(`${stale} Result-Modal(e) ließen sich vor dem Lauf nicht schließen`);
     }
     const started = await cdp.evaluate<boolean>(`
       const p = app.plugins.plugins[${JSON.stringify(PLUGIN_ID)}];
@@ -694,8 +737,7 @@ async function checkMasteryTier(cdp: Cdp, vault: string | undefined): Promise<vo
       return p.session.state === 'active' && Boolean(p.missionEditorView());
     `);
     if (!started) {
-      record("R4-3 Result-Modal trägt Badge und Par", false, "Mission startete nicht (kein aktiver Editor)");
-      return;
+      throw new Vorbedingung("Mission startete nicht (kein aktiver Editor)");
     }
     const typed = await cdp.evaluate<number>(`
       const p = app.plugins.plugins[${JSON.stringify(PLUGIN_ID)}];
@@ -781,7 +823,7 @@ async function checkMasteryTier(cdp: Cdp, vault: string | undefined): Promise<vo
           : `nach Scroll ans Ende: Knopf-Unterkante ${geo.btnBottom.toFixed(0)} vs. Box-Unterkante ${geo.boxBottom.toFixed(0)}`,
       );
     } else {
-      skipped("R4-5 Aktionsleiste bleibt bei langem Debrief-Text erreichbar", "kein Result-Modal aus R4-3");
+      unmeasured("R4-5 Aktionsleiste bleibt bei langem Debrief-Text erreichbar", "kein Result-Modal aus R4-3");
     }
   } finally {
     // Modal schließen, einen hängen gebliebenen Lauf beenden, Missionsnotiz zumachen.
@@ -878,8 +920,7 @@ async function checkCipherUplink(cdp: Cdp): Promise<void> {
     // KEIN skipped(): dass plugin.llm nicht am Plugin hängt, ist
     // genau die Verdrahtungsänderung in main.ts, für die dieser Abschnitt existiert.
     // Als Skip gemeldet würde R3 sich in seinem eigenen Fehlerfall selbst bestätigen.
-    record("R3 CIPHER-Uplink", false, "Verbindung (plugin.llm) nicht am Plugin gefunden");
-    return;
+    throw new Vorbedingung("Verbindung (plugin.llm) nicht am Plugin gefunden");
   }
   // Der Hub rendert im 500-ms-Takt; der Tab braucht einen Tick, um aufzutauchen.
   const tabShown = await pollUntil<boolean>(
@@ -889,8 +930,7 @@ async function checkCipherUplink(cdp: Cdp): Promise<void> {
     250,
   );
   if (!tabShown || !(await selectTab(cdp, "UPLINK"))) {
-    record("R3 CIPHER-Uplink", false, "UPLINK-Tab erschien trotz gestubbter Konfiguration nicht");
-    return;
+    throw new Vorbedingung("UPLINK-Tab erschien trotz gestubbter Konfiguration nicht");
   }
 
   try {
@@ -909,9 +949,7 @@ async function checkCipherUplink(cdp: Cdp): Promise<void> {
       200,
     );
     if (!streaming) {
-      record("R3-1 CUT behält das Teilergebnis", false,
-        "Stream startete nicht (kein Cursor / kein CUT-Knopf) — Verdrahtung von uplink() prüfen");
-      return;
+      throw new Vorbedingung("Stream startete nicht (kein Cursor / kein CUT-Knopf) — Verdrahtung von uplink() prüfen");
     }
 
     // Der Adapter muss die Frage als Nachricht an die Verbindung geben. Das Modell am Draht misst N2-1.
@@ -1122,13 +1160,14 @@ async function checkFolderHide(cdp: Cdp): Promise<void> {
       const pfad = p.settings.missionFolder.replace(/\\/+$/, "");
       const t = app.workspace.rootSplit.doc.querySelector('.nav-folder-title[data-path=' + JSON.stringify(pfad) + ']');
       return t ? { gefunden: true } : null;`, 6000, 300);
-    if (sichtbar === null) { skipped("F1-F4 Ordner ausblenden", "Missions-Ordner im Explorer nicht gefunden — nichts gemessen"); return; }
+    if (sichtbar === null) throw new Vorbedingung("Missions-Ordner im Explorer nicht gefunden");
 
     await setzeVersteckt(cdp, true);
     const an = await ordnerZustand(cdp);
     record("F1 Ausblenden versteckt den Ordner UND seinen Inhalt", an.titelAus && an.kinderAus !== false,
       `Titel ${an.titelAus ? "aus" : "SICHTBAR"}, Kinder ${an.kinderAus === null ? "(kein Container)" : an.kinderAus ? "aus" : "SICHTBAR"}`);
-    if (an.kinderAus === null) skipped("F1b Inhalt des Ordners", "kein Kinder-Container im Explorer (Ordner nicht aufklappbar) — Inhalt nicht gemessen");
+    if (an.kinderAus === null) unmeasured("F1b Inhalt des Ordners ist mitgemessen", "kein Kinder-Container im Explorer (Ordner nicht aufklappbar) — Inhalt nicht gemessen");
+    else record("F1b Inhalt des Ordners ist mitgemessen", true, "Kinder-Container vorhanden und ausgeblendet");
 
     await setzeVersteckt(cdp, false);
     const aus = await ordnerZustand(cdp);
@@ -1146,7 +1185,7 @@ async function checkFolderHide(cdp: Cdp): Promise<void> {
       window.__nvSmokePopout = leaf;
       return { ok: leaf.view.containerEl.ownerDocument !== app.workspace.rootSplit.doc, aktivIstPopout: activeDocument !== app.workspace.rootSplit.doc };`);
     popout = po.ok;
-    if (!po.ok) { skipped("F3 Pop-out aktiv", "Pop-out-Fenster liess sich nicht öffnen — nichts gemessen"); }
+    if (!po.ok) { unmeasured("F3 Pop-out aktiv: Regel greift im Hauptfenster, nicht im Pop-out", "Pop-out-Fenster liess sich nicht öffnen"); }
     else {
       const blaetterVorher = await cdp.evaluate<number>(`return window.__nvSmokePopout.view.containerEl.ownerDocument.adoptedStyleSheets.length;`);
       await setzeVersteckt(cdp, true);
@@ -1218,8 +1257,9 @@ async function checkCipherReal(cdp: Cdp): Promise<void> {
   console.log("\nR7 · CIPHER gegen einen echten Endpunkt");
   const name = "R7 Kit-Chat-Client streamt gegen den echten Endpunkt";
   const url = "http://127.0.0.1:1234";
+  if (args.has("ohne-modell")) { skipped(name, "--ohne-modell: kein Lauf gegen einen echten Endpunkt"); return; }
   const modell = await geladenesModell(url);
-  if (modell === null) { skipped(name, `auf ${url} ist kein Modell geladen oder der Server antwortet nicht — nichts gemessen (ein Lauf löste sonst ein JIT-Laden aus)`); return; }
+  if (modell === null) { unmeasured(name, `auf ${url} ist kein Modell geladen oder der Server antwortet nicht (ein Lauf löste sonst ein JIT-Laden aus); ohne echten Endpunkt: --ohne-modell`); return; }
   await cdp.evaluate(`
     const p = app.plugins.plugins[${JSON.stringify(PLUGIN_ID)}];
     window.__nvSmokeReal = { tokens: 0, erster: null, t0: Date.now(), fertig: false, ergebnis: null };
@@ -1458,7 +1498,7 @@ async function checkContextFollows(cdp: Cdp, port: number, vault: string | undef
       return pollUntil<string>(sicht, zeile.replace("return t.length", `return t.join(" | ") === ${JSON.stringify(erwartet)} && t.length`), 8_000, 300).catch(() => null);
     };
     const erst = await messe(a, "ctx-a", "Context: loaded 1,111 tokens");
-    if (erst === "kein Einstellungen-Fenster") { skipped(name, "kein Einstellungen-Fenster am Port — nichts gemessen"); return; }
+    if (erst === "kein Einstellungen-Fenster") throw new Vorbedingung("kein Einstellungen-Fenster am Port");
     const danach = await messe(b, "ctx-b", "Context: loaded 2,222 tokens");
     const ohne = await messe(c, "ctx-c", null);
     record(
@@ -1495,8 +1535,7 @@ async function checkRequestSection(cdp: Cdp, port: number, vault: string | undef
   const sicht = await attachTo("settings", port, vault).catch(() => null);
   if (!sicht) {
     await cdp.evaluate(`app.setting.close(); return true;`).catch(() => undefined);
-    skipped(name, "kein Einstellungen-Fenster am Port — nichts gemessen");
-    return;
+    throw new Vorbedingung("kein Einstellungen-Fenster am Port");
   }
   const abschnitt = `
     const wurzel = document.querySelector(".modal.mod-settings") ?? document.body;
@@ -1512,7 +1551,7 @@ async function checkRequestSection(cdp: Cdp, port: number, vault: string | undef
       await new Promise((r) => setTimeout(r, 400));
       return { gefunden: true, offen: !koerper.classList.contains("is-collapsed") };
     `);
-    if (!offen.gefunden) { record(`${name} ist vorhanden und aufklappbar`, false, "Kopf „Request“ fehlt in den Einstellungen"); return; }
+    if (!offen.gefunden) throw new Vorbedingung("Kopf „Request“ fehlt in den Einstellungen");
     const inhalt = await sicht.evaluate<{ namen: string[]; letzte: string | null; status: string | null }>(`
       ${abschnitt}
       return {
@@ -1619,8 +1658,7 @@ async function checkHelpRow(cdp: Cdp, port: number, vault: string | undefined): 
   const sicht = await attachTo("settings", port, vault).catch(() => null);
   if (!sicht) {
     await cdp.evaluate(`app.setting.close(); return true;`).catch(() => undefined);
-    skipped(name, "kein Einstellungen-Fenster am Port — nichts gemessen");
-    return;
+    throw new Vorbedingung("kein Einstellungen-Fenster am Port");
   }
   try {
     const d = await sicht.evaluate<{ name: string | null; knoepfe: string[]; bug: number }>(`
@@ -1669,7 +1707,7 @@ async function checkEndpointSourceMessung(cdp: Cdp, port: number, vault: string 
   try {
     const m = await messeEinstellungenNv(cdp, port, vault);
     if (!m) {
-      skipped("R5-1 Manager an: Settings zeigen den Baustein statt der lokalen Liste", "kein Einstellungen-Fenster am Port — nichts gemessen");
+      unmeasured("R5-1 Manager an: Settings zeigen den Baustein statt der lokalen Liste", "kein Einstellungen-Fenster am Port");
     } else {
       record(
         "R5-1 Manager an: Settings zeigen den Baustein statt der lokalen Liste",
@@ -1689,7 +1727,7 @@ async function checkEndpointSourceMessung(cdp: Cdp, port: number, vault: string 
   const m3 = await messeEinstellungenNv(cdp, port, vault);
   const r3 = await aufloesungNv(cdp);
   if (!m3) {
-    skipped("R5-3 Manager aus: lokale Liste zurueck (Gegenprobe zu R5-1/R5-2)", "kein Einstellungen-Fenster am Port — nichts gemessen");
+    unmeasured("R5-3 Manager aus: lokale Liste zurueck (Gegenprobe zu R5-1/R5-2)", "kein Einstellungen-Fenster am Port");
   } else {
     record(
       "R5-3 Manager aus: lokale Liste zurueck (Gegenprobe zu R5-1/R5-2)",
@@ -1699,18 +1737,16 @@ async function checkEndpointSourceMessung(cdp: Cdp, port: number, vault: string 
   }
 }
 
-function arg(name: string, fallback?: string): string | undefined {
-  const i = process.argv.indexOf(`--${name}`);
-  return i >= 0 && process.argv[i + 1] ? process.argv[i + 1] : fallback;
-}
-
 async function main(): Promise<void> {
-  if (process.argv.includes("--setup")) {
+  if (args.has("setup")) {
     setupStagingVault();
     return;
   }
-  const port = Number(arg("port", "9222"));
-  const vault = arg("vault");
+  const port = Number(args.value("port") ?? "");
+  if (!Number.isInteger(port) || port <= 0) {
+    throw new Vorbedingung("--port <port> ist Pflicht (Zweitinstanz, siehe Kopf dieser Datei); kein Standardport.");
+  }
+  const vault = args.value("vault") ?? STAGING_VAULT;
 
   let cdp: Cdp | null = null;
   /** Vorwert außerhalb des try — er muss auch nach einem Abbruch zurückgestellt werden. */
@@ -1776,14 +1812,14 @@ async function main(): Promise<void> {
   try {
     cdp = await attachTo("workspace", port, vault);
     if (!cdp) {
-      throw new PreconditionError(
-        `Kein Obsidian-Fenster auf Port ${port}${vault ? ` mit Vault "${vault}"` : ""}.\n`
-        + `   Obsidian mit offenem Debug-Port starten:\n`
-        + `   osascript -e 'quit app "Obsidian"' && open -a Obsidian --args --remote-debugging-port=${port}`,
+      throw new Vorbedingung(
+        `Kein Obsidian-Fenster auf Port ${port} mit Vault "${vault}".\n`
+        + `   Zweitinstanz starten (Rezept im Kopf dieser Datei), nicht die reguelaere Instanz neu starten.`,
       );
     }
     process.on("SIGINT", onAbortSignal);
     process.on("SIGTERM", onAbortSignal);
+    const live: Cdp = cdp;
     // Chromium drosselt nicht-fokussierte Fenster: ohne das ist das DOM leer und der
     // Lauf misst ein Phantom. Page.bringToFront reicht auf macOS nicht.
     try {
@@ -1793,8 +1829,12 @@ async function main(): Promise<void> {
     }
     await new Promise((r) => setTimeout(r, 1500));
 
+    // Vertrauensdialog, Restricted Mode und Aktivierung: zentrale Fassung. `pluginIds` sind
+    // `manifest.id`s, `nurVault` der Name des Staging-Vaults.
+    const vorbereitung = await bereiteInstanzVor(cdp, { pluginIds: [PLUGIN_ID], nurVault: vault });
+    console.log(`   Instanz: ${vorbereitung.hinweis}`);
     await requireEnvironment(cdp, vault);
-    if (process.argv.includes("--reload")) {
+    if (args.has("reload")) {
       // Für die Gegenprobe: neu deployten Code übernehmen, ohne Obsidian neu zu starten
       // (ein Neustart würde den Debug-Port wieder schließen).
       console.log("   Plugin wird neu geladen…");
@@ -1844,7 +1884,7 @@ async function main(): Promise<void> {
       return true;
     `);
     record(
-      "C0 Kein liegen gebliebener CIPHER-Stub aus einem abgebrochenen Vorlauf",
+      C0,
       !staleStub,
       staleStub ? "Stub aus einem Vorlauf gefunden und zurueckgebaut" : "kein Rest gefunden",
     );
@@ -1856,26 +1896,26 @@ async function main(): Promise<void> {
     await closeExtraLeaves(cdp);
     await openHub(cdp);
 
-    await checkTabWrap(cdp);
+    await gruppe("tabs", () => checkTabWrap(live));
 
     if (!(await selectTab(cdp, "ARCHIVE"))) {
-      throw new PreconditionError("ARCHIVE-Tab nicht gefunden — falsche Plugin-Version deployt?");
+      throw new Vorbedingung("ARCHIVE-Tab nicht gefunden — falsche Plugin-Version deployt?");
     }
-    await checkCollapse(cdp);
-    await checkCardAlignment(cdp);
-    await checkReader(cdp);
-    await checkMasteryTier(cdp, vault);
-    await checkHelpRow(cdp, port, vault);
-    await checkRequestBody(cdp);
-    await checkConnectionSwap(cdp);
-    await checkContextFollows(cdp, port, vault);
-    await checkRequestSection(cdp, port, vault);
-    await checkEndpointSource(cdp, port, vault);
-    await checkFolderHide(cdp);
-    await checkCipherUplink(cdp);
-    await checkCipherReal(cdp);
+    await gruppe("klappen", () => checkCollapse(live));
+    await gruppe("karten", () => checkCardAlignment(live));
+    await gruppe("reader", () => checkReader(live));
+    await gruppe("wertung", () => checkMasteryTier(live, vault));
+    await gruppe("hilfe", () => checkHelpRow(live, port, vault));
+    await gruppe("body", () => checkRequestBody(live));
+    await gruppe("verbindung", () => checkConnectionSwap(live));
+    await gruppe("kontext", () => checkContextFollows(live, port, vault));
+    await gruppe("anfrage", () => checkRequestSection(live, port, vault));
+    await gruppe("quelle", () => checkEndpointSource(live, port, vault));
+    await gruppe("ordner", () => checkFolderHide(live));
+    await gruppe("cipher", () => checkCipherUplink(live));
+    await gruppe("echt", () => checkCipherReal(live));
   } catch (err) {
-    if (err instanceof PreconditionError) {
+    if (err instanceof Vorbedingung) {
       console.error(`\n⛔ Abbruch — Voraussetzung nicht erfüllt:\n   ${err.message}\n`);
       console.error("   Das ist KEIN Befund am Plugin. Nichts wurde gemessen.\n");
       process.exitCode = 2;
@@ -1908,18 +1948,8 @@ async function main(): Promise<void> {
     process.off("SIGTERM", onAbortSignal);
   }
 
-  const gruen = checks.filter((c) => c.status === "gruen").length;
-  const rot = checks.filter((c) => c.status === "rot").length;
-  const uebersprungen = checks.filter((c) => c.status === "uebersprungen");
-  console.log(
-    `\n${gruen} grün · ${uebersprungen.length} übersprungen · ${rot} rot (von ${checks.length} Prüfpunkten)`,
-  );
-  // Die Gründe gehören in die Schlusszeile, nicht nur ins Protokoll: wer nur das Ende
-  // liest, soll sehen, WAS ungemessen blieb — ein Punkt, der jedes Mal übersprungen wird,
-  // sieht in der Historie sonst aus wie einer, der jedes Mal hält.
-  for (const c of uebersprungen) console.log(`   ⏭️  ${c.name} — ${c.detail}`);
-  // Ein Skip ist kein Fehlschlag, nur kein Erfolg — der Exit-Code bleibt daran grün.
-  if (rot > 0) process.exitCode = 1;
+  // Die Soll-Liste ist der Nenner; `abschluss()` setzt Exit 1 bei Rot oder „nichts gemessen".
+  bilanz.abschluss();
 }
 
-void main();
+runDriver(main);
