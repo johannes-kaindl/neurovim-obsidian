@@ -1607,7 +1607,9 @@ async function messeEinstellungenNv(
     return await sicht.evaluate(`
       const wurzel = document.querySelector(".modal.mod-settings") ?? document.body;
       return {
-        baustein: wurzel.textContent.includes("LLM Endpoint Manager"),
+        // Die Zeile des Bausteins (Name „Endpoints come from the LLM Endpoint Manager“), nicht irgendein
+        // Text mit dem Produktnamen: der Request-Abschnitt nennt ihn seit obsidian-kit 0.59.0 im Hinweis.
+        baustein: [...wurzel.querySelectorAll(".setting-item-name")].some((e) => /come from the LLM Endpoint Manager|kommen vom LLM Endpoint Manager/.test(e.textContent ?? "")),
         zeilen: wurzel.querySelectorAll(".okit-ep-row").length,
       };
     `);

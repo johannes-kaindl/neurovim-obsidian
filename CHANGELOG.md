@@ -7,7 +7,9 @@ All notable changes to this project are documented here. Format loosely follows
 
 ### Changed
 
-- Kit pins raised to obsidian-kit 0.57.0 / code-kit 0.24.0. The stored endpoint choice in `data.json` is now cleaned by the kit's shared `sanitizeChoice` instead of a local copy; the result is identical for every stored value (only non-empty strings survive), so nothing changes for you.
+- Settings, endpoint list: the "move to top" and "remove endpoint" buttons stay together in one row instead of the bin icon sitting alone on a second line when the settings window is narrow. The key and model fields are somewhat narrower and the address stays fully visible.
+- Settings, "Request" section: for an endpoint whose model family or backend is not known yet, the header reads "Family: not detected yet" and "Backend: not detected yet" with a note that this is normal for a freshly added endpoint (it replaces "unknown"), and the fields say "Not sent yet — waits for the model family (see above)." instead of "Not sent — the model family is unknown".
+- Kit pins raised to obsidian-kit 0.59.0 / code-kit 0.24.0 (from 0.57.0 / 0.24.0). The stored endpoint choice in `data.json` is now cleaned by the kit's shared `sanitizeChoice` instead of a local copy; the result is identical for every stored value (only non-empty strings survive), so nothing changes for you.
 
 ## [0.14.0] — 2026-10-12
 
