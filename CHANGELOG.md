@@ -5,6 +5,8 @@ All notable changes to this project are documented here. Format loosely follows
 
 ## [Unreleased]
 
+## [0.14.0] — 2026-10-12
+
 ### Changed
 
 - **The context length now sits on the endpoint row.** Below an endpoint that is reachable and has a model, the settings show "Context: loaded N · max M tokens" (only "max M" when the model is not loaded; nothing when the server names no number). It used to be a separate "Context" row under the list. Each lookup now gives up after 5 seconds instead of waiting on a server that never answers.
