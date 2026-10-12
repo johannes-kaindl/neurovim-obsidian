@@ -37,12 +37,11 @@
  * debuggt ein Phantom. `main()` holt das Fenster deshalb aktiv nach vorn.
  */
 
-import { execFileSync } from "node:child_process";
 import { createServer, type Server } from "node:http";
 import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
-import { Cdp, attachTo, bereiteInstanzVor, closeExtraLeaves, pollUntil, setAppConfig, setPluginSetting } from "../../tools/obsidian-cdp/cdp.js";
+import { Cdp, attachTo, bereiteInstanzVor, closeExtraLeaves, pollUntil, releaseAlwaysOnTop, requireVisible, setAppConfig, setPluginSetting } from "../../tools/obsidian-cdp/cdp.js";
 import { createBilanz, parseArgs, runDriver, Vorbedingung } from "../../tools/obsidian-cdp/bilanz.js";
 import { buildHerkunft, buildVault, requireEigenerBuild, stagingVaultDir } from "../../tools/obsidian-cdp/vault.js";
 
@@ -431,13 +430,16 @@ async function checkCardAlignment(cdp: Cdp): Promise<void> {
 // --- R2-3 / R2-4: der Reader -------------------------------------------------
 
 async function checkReader(cdp: Cdp): Promise<void> {
-  const opened = await cdp.evaluate<boolean>(`
+  // Im Kaltstart einer frischen Instanz braucht das Modal laenger als eine feste Wartezeit
+  // (Task „R2-3 und R4-3 rot vor dem Umbau": der erste Lauf rot, der zweite gruen ohne
+  // Codeaenderung). Deshalb abwarten statt einmal pruefen.
+  const clicked = await cdp.evaluate<boolean>(`
     const card = [...document.querySelectorAll('.nv-card')].find((c) => !c.classList.contains('is-locked'));
     if (!card) return false;
     card.click();
-    await new Promise((r) => setTimeout(r, 900));
-    return Boolean(document.querySelector('.nv-lore-modal'));
+    return true;
   `);
+  const opened = clicked && (await pollUntil<boolean>(cdp, "return document.querySelector('.nv-lore-modal') ? true : null;", 15_000, 250)) === true;
   if (!opened) {
     throw new Vorbedingung("Reader ließ sich nicht öffnen");
   }
@@ -730,13 +732,20 @@ async function checkMasteryTier(cdp: Cdp, vault: string | undefined): Promise<vo
     if (stale > 0) {
       throw new Vorbedingung(`${stale} Result-Modal(e) ließen sich vor dem Lauf nicht schließen`);
     }
-    const started = await cdp.evaluate<boolean>(`
+    await cdp.evaluate(`
       const p = app.plugins.plugins[${JSON.stringify(PLUGIN_ID)}];
       await p.beginMission(${JSON.stringify(PAR_MISSION)});
-      await new Promise((r) => setTimeout(r, 800));
-      return p.session.state === 'active' && Boolean(p.missionEditorView());
+      return true;
     `);
-    if (!started) {
+    // Editor abwarten statt 800 ms zu raten — im Kaltstart kommt er spaeter (siehe R2-3).
+    const started = await pollUntil<boolean>(
+      cdp,
+      `const p = app.plugins.plugins[${JSON.stringify(PLUGIN_ID)}];
+       return p.session.state === 'active' && Boolean(p.missionEditorView()) ? true : null;`,
+      15_000,
+      250,
+    );
+    if (started !== true) {
       throw new Vorbedingung("Mission startete nicht (kein aktiver Editor)");
     }
     const typed = await cdp.evaluate<number>(`
@@ -761,7 +770,7 @@ async function checkMasteryTier(cdp: Cdp, vault: string | undefined): Promise<vo
       `const m = document.querySelector('.nv-result-modal'); if (!m) return null;
        const t = m.querySelector('.nv-result-tier');
        return { tier: t ? t.className : null, text: t ? t.textContent.trim() : '' };`,
-      8_000,
+      20_000,
       200,
     );
     const modalOk = Boolean(modal) && modal!.tier !== null && modal!.tier.includes("nv-tier-gold") && modal!.text.includes("PAR 22");
@@ -1821,13 +1830,9 @@ async function main(): Promise<void> {
     process.on("SIGTERM", onAbortSignal);
     const live: Cdp = cdp;
     // Chromium drosselt nicht-fokussierte Fenster: ohne das ist das DOM leer und der
-    // Lauf misst ein Phantom. Page.bringToFront reicht auf macOS nicht.
-    try {
-      execFileSync("osascript", ["-e", 'tell application "Obsidian" to activate']);
-    } catch {
-      console.warn("   (konnte Obsidian nicht nach vorn holen — Messwerte könnten leer sein)");
-    }
-    await new Promise((r) => setTimeout(r, 1500));
+    // Lauf misst ein Phantom. `requireVisible` zielt auf das VERBUNDENE Fenster; ein
+    // `osascript … activate` holte stattdessen die reguelaere Instanz nach vorn (Befund kl-w19).
+    await requireVisible(live);
 
     // Vertrauensdialog, Restricted Mode und Aktivierung: zentrale Fassung. `pluginIds` sind
     // `manifest.id`s, `nurVault` der Name des Staging-Vaults.
@@ -1941,6 +1946,7 @@ async function main(): Promise<void> {
         `)
         .catch(() => undefined);
     }
+    if (cdp) await releaseAlwaysOnTop(cdp).catch(() => undefined);
     cdp?.close();
     // Abmelden, sonst haengt ein SPAETES Signal (nach normalem Abschluss, cdp schon zu) den
     // Prozess in onAbortSignal an einer toten Verbindung auf.
