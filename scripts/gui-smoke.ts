@@ -37,11 +37,11 @@
  * debuggt ein Phantom. `main()` holt das Fenster deshalb aktiv nach vorn.
  */
 
-import { createServer, type Server } from "node:http";
 import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
-import { Cdp, attachTo, bereiteInstanzVor, closeExtraLeaves, pollUntil, releaseAlwaysOnTop, requireVisible, setAppConfig, setPluginSetting } from "../../tools/obsidian-cdp/cdp.js";
+import { Cdp, attachTo, bereiteInstanzVor, entferneFakeManager, installFakeManager, closeExtraLeaves, pollUntil, releaseAlwaysOnTop, requireVisible, setAppConfig, setPluginSetting } from "../../tools/obsidian-cdp/cdp.js";
+import { startLlmStub } from "../../tools/obsidian-cdp/llm-stub.js";
 import { createBilanz, parseArgs, runDriver, Vorbedingung } from "../../tools/obsidian-cdp/bilanz.js";
 import { buildHerkunft, buildVault, requireEigenerBuild, stagingVaultDir } from "../../tools/obsidian-cdp/vault.js";
 
@@ -1080,32 +1080,13 @@ async function checkCipherUplink(cdp: Cdp): Promise<void> {
 // Werte im Protokoll sind der Beleg, dass gemessen wurde. Zurueckgesetzt wird im `finally` UND im
 // Abbruch-Handler: ein liegen gebliebener Fake wuerde die echte Registrierung eines installierten
 // Managers ueberschreiben.
-const MGR_SLOT = "llm-endpoint-manager";
 const MGR_URL = "http://127.0.0.1:9313";
 const MGR_MODEL = "nv-fake-modell";
 
-const installiereManager = (cdp: Cdp): Promise<unknown> => cdp.evaluate(`
-  const plugins = app.plugins.plugins;
-  if (!("__nvVorherMgr" in window)) window.__nvVorherMgr = plugins[${JSON.stringify(MGR_SLOT)}];
-  const eintrag = { id: "fake1", label: "Fake-Endpunkt", defaultModel: ${JSON.stringify(MGR_MODEL)} };
-  const aufgeloest = { id: "fake1", label: "Fake-Endpunkt", config: { url: ${JSON.stringify(MGR_URL)} }, defaultModel: ${JSON.stringify(MGR_MODEL)} };
-  plugins[${JSON.stringify(MGR_SLOT)}] = { api: {
-    version: 1, list: () => [eintrag], get: () => eintrag,
-    resolve: async () => aufgeloest, materialize: async () => aufgeloest,
-    models: async () => [${JSON.stringify(MGR_MODEL)}],
-    importEndpoints: async () => ({ added: [], merged: [], skipped: [] }), on: () => () => {},
-  } };
-  return true;
-`);
-const entferneManager = (cdp: Cdp): Promise<unknown> => cdp.evaluate(`
-  if ("__nvVorherMgr" in window) {
-    const vorher = window.__nvVorherMgr;
-    if (vorher === undefined) delete app.plugins.plugins[${JSON.stringify(MGR_SLOT)}];
-    else app.plugins.plugins[${JSON.stringify(MGR_SLOT)}] = vorher;
-    delete window.__nvVorherMgr;
-  }
-  return true;
-`);
+const installiereManager = (cdp: Cdp): Promise<unknown> => installFakeManager(cdp, {
+  endpunkte: [{ id: "fake1", label: "Fake-Endpunkt", url: MGR_URL, models: [MGR_MODEL], defaultModel: MGR_MODEL, configModel: "keins" }],
+});
+const entferneManager = (cdp: Cdp): Promise<unknown> => entferneFakeManager(cdp);
 const aufloesungNv = (cdp: Cdp): Promise<{ url: string | null; model: string | null }> => cdp.evaluate(`
   const p = app.plugins.plugins[${JSON.stringify(PLUGIN_ID)}];
   p.llm.invalidate();
@@ -1290,51 +1271,32 @@ async function checkCipherReal(cdp: Cdp): Promise<void> {
     : `${r.tokens} Token-Häppchen von ${modell}, erstes nach ${r.erster ?? "?"} ms, ${(r.ergebnis.content ?? "").length} Zeichen`);
 }
 
-/** Ein Fake-Endpunkt im Treiber-Prozess: beantwortet /v1/models und streamt auf
- *  /v1/chat/completions einen Satz — und hält jeden gesendeten Body fest. Nur so ist der Draht
- *  messbar; `lastRequest()` der Session zeigt, was das Plugin zu senden GLAUBT. */
-async function starteFakeEndpunkt(modell: string, echo = false, kontext?: number): Promise<{ url: string; bodies: Array<Record<string, unknown>>; headers: Array<Record<string, string | string[] | undefined>>; stop: () => Promise<void> }> {
-  const bodies: Array<Record<string, unknown>> = [];
-  const headers: Array<Record<string, string | string[] | undefined>> = [];
-  // CORS wie ein echter LM Studio: der Stream-Weg (XHR) laeuft im Renderer und braucht Preflight
-  // und Header — ohne sie weicht der Client auf den Fallback ohne Stream aus (`stream:false`), und
-  // der Prüfpunkt misst dann den Ausweichweg statt den Normalfall.
-  const cors = { "access-control-allow-origin": "*", "access-control-allow-headers": "*", "access-control-allow-methods": "GET, POST, OPTIONS" };
-  const server: Server = createServer((req, res) => {
-    if (req.method === "OPTIONS") { res.writeHead(204, cors); res.end(); return; }
-    if (req.method === "GET" && req.url?.startsWith("/v1/models")) {
-      res.writeHead(200, { "content-type": "application/json", ...cors });
-      res.end(JSON.stringify({ data: [{ id: modell }] }));
-      return;
-    }
-    if (req.method === "GET" && req.url?.startsWith("/api/v0/models") && kontext !== undefined) {
-      res.writeHead(200, { "content-type": "application/json", ...cors });
-      res.end(JSON.stringify({ data: [{ id: modell, loaded_context_length: kontext }] }));
-      return;
-    }
-    if (req.method === "POST" && req.url?.startsWith("/v1/chat/completions")) {
-      let raw = "";
-      req.on("data", (c: Buffer) => { raw += c.toString("utf8"); });
-      req.on("end", () => {
-        try { bodies.push(JSON.parse(raw) as Record<string, unknown>); } catch { bodies.push({ _unparseable: raw }); }
-        headers.push({ ...req.headers });
-        // `echo`: die Antwort ist die letzte Nachricht des Spielers — so kommt ein Platzhalter zurück
-        // und der Prüfpunkt sieht, ob die Verbindung das Original wiederherstellt.
-        const msgs = ((bodies[bodies.length - 1] as { messages?: Array<{ content?: unknown }> }).messages ?? []);
-        const antwort = echo ? String(msgs[msgs.length - 1]?.content ?? "") : "Use dw.";
-        res.writeHead(200, { "content-type": "text/event-stream", ...cors });
-        res.write(`data: ${JSON.stringify({ choices: [{ delta: { content: antwort } }] })}\n\n`);
-        res.write('data: {"choices":[{"delta":{},"finish_reason":"stop"}]}\n\n');
-        res.end("data: [DONE]\n\n");
-      });
-      return;
-    }
-    res.writeHead(404); res.end();
+/** Ein Fake-Endpunkt auf dem zentralen LLM-Stub: beantwortet /v1/models und streamt auf
+ *  /v1/chat/completions einen Satz — und haelt jeden gesendeten Body fest. Nur so ist der Draht
+ *  messbar; `lastRequest()` der Session zeigt, was das Plugin zu senden GLAUBT. CORS wie ein echter
+ *  LM Studio (Stub-Default): der Stream-Weg (XHR) laeuft im Renderer und braucht Preflight und
+ *  Header — ohne sie weicht der Client auf den Fallback ohne Stream aus (`stream:false`), und der
+ *  Prüfpunkt misst dann den Ausweichweg statt den Normalfall. `echo`: die Antwort ist die letzte
+ *  Nachricht des Spielers — so kommt ein Platzhalter zurück und der Prüfpunkt sieht, ob die
+ *  Verbindung das Original wiederherstellt. */
+async function starteFakeEndpunkt(modell: string, echo = false, kontext?: number): Promise<{ url: string; readonly bodies: Array<Record<string, unknown>>; readonly headers: Array<Record<string, string | string[] | undefined>>; stop: () => Promise<void> }> {
+  const stub = await startLlmStub({
+    models: [modell],
+    standard: echo ? "echo" : "Use dw.",
+    teile: 1,
+    // Nur `loaded_context_length`, ohne `max_context_length`: der Stub kennt `kontext` nur MIT Maximum
+    // (Zeile „loaded N · max N“), W4 prueft aber die Zeile „loaded N tokens“ — also Zusatzroute.
+    ...(kontext !== undefined
+      ? { zusatz: { "GET /api/v0/models": () => ({ json: { data: [{ id: modell, loaded_context_length: kontext }] } }) } }
+      : {}),
   });
-  await new Promise<void>((r) => server.listen(0, "127.0.0.1", r));
-  const addr = server.address();
-  const port = typeof addr === "object" && addr ? addr.port : 0;
-  return { url: `http://127.0.0.1:${port}`, bodies, headers, stop: () => new Promise<void>((r) => { server.close(() => r()); }) };
+  const chats = () => stub.anfragen().filter((a) => a.route === "chat");
+  return {
+    url: stub.url,
+    get bodies() { return chats().map((a) => (a.json ?? { _unparseable: a.body }) as Record<string, unknown>); },
+    get headers() { return chats().map((a) => a.header); },
+    stop: () => stub.stop(),
+  };
 }
 
 /** N2: was CIPHER tatsächlich auf den Draht schreibt. Die Kette ist die echte — Uplink → Adapter →

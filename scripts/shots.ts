@@ -23,11 +23,10 @@
  */
 
 import { existsSync, mkdirSync, rmSync } from "node:fs";
-import { createServer, type Server } from "node:http";
-import type { AddressInfo } from "node:net";
 import { join } from "node:path";
 
 import { Cdp, attachTo, bereiteInstanzVor, closeExtraLeaves, pollUntil } from "../../tools/obsidian-cdp/cdp.js";
+import { startLlmStub } from "../../tools/obsidian-cdp/llm-stub.js";
 import { Vorbedingung } from "../../tools/obsidian-cdp/bilanz.js";
 import { boxOf, capture, setWindowSize, writeShot, type Rect } from "../../tools/obsidian-cdp/shot.js";
 import { buildVault, stagingVaultDir } from "../../tools/obsidian-cdp/vault.js";
@@ -62,46 +61,18 @@ const CIPHER_ANSWER = "Easy: w jumps you to the start of the next word. Prefix a
 
 interface FakeEndpoint { url: string; close: () => Promise<void> }
 
-/** Fake LLM endpoint: no model runs, the answer is fixed and generic. The UI is real, only the
- *  words are canned. A free port chosen by the OS (`listen(0)`), never a standard port: a fixed
- *  one would block whatever else wants it (voicelab serves on 8766). */
+/** Fake LLM endpoint on the central LLM stub: no model runs, the answer is fixed and generic. The
+ *  UI is real, only the words are canned. A free port chosen by the OS, never a standard port: a
+ *  fixed one would block whatever else wants it (voicelab serves on 8766). `kontext` serves
+ *  `/api/v0/models` like LM Studio, so the endpoint row shows its context line. */
 async function startFakeEndpoint(): Promise<FakeEndpoint> {
-  const server: Server = createServer((req, res) => {
-    res.setHeader("Access-Control-Allow-Origin", "*");
-    res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
-    res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
-    if (req.method === "OPTIONS") { res.writeHead(204); res.end(); return; }
-    if (req.url?.includes("/v1/models") === true) {
-      res.writeHead(200, { "Content-Type": "application/json" });
-      res.end(JSON.stringify({ data: [{ id: FAKE_MODEL, object: "model" }] }));
-      return;
-    }
-    if (req.url?.includes("/api/v0/models") === true) {
-      // like LM Studio: the loaded context length, so the endpoint row shows its context line
-      res.writeHead(200, { "Content-Type": "application/json" });
-      res.end(JSON.stringify({ data: [{ id: FAKE_MODEL, loaded_context_length: 8192, max_context_length: 32768 }] }));
-      return;
-    }
-    if (req.method === "POST" && req.url?.includes("/v1/chat/completions") === true) {
-      req.on("data", () => undefined);
-      req.on("end", () => {
-        res.writeHead(200, { "Content-Type": "text/event-stream" });
-        const half = Math.floor(CIPHER_ANSWER.length / 2);
-        for (const part of [CIPHER_ANSWER.slice(0, half), CIPHER_ANSWER.slice(half)]) {
-          res.write(`data: ${JSON.stringify({ choices: [{ delta: { content: part }, finish_reason: null }], model: FAKE_MODEL })}\n\n`);
-        }
-        res.write(`data: ${JSON.stringify({ choices: [{ delta: {}, finish_reason: "stop" }], model: FAKE_MODEL })}\n\n`);
-        res.write("data: [DONE]\n\n");
-        res.end();
-      });
-      return;
-    }
-    res.writeHead(404);
-    res.end();
+  const stub = await startLlmStub({
+    models: [FAKE_MODEL],
+    kontext: { geladen: 8192, max: 32768 },
+    standard: CIPHER_ANSWER,
+    teile: 2,
   });
-  await new Promise<void>((resolve) => { server.listen(0, "127.0.0.1", resolve); });
-  const port = (server.address() as AddressInfo).port;
-  return { url: `http://127.0.0.1:${port}`, close: () => new Promise<void>((resolve) => { server.close(() => { resolve(); }); server.closeAllConnections(); }) };
+  return { url: stub.url, close: () => stub.stop() };
 }
 
 /** Point the plugin at the fake endpoint (local list; no endpoint manager in the recording vault). */
