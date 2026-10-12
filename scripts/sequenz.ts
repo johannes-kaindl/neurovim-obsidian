@@ -267,6 +267,22 @@ function videoSchreiben(outDir: string): void {
   if (existsSync(gif) && statSizeKb(gif) > VIDEO.gifKb) console.log(`⚠️  ${gif.split('/').pop()} ${statSizeKb(gif)} KB, Budget ${VIDEO.gifKb} KB — kuerzere Halte oder weniger Bilder`);
 }
 
+/** Messpunkt je Anschlag (Brücke `AufnahmeOptionen.messpunkt`, Dach `f6ba341`): Funktionskörper mit
+ *  `return { cursor: { x, y, h }, zeile: { y, h } }` in Fenster-Koordinaten (CSS-px). CodeMirror 6 liefert
+ *  den Cursor über `coordsAtPos` (Viewport-Koordinaten) und die Zeile über `lineBlockAt` (Dokument-Koordinaten,
+ *  daher plus `documentTop`). Die Werte landen in `sequenz.json` → `bilder[i].cursor`/`zeile` (Zuschnitt abgezogen). */
+const MESSPUNKT = `
+  const p = app.plugins.plugins[${JSON.stringify(PLUGIN_ID)}];
+  const cm = p.missionEditorView();
+  const head = cm.state.selection.main.head;
+  const c = cm.coordsAtPos(head);
+  const b = cm.lineBlockAt(head);
+  return {
+    cursor: c ? { x: c.left, y: c.top, h: c.bottom - c.top } : null,
+    zeile: { y: cm.documentTop + b.top, h: b.height },
+  };
+`;
+
 async function main(): Promise<void> {
   if (process.argv.includes("--setup")) { await setup(); return; }
   const port = Number(arg("port", "9360"));
@@ -320,6 +336,7 @@ async function main(): Promise<void> {
 
     const ergebnis = await aufnehmen(cdp, sequenz.name, sequenz.schritte, {
       outDir, modus, clip, scale: 2, anschlag: ANSCHLAG, vorhalt: VORHALT, herkunft: await herkunft(cdp, unsauber),
+      messpunkt: MESSPUNKT,
     });
     const fehler = await sequenz.soll(cdp);
     if (fehler) throw new Vorbedingung(`Sequenz ${sequenz.name} hat nicht gewirkt: ${fehler}`);
