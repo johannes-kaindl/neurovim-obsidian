@@ -415,7 +415,7 @@ export default class NeuroVimPlugin extends Plugin {
       if (this.settings.recordTraces) void this.traceStore?.append(trace);
 
       const runDebrief = this.settings.recordTraces && this.llmConfigured()
-        ? (onToken: (t: string) => void, signal: AbortSignal) => this.runDebrief(trace, onToken, signal)
+        ? (onToken: (t: string) => void, onReset: () => void, signal: AbortSignal) => this.runDebrief(trace, onToken, onReset, signal)
         : null;
 
       new ResultModal(this.app, buildResultView(res.result, res.unverified, judgedPar), this.settings.colorScheme, runDebrief).open();
@@ -456,11 +456,13 @@ export default class NeuroVimPlugin extends Plugin {
     this.repaint();
   }
 
+  private readonly port = new CorePortAdapter(this.llm, () => this.llmConfigured());
+
   /** The uplink, built on first use. Knowledge assembly walks the whole cheatsheet
    *  and the quick-reference note — not worth doing at load. */
   private uplink(): CipherUplink {
     this.cipherUplink ??= new CipherUplink(
-      new CorePortAdapter(this.llm, () => this.llmConfigured()),
+      this.port,
       buildKnowledge(quickReference(ENTRIES)),
       () => this.repaint(),
     );
@@ -472,6 +474,7 @@ export default class NeuroVimPlugin extends Plugin {
   private async runDebrief(
     trace: RunTrace,
     onToken: (t: string) => void,
+    onReset: () => void,
     signal: AbortSignal,
   ): Promise<LlmResult> {
     const m = this.missions.find((x) => x.mission_id === trace.mission_id);
@@ -481,7 +484,12 @@ export default class NeuroVimPlugin extends Plugin {
           why: m.why, parKeystrokes: m.par_keystrokes,
         }
       : null;
-    return this.uplink().debrief(trace, mission, onToken, signal);
+    this.port.onContentReset = onReset;
+    try {
+      return await this.uplink().debrief(trace, mission, onToken, signal);
+    } finally {
+      this.port.onContentReset = null;
+    }
   }
 
   /** One CIPHER chat turn. Choreography and the stale-turn guard live in the core. */

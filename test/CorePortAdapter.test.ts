@@ -30,6 +30,7 @@ class FakeConnection implements CipherConnection {
   completeCalls: { messages: unknown; onToken: ((t: string) => void) | undefined; signal: AbortSignal | undefined }[] = [];
   resolveCalls = 0;
   invalidated = 0;
+  resets: (( () => void) | undefined)[] = [];
   constructor(private results: LlmResult[], private endpoints: (EndpointConfig | null)[] = [ENDPOINT], private noModel = false) {}
   async resolve(): Promise<EndpointSourceResult> {
     const e = this.endpoints[Math.min(this.resolveCalls, this.endpoints.length - 1)] ?? null;
@@ -37,7 +38,8 @@ class FakeConnection implements CipherConnection {
     return this.noModel ? sourceOf(e, '') : sourceOf(e);
   }
   invalidate(): void { this.invalidated += 1; }
-  async complete(req: { messages?: unknown }, h?: { onToken?: (t: string) => void; signal?: AbortSignal }): Promise<LlmResult> {
+  async complete(req: { messages?: unknown }, h?: { onToken?: (t: string) => void; signal?: AbortSignal; onContentReset?: () => void }): Promise<LlmResult> {
+    this.resets.push(h?.onContentReset);
     const r = this.results[Math.min(this.completeCalls.length, this.results.length - 1)] as LlmResult;
     this.completeCalls.push({ messages: req.messages, onToken: h?.onToken, signal: h?.signal });
     return r;
@@ -118,5 +120,18 @@ describe('CorePortAdapter', () => {
     const onToken = (): void => {};
     expect(await make(conn).complete(messages, { onToken, signal })).toEqual({ ok: true, content: 'tok' });
     expect(conn.completeCalls[0]).toEqual({ messages, onToken, signal });
+  });
+
+  it('hands the connection a reset that reaches the display registered on the adapter', async () => {
+    const conn = new FakeConnection([ok('x')]);
+    const adapter = make(conn);
+    let resets = 0;
+    adapter.onContentReset = () => { resets += 1; };
+    await adapter.complete([{ role: 'user', content: 'q' }]);
+    conn.resets[0]?.();
+    expect(resets).toBe(1);
+    adapter.onContentReset = null;
+    conn.resets[0]?.();   // nobody listening: no throw, no count
+    expect(resets).toBe(1);
   });
 });

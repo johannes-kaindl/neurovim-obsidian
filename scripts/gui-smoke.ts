@@ -110,7 +110,7 @@ const GRUPPEN = {
     "R3-2 RST leert den Kanal",
     "R3-3 ein voller Turn landet als Antwort",
   ],
-  echt: ["R7 Kit-Chat-Client streamt gegen den echten Endpunkt"],
+  echt: ["R7 Kit-Chat-Client streamt gegen den echten Endpunkt", "R7b Anzeigetext des Streams enthält keinen Denktext"],
 } as const satisfies Record<string, readonly string[]>;
 type Gruppe = keyof typeof GRUPPEN;
 const C0 = "C0 Kein liegen gebliebener CIPHER-Stub aus einem abgebrochenen Vorlauf";
@@ -1275,28 +1275,32 @@ async function checkCipherReal(cdp: Cdp): Promise<void> {
   console.log("\nR7 · CIPHER gegen einen echten Endpunkt");
   const name = "R7 Kit-Chat-Client streamt gegen den echten Endpunkt";
   const url = "http://127.0.0.1:1234";
-  if (args.has("ohne-modell")) { skipped(name, "--ohne-modell: kein Lauf gegen einen echten Endpunkt"); return; }
+  const nameB = "R7b Anzeigetext des Streams enthält keinen Denktext";
+  if (args.has("ohne-modell")) { skipped(name, "--ohne-modell: kein Lauf gegen einen echten Endpunkt"); skipped(nameB, "--ohne-modell"); return; }
   const modell = await geladenesModell(url);
-  if (modell === null) { unmeasured(name, `auf ${url} ist kein Modell geladen oder der Server antwortet nicht (ein Lauf löste sonst ein JIT-Laden aus); ohne echten Endpunkt: --ohne-modell`); return; }
+  if (modell === null) { { const g = `auf ${url} ist kein Modell geladen oder der Server antwortet nicht (ein Lauf löste sonst ein JIT-Laden aus); ohne echten Endpunkt: --ohne-modell`; unmeasured(name, g); unmeasured(nameB, g); } return; }
   await cdp.evaluate(`
     const p = app.plugins.plugins[${JSON.stringify(PLUGIN_ID)}];
-    window.__nvSmokeReal = { tokens: 0, erster: null, t0: Date.now(), fertig: false, ergebnis: null };
+    window.__nvSmokeReal = { resets: 0, shown: '', tokens: 0, erster: null, t0: Date.now(), fertig: false, ergebnis: null };
     const vorher = p.settings.llmEndpoints;
     p.settings.llmEndpoints = [{ url: ${JSON.stringify(url)}, model: ${JSON.stringify(modell)} }];
     p.llm.invalidate();
     p.llm.complete(
-      { messages: [{ role: "user", content: "Answer in exactly one short sentence: what does the vim command dw do?" }] },
-      { onToken: () => { const r = window.__nvSmokeReal; r.tokens += 1; r.erster ??= Date.now() - r.t0; } },
+      { messages: [{ role: "user", content: "A vim session used these keys: l l l l w w d w j j x x d d k 0 c e n e w Escape :w. Name the single biggest inefficiency and its idiomatic fix, in two sentences." }] },
+      { onToken: (t) => { const r = window.__nvSmokeReal; r.tokens += 1; r.shown += t; r.erster ??= Date.now() - r.t0; }, onContentReset: () => { window.__nvSmokeReal.shown = ''; window.__nvSmokeReal.resets += 1; } },
     ).then((o) => { window.__nvSmokeReal.ergebnis = o; }).catch((e) => { window.__nvSmokeReal.ergebnis = { ok: false, kind: "threw", detail: String(e), partial: "" }; })
       .finally(() => { p.settings.llmEndpoints = vorher; p.llm.invalidate(); window.__nvSmokeReal.fertig = true; });
     return true;`);
   await pollUntil<boolean>(cdp, `return window.__nvSmokeReal?.fertig === true ? true : null;`, 180_000, 500).catch(() => null);
-  const r = await cdp.evaluate<{ tokens: number; erster: number | null; fertig: boolean; ergebnis: { ok: boolean; content?: string; kind?: string; detail?: string } | null }>(`
+  const r = await cdp.evaluate<{ tokens: number; erster: number | null; fertig: boolean; shown: string; resets: number; ergebnis: { ok: boolean; content?: string; kind?: string; detail?: string } | null }>(`
     const x = window.__nvSmokeReal; delete window.__nvSmokeReal; return x;`);
   const ok = r.fertig && r.ergebnis?.ok === true && r.tokens >= 2 && (r.ergebnis.content ?? "").trim() !== "";
   record(name, ok, !r.fertig ? "keine Antwort innerhalb von 180 s"
     : r.ergebnis?.ok !== true ? `Fehler ${r.ergebnis?.kind}: ${r.ergebnis?.detail}`
     : `${r.tokens} Token-Häppchen von ${modell}, erstes nach ${r.erster ?? "?"} ms, ${(r.ergebnis.content ?? "").length} Zeichen`);
+  // Was die Anzeige am Ende haelt (Tokens, bei einem Reset geleert) muss die saubere Antwort sein, ohne Kanalmarke.
+  const sauber = r.ergebnis?.ok === true && !r.shown.includes("<channel|>") && r.shown.trim() === (r.ergebnis.content ?? "").trim();
+  record(nameB, sauber, sauber ? `${r.shown.length} Zeichen angezeigt, gleich der Antwort (${r.resets}× Anzeige geleert)` : `Anzeige (${r.shown.length} Zeichen) weicht von der Antwort ab: ${JSON.stringify(r.shown.slice(0, 120))}`);
 }
 
 /** Ein Fake-Endpunkt auf dem zentralen LLM-Stub: beantwortet /v1/models und streamt auf

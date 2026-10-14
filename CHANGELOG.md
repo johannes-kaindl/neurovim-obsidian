@@ -5,6 +5,10 @@ All notable changes to this project are documented here. Format loosely follows
 
 ## [Unreleased]
 
+### Fixed
+
+- CIPHER debrief no longer shows a model's thinking as part of the answer: Gemma 4 ignores the "no reasoning" request and writes its thought into the answer text, closed only by a `<channel|>` mark. The kit now recognises it (obsidian-kit 0.60.3, code-kit 0.27.2) and the result modal clears what it showed so far when the connection says it was thinking.
+
 ## [0.14.2] — 2026-10-14
 
 ### Changed

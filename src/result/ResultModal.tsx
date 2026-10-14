@@ -9,6 +9,8 @@ import type { LlmResult } from '@neurovim/core';
  *  tokens arrive via onToken. Provided by main.ts (null when unconfigured/off). */
 export type DebriefRunner = (
   onToken: (t: string) => void,
+  /** The text shown so far was not part of the answer (a model's thinking): drop it. */
+  onReset: () => void,
   signal: AbortSignal,
 ) => Promise<LlmResult>;
 
@@ -49,6 +51,10 @@ function DebriefSection({ runDebrief }: { runDebrief: DebriefRunner }) {
       if (c.signal.aborted) return;   // modal closed mid-stream — don't setState after unmount
       acc += t;
       setText(acc);
+    }, () => {
+      if (c.signal.aborted) return;
+      acc = '';
+      setText('');
     }, c.signal);
     if (c.signal.aborted) return;
     if (outcome.ok) {

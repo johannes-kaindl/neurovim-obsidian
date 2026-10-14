@@ -33,6 +33,11 @@ export class CorePortAdapter implements LlmPort {
     private readonly configured: () => boolean,
   ) {}
 
+  /** The core's port has no channel for "the answer so far was thinking, drop it" (Gemma 4 writes its
+   *  thought into the answer text and only closes it with `<channel|>`). The display that streams
+   *  registers here instead; the connection calls it as `onContentReset`. */
+  onContentReset: (() => void) | null = null;
+
   async complete(
     messages: LlmMessage[],
     opts?: { onToken?: (t: string) => void; signal?: AbortSignal },
@@ -42,6 +47,7 @@ export class CorePortAdapter implements LlmPort {
     const handlers = {
       ...(opts?.onToken ? { onToken: opts.onToken } : {}),
       ...(opts?.signal ? { signal: opts.signal } : {}),
+      onContentReset: () => this.onContentReset?.(),
     };
 
     const src = await this.llm.resolve();
