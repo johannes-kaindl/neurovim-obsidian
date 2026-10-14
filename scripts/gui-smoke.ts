@@ -1260,7 +1260,10 @@ async function geladenesModell(url: string): Promise<string | null> {
     const res = await fetch(`${url}/api/v0/models`, { signal: AbortSignal.timeout(3000) });
     if (!res.ok) return null;
     const body = (await res.json()) as { data?: Array<{ id: string; state?: string; type?: string }> };
-    return (body.data ?? []).find((m) => m.state === "loaded" && (m.type === "llm" || m.type === "vlm"))?.id ?? null;
+    const geladen = (body.data ?? []).filter((m) => m.state === "loaded" && (m.type === "llm" || m.type === "vlm"));
+    // `NV_MODELL=<id>` waehlt eines der geladenen Modelle ausdruecklich (sonst gaebe es das erste, und das kann das eines anderen sein).
+    const gewuenscht = process.env.NV_MODELL;
+    return (gewuenscht ? geladen.find((m) => m.id === gewuenscht) : geladen[0])?.id ?? null;
   } catch {
     return null;
   }
