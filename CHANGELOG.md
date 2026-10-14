@@ -5,6 +5,10 @@ All notable changes to this project are documented here. Format loosely follows
 
 ## [Unreleased]
 
+### Changed
+
+- Kit pins raised to obsidian-kit 0.60.1 / code-kit 0.27.1 (from 0.59.1 / 0.24.0). With the LLM Endpoint Manager installed, the CIPHER hints now say what is wrong — a missing API key, a switched-off endpoint, an unreachable server — instead of the generic "no endpoint". A warning about discarded request settings lists them sorted instead of in the order they were stored. Nothing else changes for you.
+
 ### Fixed
 
 - The keystroke counter now works in the main window even when a pop-out window was the active one while the plugin loaded (before, it was tied to that pop-out and counted nothing in the main window, so a mission could end with 0 keystrokes). It now listens in the main window and in every pop-out.
