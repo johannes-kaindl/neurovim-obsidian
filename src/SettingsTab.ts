@@ -133,12 +133,8 @@ export class NeuroVimSettingTab extends PluginSettingTab {
         'Ask CIPHER for Vim advice via any OpenAI-compatible endpoint (LM Studio, Ollama, ' +
         'OpenRouter, …). Privacy: your questions plus the active mission\'s metadata ' +
         '(title, category, goal) are sent to the endpoint you configure — never any ' +
-        'other vault content. Leave endpoint or model empty to disable the feature.',
-      cls: 'setting-item-description',
-    });
-    host.createEl('p', {
-      text: 'Endpoints are tried in order — the first reachable one is used. Handy when the '
-        + 'same server is localhost at your desk and a LAN IP on the road.',
+        'other vault content. Leave endpoint or model empty to disable the feature. ' +
+        'The same server can sit in the list twice — localhost at your desk, a LAN IP on the road.',
       cls: 'setting-item-description',
     });
   };
