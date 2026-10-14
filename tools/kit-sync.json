@@ -9,7 +9,7 @@
       "dir": "src/vendor/kit",
       "source": "code-kit",
       "from": "src/ts/pure",
-      "modules": ["backend-probe", "capabilities", "embeddings-client", "endpoint", "endpoint_config", "endpoint_diagnostics", "error_body", "model-choice", "model-context", "model-list-cache", "reasoning", "redact", "sampling-profiles", "secrets", "sse", "think-splitter", "timeout"]
+      "modules": ["backend-probe", "capabilities", "embeddings-client", "endpoint", "endpoint_config", "endpoint_diagnostics", "error_body", "local-stamp", "model-choice", "model-context", "model-list-cache", "reasoning", "redact", "sampling-profiles", "secrets", "slug", "sse", "think-splitter", "timeout"]
     },
     {
       "dir": "src/vendor/kit",

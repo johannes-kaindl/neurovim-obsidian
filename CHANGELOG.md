@@ -11,6 +11,7 @@ All notable changes to this project are documented here. Format loosely follows
 
 ### Fixed
 
+- A mission run just after midnight (local time) is now dated with your local day instead of the previous UTC day (`last_run` in the mission record).
 - The keystroke counter now works in the main window even when a pop-out window was the active one while the plugin loaded (before, it was tied to that pop-out and counted nothing in the main window, so a mission could end with 0 keystrokes). It now listens in the main window and in every pop-out.
 - Settings, "CIPHER uplink": the endpoint explanation no longer appears twice; the hint that the same server can be listed as localhost and as a LAN address now sits in the intro text.
 

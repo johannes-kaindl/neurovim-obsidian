@@ -2,7 +2,7 @@
   "source": "code-kit",
   "version": "0.27.1",
   "sha": "ac89f10",
-  "vendored": "clipboard.ts, backend-probe.ts, capabilities.ts, embeddings-client.ts, endpoint.ts, endpoint_config.ts, endpoint_diagnostics.ts, error_body.ts, model-choice.ts, model-context.ts, model-list-cache.ts, reasoning.ts, redact.ts, sampling-profiles.ts, secrets.ts, sse.ts, think-splitter.ts, timeout.ts",
+  "vendored": "clipboard.ts, backend-probe.ts, capabilities.ts, embeddings-client.ts, endpoint.ts, endpoint_config.ts, endpoint_diagnostics.ts, error_body.ts, local-stamp.ts, model-choice.ts, model-context.ts, model-list-cache.ts, reasoning.ts, redact.ts, sampling-profiles.ts, secrets.ts, slug.ts, sse.ts, think-splitter.ts, timeout.ts",
   "note": "Verbatim snapshot. Pins in tools/kit-sync.json, re-vendor via tools/sync-kit.sh (zentrales kit-sync im Dach). Never hand-edit. obsidian/clock.ts + obsidian/collapsible.ts + obsidian/endpoint-list.ts + obsidian/model-picker.ts liegen in ../kit-obsidian/, siehe dortige VENDOR.json.",
   "obsidian_kit_version": "0.60.1",
   "obsidian_kit_sha": "4dfbd4e",

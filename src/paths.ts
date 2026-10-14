@@ -1,6 +1,9 @@
-/** Filesystem-/vault-safe slug: "M-01" + "The Three Modes" → "M-01-The-Three-Modes". */
+import { slugify } from './vendor/kit/slug';
+
+/** Filesystem-/vault-safe slug: "M-01" + "The Three Modes" → "M-01-The-Three-Modes".
+ *  `transliterate: false` keeps the throwaway note names exactly as before ("Größe" → "Gr-e"). */
 export function missionNoteSlug(id: string, title: string): string {
-  const clean = (s: string) => s.replace(/[^A-Za-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+  const clean = (s: string) => slugify(s, { keepCase: true, transliterate: false });
   const base = clean(id);
   const t = clean(title);
   return t ? `${base}-${t}` : base;

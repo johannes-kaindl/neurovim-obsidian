@@ -56,6 +56,24 @@ describe('MissionSession', () => {
   });
 });
 
+describe('MissionSession run date', () => {
+  it('stamps last_run with the LOCAL day, not the UTC day', async () => {
+    const zone = process.env.TZ;
+    process.env.TZ = 'Pacific/Auckland';   // UTC+13 in October: 12:00Z on the 14th is already the 15th here
+    try {
+      const { session, app, clock, getData } = makeSession();
+      clock.at = Date.UTC(2026, 9, 14, 12, 0, 0);
+      await session.start('M-01');
+      const doc = await new BundledContent().getMission('M-01');
+      app.store[session.notePath!] = doc.solution!;
+      expect((await session.submit()).ok).toBe(true);
+      expect(getData().missions['M-01'].last_run).toBe('2026-10-15');
+    } finally {
+      if (zone === undefined) delete process.env.TZ; else process.env.TZ = zone;
+    }
+  });
+});
+
 describe('MissionSession lifecycle', () => {
   it('starts idle and becomes active on start', async () => {
     const { session } = makeSession();

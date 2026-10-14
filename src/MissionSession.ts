@@ -1,3 +1,4 @@
+import { localDate } from './vendor/kit/local-stamp';
 import {
   MissionEngine, MetricsTracker, ProgressionEngine, getDivergentLines, normalizeMissionText,
 } from '@neurovim/core';
@@ -155,7 +156,7 @@ export class MissionSession {
     // No keystroke means the solution was not typed (paste, already-solved note, foreign
     // sync). The win counts, the record does not.
     const unverified = metrics.keystrokes === 0;
-    const today = new Date(this.deps.clock.now()).toISOString().slice(0, 10);
+    const today = localDate(new Date(this.deps.clock.now()));
     const data = this.deps.getData();
     const old: MissionRecord | undefined = data.missions[this._id];
     const record = unverified
