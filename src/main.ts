@@ -159,20 +159,14 @@ export default class NeuroVimPlugin extends Plugin {
     // Count keystrokes in the capture phase so Vim normal-mode commands and navigation
     // (h/j/k/l, motions, operators) are seen before CodeMirror/Vim consumes them — a bubble
     // or in-editor keydown handler never fires for those. Scoped to editor targets only.
-    this.registerDomEvent(activeDocument, 'keydown', (e: KeyboardEvent) => {
-      // 'active' rather than "a mission exists": a paused mission must not count keys
-      // typed in another note. This is the structural fix for the KEYSTROKES 0 run.
-      if (this.session.state !== 'active') return;
-      if (!isMissionEditorKeystroke(e.key, e.target)) return;
-      // Record only keystrokes typed into the mission note's OWN editor — not another note
-      // open in a split during the run. The trace is persisted and can be sent to the LLM,
-      // so it must never capture a different note's content. Counting keeps the wider
-      // any-editor scope: omitting the key argument counts without recording.
-      // Vim mode is deferred (best-effort, CM internals): the tracker supports `mode`,
-      // wiring passes undefined for v1. CIPHER reads the raw key sequence fine without it.
-      const record = this.settings.recordTraces && this.isMissionNoteKeydown(e.target);
-      this.session.metrics.addKeystroke(record ? e.key : undefined);
-    }, { capture: true });
+    // Bound per document (main window plus every pop-out), never to `activeDocument` at load:
+    // a restored pop-out may be the active one then, and the main window would count nothing.
+    this.app.workspace.onLayoutReady(() => {
+      this.countKeystrokesIn(this.app.workspace.rootSplit.doc);
+      this.countKeystrokesIn(activeDocument);
+    });
+    this.registerEvent(this.app.workspace.on('window-open', (_win, win) => this.countKeystrokesIn(win.document)));
+    this.registerEvent(this.app.workspace.on('active-leaf-change', () => this.countKeystrokesIn(activeDocument)));
 
     this.addSettingTab(new NeuroVimSettingTab(this.app, this));
     // Not before the layout is ready: the target document is the main window's (rootSplit.doc), and
@@ -192,6 +186,28 @@ export default class NeuroVimPlugin extends Plugin {
     if (this.settings.openPaneOnStartup) {
       this.app.workspace.onLayoutReady(() => void this.activateView());
     }
+  }
+
+  private readonly keystrokeDocs = new WeakSet<Document>();
+
+  /** Idempotent: one capture listener per document, however many events announce it. */
+  private countKeystrokesIn(doc: Document): void {
+    if (this.keystrokeDocs.has(doc)) return;
+    this.keystrokeDocs.add(doc);
+    this.registerDomEvent(doc, 'keydown', (e: KeyboardEvent) => {
+      // 'active' rather than "a mission exists": a paused mission must not count keys
+      // typed in another note. This is the structural fix for the KEYSTROKES 0 run.
+      if (this.session.state !== 'active') return;
+      if (!isMissionEditorKeystroke(e.key, e.target)) return;
+      // Record only keystrokes typed into the mission note's OWN editor — not another note
+      // open in a split during the run. The trace is persisted and can be sent to the LLM,
+      // so it must never capture a different note's content. Counting keeps the wider
+      // any-editor scope: omitting the key argument counts without recording.
+      // Vim mode is deferred (best-effort, CM internals): the tracker supports `mode`,
+      // wiring passes undefined for v1. CIPHER reads the raw key sequence fine without it.
+      const record = this.settings.recordTraces && this.isMissionNoteKeydown(e.target);
+      this.session.metrics.addKeystroke(record ? e.key : undefined);
+    }, { capture: true });
   }
 
   onunload(): void {

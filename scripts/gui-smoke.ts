@@ -102,6 +102,7 @@ const GRUPPEN = {
     "F2 Einblenden macht ihn wieder sichtbar",
     "F3 Pop-out aktiv: Regel greift im Hauptfenster, nicht im Pop-out",
     "F4 Laden bei aktivem Pop-out: Ordner ist ausgeblendet",
+    "F5 Laden bei aktivem Pop-out: Tastenzähler zählt im Hauptfenster",
   ],
   cipher: [
     "R3-0 Die Frage erreicht die Verbindung",
@@ -1203,6 +1204,29 @@ async function checkFolderHide(cdp: Cdp): Promise<void> {
         return t && getComputedStyle(t).display === "none" ? { gefunden: true } : null;`, 6000, 300);
       record("F4 Laden bei aktivem Pop-out: Ordner ist ausgeblendet", geladen === "ok" && nachLaden !== null,
         geladen !== "ok" ? geladen : nachLaden !== null ? "Titel im Hauptfenster aus" : "Titel nach dem Laden sichtbar");
+
+      // F5: dieselbe Lage (Plugin lädt bei aktivem Pop-out), der Tastenzähler. Bis 0.14.1 hing er an
+      // `activeDocument` zur Ladezeit, also am Pop-out; im Hauptfenster zählte er nichts.
+      if (geladen !== "ok") unmeasured("F5 Laden bei aktivem Pop-out: Tastenzähler zählt im Hauptfenster", "Plugin nach F4 nicht geladen");
+      else {
+        const z = await cdp.evaluate<{ imHaupt: boolean; n: number } | string>(`
+          try {
+            const p = app.plugins.plugins[${JSON.stringify(PLUGIN_ID)}];
+            // Pop-out schließen, damit die Mission im Hauptfenster öffnet (bei aktivem Pop-out öffnet sie dort).
+            window.__nvSmokePopout?.detach();
+            await new Promise((r) => setTimeout(r, 800));
+            await p.beginMission(${JSON.stringify(PAR_MISSION)});
+            for (let i = 0; i < 40 && !(p.session.state === 'active' && p.missionEditorView()); i++) await new Promise((r) => setTimeout(r, 250));
+            const cm = p.missionEditorView();
+            if (!cm) return "kein Missions-Editor";
+            const imHaupt = cm.contentDOM.ownerDocument === app.workspace.rootSplit.doc;
+            for (let i = 0; i < 5; i++) cm.contentDOM.dispatchEvent(new KeyboardEvent('keydown', { key: 'j', bubbles: true }));
+            return { imHaupt, n: p.session.metrics.getResult(0).keystrokes };
+          } catch (e) { return String(e); }`);
+        if (typeof z === "string") unmeasured("F5 Laden bei aktivem Pop-out: Tastenzähler zählt im Hauptfenster", z);
+        else if (!z.imHaupt) unmeasured("F5 Laden bei aktivem Pop-out: Tastenzähler zählt im Hauptfenster", "Missions-Editor liegt im Pop-out, nicht im Hauptfenster (Gültigkeitsbedingung verfehlt)");
+        else record("F5 Laden bei aktivem Pop-out: Tastenzähler zählt im Hauptfenster", z.n === 5, `Anschläge im Hauptfenster-Editor: ${z.n} von 5`);
+      }
     }
   } finally {
     await cdp.evaluate(`
