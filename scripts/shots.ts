@@ -25,7 +25,7 @@
 import { existsSync, mkdirSync, rmSync } from "node:fs";
 import { join } from "node:path";
 
-import { Cdp, attachTo, bereiteInstanzVor, closeExtraLeaves, pollUntil } from "../../tools/obsidian-cdp/cdp.js";
+import { Cdp, attachTo, bereiteInstanzVor, closeExtraLeaves, pollUntil, schliesseDialog } from "../../tools/obsidian-cdp/cdp.js";
 import { startLlmStub } from "../../tools/obsidian-cdp/llm-stub.js";
 import { Vorbedingung } from "../../tools/obsidian-cdp/bilanz.js";
 import { boxOf, capture, setWindowSize, writeShot, type Rect } from "../../tools/obsidian-cdp/shot.js";
@@ -242,9 +242,8 @@ const SHOTS: Shot[] = [
   {
     name: "briefing.png",
     run: async (cdp) => {
+      await schliesseDialog(cdp, { escapeRueckfall: false });   // beide Formen des Schliessen-Knopfs (1.12.4 / 1.14.4); ohne offenes Modal ein No-op
       const opened = await cdp.evaluate<boolean>(`
-        const m = document.querySelector('.modal-close-button');
-        if (m) m.click();
         await new Promise((r) => setTimeout(r, 400));
         const p = app.plugins.plugins[${JSON.stringify(PLUGIN_ID)}];
         await p.handleStart('M-01');    // oeffnet das Briefing, startet noch nicht
@@ -293,7 +292,10 @@ const SHOTS: Shot[] = [
           return true;
         `);
         // The context line of the endpoint row arrives after the probe — wait for it, or the picture is early.
-        await pollUntil<boolean>(win, "return document.querySelector('.okit-ep-context') ? true : null;", 10_000, 300).catch(() => null);
+        // Bewusst weiches Warten: ohne Kontextzeile (Sonde ohne Kontext) ist das Bild trotzdem richtig, nur frueher. Darum `pollUntil` mit
+        // ausgewertetem Ergebnis statt `requireUntil`, und die Wartezeit steht im Log, wenn sie ablief.
+        const kontextZeile = await pollUntil<boolean>(win, "return document.querySelector('.okit-ep-context') ? true : null;", 10_000, 300).catch(() => null);
+        if (kontextZeile === null) console.log("  ! settings.png: die Kontextzeile der Endpunkt-Zeile erschien in 10 s nicht — Bild ohne sie aufgenommen");
         await sleep(300);
         const box = await visibleBox(win, asModal ? ".modal.mod-settings" : ".vertical-tab-content", 0);
         return await capture(win, box ?? undefined);

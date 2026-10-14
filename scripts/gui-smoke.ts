@@ -40,7 +40,7 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
-import { Cdp, attachTo, bereiteInstanzVor, entferneFakeManager, installFakeManager, closeExtraLeaves, pollUntil, releaseAlwaysOnTop, requireVisible, setAppConfig, setPluginSetting } from "../../tools/obsidian-cdp/cdp.js";
+import { Cdp, attachTo, beimAbbruch, bereiteInstanzVor, entferneFakeManager, installFakeManager, closeExtraLeaves, istAbgebrochen, ladePluginNeu, pollUntil, releaseAlwaysOnTop, requireVisible, schliesseDialog, setAppConfig, setPluginSetting } from "../../tools/obsidian-cdp/cdp.js";
 import { startLlmStub } from "../../tools/obsidian-cdp/llm-stub.js";
 import { createBilanz, parseArgs, runDriver, Vorbedingung } from "../../tools/obsidian-cdp/bilanz.js";
 import { buildHerkunft, buildVault, requireEigenerBuild, stagingVaultDir } from "../../tools/obsidian-cdp/vault.js";
@@ -535,12 +535,9 @@ async function checkReader(cdp: Cdp): Promise<void> {
     );
   }
 
-  await cdp.evaluate(`
-    const m = document.querySelector('.nv-lore-modal');
-    if (m) { const c = m.querySelector('.modal-close-button'); if (c) c.click(); }
-    await new Promise((r) => setTimeout(r, 400));
-    return true;
-  `);
+  // Beide Formen des Schliessen-Knopfs (1.12.4 `.modal-close-button`, 1.14.4 `.modal-header-button`); ohne offenes Modal ein No-op. Offen ist hier nur das Lore-Modal (`.nv-lore-modal`).
+  await schliesseDialog(cdp, { escapeRueckfall: false });
+  await new Promise((r) => setTimeout(r, 400));
 }
 
 
@@ -597,7 +594,7 @@ async function checkMasteryTier(cdp: Cdp, vault: string | undefined): Promise<vo
 
   // --- R4-1: Chip nur dort, wo jemand ein Par autorisiert hat ---------------------
   const rows = await cdp.evaluate<{
-    par: { found: boolean; chip: string | null; height: number; chipTop: number; xpTop: number; metaRight: number; chipRight: number } | null;
+    par: { found: boolean; chip: string | null; height: number; chipTop: number; xpTop: number; chipMitte: number; xpMitte: number; chipH: number; xpH: number; metaRight: number; chipRight: number } | null;
     noPar: { found: boolean; chip: string | null; height: number } | null;
   }>(`
     const row = (id) => [...document.querySelectorAll('.nv-mission')]
@@ -608,11 +605,12 @@ async function checkMasteryTier(cdp: Cdp, vault: string | undefined): Promise<vo
       const xp = r.querySelector('.nv-mission-xp');
       const meta = r.querySelector('.nv-mission-meta');
       const b = (e) => e ? e.getBoundingClientRect() : { top: 0, right: 0, height: 0 };
+      const mitte = (e) => { const x = b(e); return x.top + x.height / 2; };
       return {
         found: true,
         chip: chip ? chip.className : null,
         height: r.getBoundingClientRect().height,
-        chipTop: b(chip).top, xpTop: b(xp).top, metaRight: b(meta).right, chipRight: b(chip).right,
+        chipTop: b(chip).top, xpTop: b(xp).top, chipMitte: mitte(chip), xpMitte: mitte(xp), chipH: b(chip).height, xpH: b(xp).height, metaRight: b(meta).right, chipRight: b(chip).right,
       };
     };
     return { par: measure(row(${JSON.stringify(PAR_MISSION)})), noPar: measure(row(${JSON.stringify(NO_PAR_MISSION)})) };
@@ -632,7 +630,10 @@ async function checkMasteryTier(cdp: Cdp, vault: string | undefined): Promise<vo
   // --- R4-2: der Chip bleibt in seiner Zelle — gemessen an Höhe und Zeile ----------
   // Ein umgebrochenes Grid-Kind stünde eine Zeile tiefer als das XP-Feld und machte die
   // Zeile höher als eine ohne Chip. Beides wird gemessen, nicht die Klasse.
-  const sameLine = Math.abs(rows.par.chipTop - rows.par.xpTop) < 2;
+  // Gleiche Zeile heisst: die Mitten liegen naeher beieinander als die kleinere der beiden Hoehen. Die Oberkanten zu vergleichen war zu
+  // streng (Chip und XP-Feld haben verschiedene Schriftgroessen, ihre Oberkanten liegen auch in einer Zeile bis ~3 px auseinander,
+  // Task „GUI-Smoke R4-2 rot“); ein umgebrochener Chip steht eine ganze Zeile tiefer, die Mitten weichen dann um mehr als eine Hoehe ab.
+  const sameLine = Math.abs(rows.par.chipMitte - rows.par.xpMitte) < Math.min(rows.par.chipH, rows.par.xpH);
   const notTaller = rows.par.height <= rows.noPar.height + 1;
   const inCell = rows.par.chipRight <= rows.par.metaRight + 1;
   const gridOk = rows.par.chip !== null && sameLine && notTaller && inCell;
@@ -640,7 +641,7 @@ async function checkMasteryTier(cdp: Cdp, vault: string | undefined): Promise<vo
     "R4-2 Chip bricht die Missionszeile nicht um",
     gridOk,
     `Zeile mit Chip ${Math.round(rows.par.height)}px, ohne ${Math.round(rows.noPar.height)}px; `
-      + `Chip/XP-Oberkante Δ${Math.round(Math.abs(rows.par.chipTop - rows.par.xpTop))}px`
+      + `Chip/XP-Mitte Δ${Math.round(Math.abs(rows.par.chipMitte - rows.par.xpMitte))}px (Oberkante Δ${Math.round(Math.abs(rows.par.chipTop - rows.par.xpTop))}px, Hoehen ${Math.round(rows.par.chipH)}/${Math.round(rows.par.xpH)}px)`
       + (inCell ? "" : "; Chip ragt aus der Meta-Zelle"),
   );
 
@@ -1284,11 +1285,8 @@ async function starteFakeEndpunkt(modell: string, echo = false, kontext?: number
     models: [modell],
     standard: echo ? "echo" : "Use dw.",
     teile: 1,
-    // Nur `loaded_context_length`, ohne `max_context_length`: der Stub kennt `kontext` nur MIT Maximum
-    // (Zeile „loaded N · max N“), W4 prueft aber die Zeile „loaded N tokens“ — also Zusatzroute.
-    ...(kontext !== undefined
-      ? { zusatz: { "GET /api/v0/models": () => ({ json: { data: [{ id: modell, loaded_context_length: kontext }] } }) } }
-      : {}),
+    // Nur `loaded_context_length`, ohne `max_context_length` (`max: null`): W4 prueft die Zeile „loaded N tokens“, nicht „loaded N · max N“.
+    ...(kontext !== undefined ? { kontext: { geladen: kontext, max: null } } : {}),
   });
   const chats = () => stub.anfragen().filter((a) => a.route === "chat");
   return {
@@ -1736,14 +1734,12 @@ async function main(): Promise<void> {
   // Alle vier Wiederherstellungen sind idempotent (jede prueft ihre Vorbedingung selbst), die
   // Werte liegen als window-Globals (nicht als Node-Closures) — nur so erreicht sie ein
   // Handler, der unabhaengig davon feuert, WELCHE Pruef-Funktion gerade lief.
-  let signalCleanupRunning = false;
-  const onAbortSignal = (signal: NodeJS.Signals): void => {
-    if (signalCleanupRunning || !cdp) return;
-    signalCleanupRunning = true;
-    const liveCdp = cdp;
-    void (async () => {
-      console.log(`\n\nAbbruch durch ${signal} — raeume Testzustand auf...`);
-      await liveCdp.evaluate(`
+  // Seit Welle 21 ein Schritt des Abbruch-Moduls der Bruecke (`beimAbbruch`): derselbe Rueckbau laeuft im Normalweg (finally) und bei Ctrl-C,
+  // idempotent, ohne zu warten. Angemeldet VOR der ersten Mutation; ohne Verbindung gibt es nichts zurueckzubauen.
+  const zustandZurueck = async (): Promise<void> => {
+    if (!cdp) return;
+    await entferneFakeManager(cdp).catch(() => undefined);
+    await cdp.evaluate(`
         const p = app.plugins.plugins[${JSON.stringify(PLUGIN_ID)}];
         const tb = window.__nvSmokeThemeBefore;
         if (p && tb) { p.settings.colorScheme = tb.scheme; await p.saveSettings(); app.vault.setConfig('theme', tb.theme); app.workspace.trigger('css-change'); }
@@ -1778,10 +1774,8 @@ async function main(): Promise<void> {
         delete window.__nvSmokeCollapsedBefore;
         return true;
       `).catch(() => { console.log("  ! Aufraeumen im Renderer fehlgeschlagen — Vault von Hand pruefen (Theme, Vim-Modus, UPLINK-Stub)"); });
-      liveCdp.close();
-      process.exit(130);
-    })();
   };
+  const zustand = beimAbbruch(zustandZurueck, "Testzustand im Renderer zurueckbauen");
   try {
     cdp = await attachTo("workspace", port, vault);
     if (!cdp) {
@@ -1790,8 +1784,6 @@ async function main(): Promise<void> {
         + `   Zweitinstanz starten (Rezept im Kopf dieser Datei), nicht die reguelaere Instanz neu starten.`,
       );
     }
-    process.on("SIGINT", onAbortSignal);
-    process.on("SIGTERM", onAbortSignal);
     const live: Cdp = cdp;
     // Chromium drosselt nicht-fokussierte Fenster: ohne das ist das DOM leer und der
     // Lauf misst ein Phantom. `requireVisible` zielt auf das VERBUNDENE Fenster; ein
@@ -1804,33 +1796,13 @@ async function main(): Promise<void> {
     console.log(`   Instanz: ${vorbereitung.hinweis}`);
     await requireEnvironment(cdp, vault);
     if (args.has("reload")) {
-      // Für die Gegenprobe: neu deployten Code übernehmen, ohne Obsidian neu zu starten
-      // (ein Neustart würde den Debug-Port wieder schließen).
+      // Fuer die Gegenprobe: neu deployten Code uebernehmen, ohne Obsidian neu zu starten (ein Neustart wuerde den Debug-Port
+      // wieder schliessen). `ladePluginNeu` laedt auch das Manifest nach (`disablePlugin`/`enablePlugin` allein tut das nicht,
+      // gemessen 2026-08-19) und prueft mit `repoMainJs` vorher, dass der deployte Build der des Repos ist.
       console.log("   Plugin wird neu geladen…");
-      await cdp.evaluate(`
-        await app.plugins.disablePlugin(${JSON.stringify(PLUGIN_ID)});
-        await app.plugins.enablePlugin(${JSON.stringify(PLUGIN_ID)});
-        await new Promise((r) => setTimeout(r, 1200));
-        return true;
-      `);
-      // Gemessen 2026-08-19: `disablePlugin`/`enablePlugin` laedt zwar `main.js` neu,
-      // liest `manifest.json` aber NICHT — die gemeldete Version bleibt die vom
-      // App-Start. Die Nummer taugt deshalb nicht als Beleg dafuer, welcher Stand
-      // laeuft. Was sie kann: den Unterschied sichtbar machen, damit niemand sie
-      // faelschlich als Beleg nimmt.
-      const loaded = await cdp.evaluate<string>(
-        `return app.plugins.manifests[${JSON.stringify(PLUGIN_ID)}]?.version ?? '?';`,
-      );
-      const onDisk = JSON.parse(readFileSync("manifest.json", "utf8")).version;
-      if (loaded !== onDisk) {
-        console.log(
-          `   ⚠️  Manifest-Version: Obsidian meldet ${loaded}, deployt ist ${onDisk}.\n`
-          + `      Der Code AUS main.js ist neu geladen; nur das Manifest bleibt bis zum\n`
-          + `      naechsten Obsidian-Neustart auf dem alten Stand. Kein Befund am Plugin.`,
-        );
-      } else {
-        console.log(`   Neu geladen: ${PLUGIN_ID} ${loaded}`);
-      }
+      const neu = await ladePluginNeu(cdp, PLUGIN_ID, { repoMainJs: join(process.cwd(), "main.js") });
+      if (!neu.geladen) throw new Vorbedingung(`Plugin nach dem Neuladen nicht aktiv — ${neu.hinweis}`);
+      console.log(`   Neu geladen: ${neu.hinweis}`);
     }
     // C0 — ein liegen gebliebener CIPHER-Stub aus einem per Ctrl-C abgebrochenen Vorlauf
     // (vor diesem Handler bzw. bei einem SIGKILL) waere sonst still UND gefaehrlich: wuerde
@@ -1892,6 +1864,8 @@ async function main(): Promise<void> {
     }
     throw err;
   } finally {
+    await zustand.schliesse();
+    if (istAbgebrochen()) return;
     if (cdp) {
       // Die Hub-Blätter, die dieser Lauf geöffnet hat, wieder abräumen — sonst wächst
       // ihre Zahl mit jedem Lauf (gemessen: 16 nach mehreren Durchläufen).
@@ -1912,10 +1886,6 @@ async function main(): Promise<void> {
     }
     if (cdp) await releaseAlwaysOnTop(cdp).catch(() => undefined);
     cdp?.close();
-    // Abmelden, sonst haengt ein SPAETES Signal (nach normalem Abschluss, cdp schon zu) den
-    // Prozess in onAbortSignal an einer toten Verbindung auf.
-    process.off("SIGINT", onAbortSignal);
-    process.off("SIGTERM", onAbortSignal);
   }
 
   // Die Soll-Liste ist der Nenner; `abschluss()` setzt Exit 1 bei Rot oder „nichts gemessen".

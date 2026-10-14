@@ -9,7 +9,7 @@
  * ```bash
  * npm run sequenz -- --setup                      # Vault bauen (mit Theme Birds of Yore, Schrift 20 px)
  * # Zweitinstanz starten (Profil, .asar, obsidian.json, Lock) — siehe docs/images/README.md § Reproduktion
- * npm run sequenz -- --vault neurovim-obsidian --port 9360 --sequenz m08-hero
+ * npm run sequenz -- --vault neurovim-obsidian --port 9360 --sequenz m08-hero     # --port ist Pflicht, kein Standardport
  * npm run sequenz -- --vault neurovim-obsidian --port 9360 --sequenz m08-voll --ohne-video
  * npm run sequenz -- --sequenz m08-hero --nur-video   # hero-roh.gif/.mp4 in out/sequenz/m08-hero, ohne Obsidian
  * npm run sequenz -- --sequenz m08-hero --nur-video --readme   # Rohfassung nach docs/images/hero-demo.* (nur ohne Komposition)
@@ -285,9 +285,16 @@ const MESSPUNKT = `
 
 async function main(): Promise<void> {
   if (process.argv.includes("--setup")) { await setup(); return; }
-  const port = Number(arg("port", "9360"));
   const vault = arg("vault", "neurovim-obsidian") as string;
-  if (process.argv.includes("--beenden")) { await beenden(port, vault); return; }
+  // Kein Standardport (9222 gehoert der regulaeren Instanz): ohne `--port` bricht der Lauf ab, ausser dort, wo kein Obsidian im Spiel ist (`--nur-video`).
+  const portPflicht = (): number | null => {
+    const p = Number(arg("port", ""));
+    if (Number.isInteger(p) && p >= 1024 && p <= 65535) return p;
+    console.error("⛔ --port <1024-65535> ist Pflicht (Port deiner Zweitinstanz, vom Lock gehalten) — es gibt keinen Standardport.");
+    process.exitCode = 2;
+    return null;
+  };
+  if (process.argv.includes("--beenden")) { const p = portPflicht(); if (p !== null) await beenden(p, vault); return; }
 
   const name = arg("sequenz", "m08-hero");
   const sequenz = SEQUENZEN.find((s) => s.name === name);
@@ -308,6 +315,8 @@ async function main(): Promise<void> {
     return;
   }
 
+  const port = portPflicht();
+  if (port === null) return;
   const cdp = await attachTo("workspace", port, vault);
   if (!cdp) {
     console.error(`⛔ Kein Obsidian-Fenster auf Port ${port} mit Vault "${vault}". Zweitinstanz starten (docs/images/README.md § Reproduktion).`);
