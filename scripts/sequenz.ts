@@ -24,7 +24,7 @@ import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
-import { Cdp, attachTo, bereiteInstanzVor, clearNotices, closeExtraLeaves, notices, pollUntil } from "../../tools/obsidian-cdp/cdp.js";
+import { Cdp, attachTo, bereiteInstanzVor, clearNotices, closeExtraLeaves, notices, pollUntil, setAppConfig } from "../../tools/obsidian-cdp/cdp.js";
 import { Vorbedingung } from "../../tools/obsidian-cdp/bilanz.js";
 import { boxAround, setWindowSize } from "../../tools/obsidian-cdp/shot.js";
 import { buildVault, stagingVaultDir } from "../../tools/obsidian-cdp/vault.js";
@@ -39,6 +39,8 @@ const FIXTURE_DIR = join(REPO_ROOT, "docs/images/fixture");
 const IMAGES_DIR = join(REPO_ROOT, "docs/images");
 const THEME_NAME = "Birds of Yore";
 const BASE_FONT_SIZE = 20;
+/** Schriftgröße der vollen Sequenz: klein genug, dass alle 45 Zeilen ins Fenster passen. */
+const SCHRIFT_VOLL = 15;
 /** Aus readme-spec.json images.hero_video (20 bis 24 fps, 800 px, 2048 KB) — gespiegelt, nicht erfunden.
  *  20 statt 24: der GIF-Takt ist 10 ms, 24 fps wuerde ffmpeg still auf 25 runden (gemessen 2026-10-05). */
 const VIDEO = { fps: 20, width: 800, gifKb: 2048 };
@@ -106,7 +108,7 @@ const VOLL: Schritt[] = [
   { key: "SUBMIT", kind: "key", target: "hud", halt: 2.5, aktion: submit },
 ];
 
-interface Sequenz { name: string; schritte: Schritt[]; soll: (cdp: Cdp) => Promise<string | null>; video: boolean }
+interface Sequenz { name: string; schritte: Schritt[]; soll: (cdp: Cdp) => Promise<string | null>; video: boolean; schrift?: number }
 
 const SEQUENZEN: Sequenz[] = [
   {
@@ -118,6 +120,9 @@ const SEQUENZEN: Sequenz[] = [
   },
   {
     name: "m08-voll", schritte: VOLL, video: false,
+    // 45 Zeilen samt beiden Compliance-Bannern (Zeilen 39 und 40) müssen im Zuschnitt stehen; bei Schrift 20 endete er bei
+    // Zeile 39, und das Fenster wächst nicht über den Bildschirm hinaus (gemessen: 1500 angefordert, 949 bekommen).
+    schrift: SCHRIFT_VOLL,
     soll: async (cdp) => {
       const eins = await textDerZeile(cdp, "Once upon a");
       const zwei = await textDerZeile(cdp, "Eagerly I wished");
@@ -214,6 +219,14 @@ async function herkunft(cdp: Cdp, unsauber: string[]): Promise<Record<string, un
     mission: "M-08", theme: { ...theme }, obsidian_version: obsidian, fixture: "docs/images/fixture",
     inhalt: "Missionstext aus src/vendor/neurovim (AGPL-3.0-or-later); Gedichtzeilen Edgar Allan Poe, The Raven (gemeinfrei)",
   };
+}
+
+/** Schriftgröße im laufenden Fenster. Gemessen 2026-10-14: `setConfig("baseFontSize")` plus `updateFontSize()` ändert
+ *  `--font-text-size` am Body nicht (blieb bei 20 px), deshalb wird die Variable selbst gesetzt; die Konfiguration
+ *  zieht mit, damit der Ausgangswert für den nächsten Start stimmt. */
+async function setzeSchrift(cdp: Cdp, px: number): Promise<void> {
+  await setAppConfig(cdp, "baseFontSize", px);
+  await cdp.evaluate(`document.body.style.setProperty("--font-text-size", ${px} + "px"); await new Promise((r) => setTimeout(r, 600)); return true;`);
 }
 
 // --- Hauptlauf ---------------------------------------------------------------
@@ -329,6 +342,7 @@ async function main(): Promise<void> {
     if (!loaded) throw new Vorbedingung(`Plugin "${PLUGIN_ID}" ist im Vault "${vault}" nicht aktiv.`);
     await themePruefen(cdp);
     await setWindowSize(cdp, 1280, 860);
+    if (sequenz.schrift !== undefined && sequenz.schrift !== BASE_FONT_SIZE) await setzeSchrift(cdp, sequenz.schrift);
     await closeExtraLeaves(cdp);
     await missionStarten(cdp);   // setzt Spielstand, Schema crt, HUD-Platzierung box
 
@@ -362,6 +376,7 @@ async function main(): Promise<void> {
     }
     throw err;
   } finally {
+    if (sequenz.schrift !== undefined && sequenz.schrift !== BASE_FONT_SIZE) await setzeSchrift(cdp, BASE_FONT_SIZE).catch(() => undefined);
     await cdp.evaluate(`app.plugins.plugins[${JSON.stringify(PLUGIN_ID)}]?.handleAbandon?.(); return true;`).catch(() => undefined);
     cdp.close();
   }
