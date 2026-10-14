@@ -4,7 +4,7 @@ import type { PluginData } from '@neurovim/core';
 import { BundledContent } from '../src/content/BundledContent';
 import { MissionSession } from '../src/MissionSession';
 import { makeFakeMissionApp } from './obsidian-mock';
-import type { ClockPort } from '../src/vendor/kit/clock';
+import type { ClockPort } from '../src/vendor/kit-obsidian/clock';
 
 /** Controllable clock: `at` is the current wall time in ms. */
 function fakeClock(): ClockPort & { at: number } {

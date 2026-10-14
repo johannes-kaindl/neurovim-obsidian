@@ -45,7 +45,7 @@ function setup(raw: unknown) {
       if (patch.request !== undefined) settings.request = patch.request;
     },
     probe: () => Promise.resolve(true),
-    backendOf: () => Promise.resolve('lmstudio'),
+    backendOf: () => Promise.resolve('lmstudio' as const),
     transports: { http, fallback: 'none' },
     clock,
   });

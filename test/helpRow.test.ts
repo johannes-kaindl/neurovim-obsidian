@@ -32,7 +32,7 @@ describe('Hilfe-Zeile in den Settings', () => {
     const open = vi.fn();
     vi.stubGlobal('window', { open });
     const first = makeTab().getSettingDefinitions()[0] as Erste;
-    const setting = new Setting({}) ;
+    const setting = new Setting({} as never);
     first.render!(setting);
     const [docsBtn, bugBtn] = (setting as unknown as { components: Array<{ text?: string; iconName?: string; tooltip?: string; clickCB: () => void }> }).components;
     expect(docsBtn.text).toBe('Open documentation');

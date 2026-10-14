@@ -20,7 +20,7 @@ function makeFakeDom(visible: Set<string>) {
 
 function props(over: Partial<HudRenderProps> = {}): HudRenderProps {
   return {
-    id: 'M-01', title: 'The Three Modes', elapsedMs: 0, keystrokes: 0, vimActive: true,
+    id: 'M-01', title: 'The Three Modes', elapsedMs: 0, keystrokes: 0, vimActive: true, paused: false, progress: null,
     scheme: 'crt', hint: null, onSubmit() {}, onReset() {}, onAbandon() {}, onHint() {},
     objective: null, objectiveOpen: true, onToggleObjective() {}, ...over,
   };

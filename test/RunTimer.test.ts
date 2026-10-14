@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { RunTimer } from '../src/RunTimer';
-import type { ClockPort } from '../src/vendor/kit/clock';
+import type { ClockPort } from '../src/vendor/kit-obsidian/clock';
 
 /** Controllable clock: `at` is the current wall time in ms. */
 function fakeClock(): ClockPort & { at: number } {
