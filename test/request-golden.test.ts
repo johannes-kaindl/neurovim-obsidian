@@ -69,7 +69,7 @@ const OFF: Record<string, Record<string, number | string>> = {
   'qwen3.6|lmstudio': { temperature: 0.7, top_p: 0.95, top_k: 20, reasoning_effort: 'none', max_tokens: 1024 },
   'qwen3.6|openwebui': { temperature: 0.7, top_p: 0.95, top_k: 20, reasoning_effort: 'none', max_tokens: 1024 },
   'qwen3.6|unknown': { temperature: 0.7, top_p: 0.95, reasoning_effort: 'none', max_tokens: 1024 },
-  'gemma4|lmstudio': { temperature: 0.7, top_p: 0.95, top_k: 64, reasoning_effort: 'none', max_tokens: 1024 },
+  'gemma4|lmstudio': { temperature: 0.7, top_p: 0.95, top_k: 64, reasoning_effort: 'low', max_tokens: 1024 }, // LM Studio ignores 'none' for Gemma 4: lowest level (code-kit 0.28.0)
   'gemma4|openwebui': { temperature: 0.7, top_p: 0.95, top_k: 64, reasoning_effort: 'none', max_tokens: 1024 },
   'gemma4|unknown': { temperature: 0.7, top_p: 0.95, reasoning_effort: 'none', max_tokens: 1024 },
   // gpt-oss cannot be switched off: the lowest level is "minimal", never "none".
