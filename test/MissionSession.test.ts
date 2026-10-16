@@ -57,7 +57,7 @@ describe('MissionSession', () => {
 });
 
 describe('MissionSession run date', () => {
-  it('stamps last_run with the LOCAL day, not the UTC day', async () => {
+  it('stamps last_run and the streak with the LOCAL day, not the UTC day', async () => {
     const zone = process.env.TZ;
     process.env.TZ = 'Pacific/Auckland';   // UTC+13 in October: 12:00Z on the 14th is already the 15th here
     try {
@@ -68,6 +68,7 @@ describe('MissionSession run date', () => {
       app.store[session.notePath!] = doc.solution!;
       expect((await session.submit()).ok).toBe(true);
       expect(getData().missions['M-01'].last_run).toBe('2026-10-15');
+      expect(getData().streak_last_date).toBe('2026-10-15');
     } finally {
       if (zone === undefined) delete process.env.TZ; else process.env.TZ = zone;
     }

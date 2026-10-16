@@ -5,6 +5,18 @@ All notable changes to this project are documented here. Format loosely follows
 
 ## [Unreleased]
 
+### Changed
+
+- Game core updated to 0.2.8. Every one of the 54 missions now has a measured par (before, only six showed a rating), so the rating chip appears everywhere and a few pars moved (KATA-12 22→20, KATA-13 16→15, KATA-14 14→15, R-10 24→25, R-06 14→10, R-14 30→45). Level thresholds 7 to 10 now need 900, 1150, 1300 and 1500 XP (before 1150, 1550, 2000, 2500) so one pass through the story reaches level 10; your XP is kept, so a level can rise after the update.
+- A solved mission is scored by the core (`completeMission`), the same rule as in the web app and the Neovim port. Behaviour stays: XP on every completion, bests set only by a run with at least one keystroke.
+- The line counter in the mission display no longer loses matches when you delete or insert lines. It aligns lines like the check does, so deleting two lines that the solution does not contain no longer drops the counter (40/45 → 38/45 before).
+
+### Fixed
+
+- The daily streak now counts your local day, not the UTC day. Between local midnight and the zone offset (00:00–02:00 in Berlin in summer) a mission used to count for the day before, so a streak could break or fail to grow.
+- Briefings show their last line again. The plugin cut every line containing an arrow and a link; since the core dropped the dead "open to begin" line from all briefings, that filter only removed real content, such as the FRAGMENT-10 link in M-11.
+- Mission content fixes from the core: straightened ASCII frames in 58 files, wrong quarters in M-12, coordinates in M-02, a clearer objective for M-04, R-20's roster data, and the level-1 briefing of M-04 now names cut and put.
+
 ## [0.14.3] — 2026-10-14
 
 ### Fixed

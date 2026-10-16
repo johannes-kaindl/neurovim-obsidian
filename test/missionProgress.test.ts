@@ -11,6 +11,16 @@ describe('countMatchingLines', () => {
     expect(countMatchingLines('a\nX\nc', 'a\nb\nc')).toEqual({ matched: 2, total: 3 });
   });
 
+  it('does not lose matches when surplus lines sit in the middle (m08-voll: 40/45 must not drop to 38/45)', () => {
+    // Two surplus lines shifted every later line by two: positional compare counted 1. Aligned: all 5 solution lines are found.
+    expect(countMatchingLines('a\nX\nY\nb\nc\nd\ne', 'a\nb\nc\nd\ne')).toEqual({ matched: 5, total: 5 });
+    expect(countMatchingLines('a\nb\nc\nd\ne', 'a\nb\nc\nd\ne')).toEqual({ matched: 5, total: 5 });
+    // Deleting a surplus line must not lower the count.
+    const before = countMatchingLines('a\nX\nY\nb\nc', 'a\nb\nc\nd\ne').matched;
+    const after = countMatchingLines('a\nY\nb\nc', 'a\nb\nc\nd\ne').matched;
+    expect(after).toBeGreaterThanOrEqual(before);
+  });
+
   it('measures against the solution length when lines are missing', () => {
     expect(countMatchingLines('a\nb', 'a\nb\nc\nd')).toEqual({ matched: 2, total: 4 });
   });
@@ -41,7 +51,8 @@ describe('countMatchingLines', () => {
   });
 
   it('keeps a lone leading rule as scored content', () => {
-    expect(countMatchingLines('---\na', 'a')).toEqual({ matched: 0, total: 1 });
+    expect(countMatchingLines('---\na', '---\na')).toEqual({ matched: 2, total: 2 });
+    expect(countMatchingLines('a', '---\na')).toEqual({ matched: 1, total: 2 });
   });
 });
 

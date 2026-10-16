@@ -1,8 +1,8 @@
 import { localDate } from './vendor/kit/local-stamp';
 import {
-  MissionEngine, MetricsTracker, ProgressionEngine, getDivergentLines, normalizeMissionText,
+  MissionEngine, MetricsTracker, completeMission, getDivergentLines, normalizeMissionText,
 } from '@neurovim/core';
-import type { PluginData, RunResult, DiffResult, MissionRecord, TraceEvent } from '@neurovim/core';
+import type { PluginData, RunResult, DiffResult, MissionRecord, TraceEvent, CompletedMission } from '@neurovim/core';
 import type { BundledContent } from './content/BundledContent';
 import type { ClockPort } from './vendor/kit-obsidian/clock';
 import { RunTimer } from './RunTimer';
@@ -34,21 +34,6 @@ type SubmitResult =
   | { ok: true; result: RunResult; unverified: boolean }
   | { ok: false; diff: DiffResult };
 
-/**
- * Bump run bookkeeping without touching best scores. Used for unverified runs, because
- * `ProgressionEngine.recordMissionRun` reads a 0 as "no value yet" (`cur > 0 ? min : next`)
- * and would adopt it as an unbeatable best — exactly the corruption seen on 2026-07-23.
- */
-function bumpRunOnly(prev: MissionRecord | undefined, today: string): MissionRecord {
-  return {
-    best_time_ms: prev?.best_time_ms ?? 0,
-    best_keystrokes: prev?.best_keystrokes ?? 0,
-    best_ks_per_min: prev?.best_ks_per_min ?? 0,
-    runs: (prev?.runs ?? 0) + 1,
-    last_run: today,
-  };
-}
-
 export class MissionSession {
   readonly metrics: MetricsTracker;
   private readonly timer: RunTimer;
@@ -59,7 +44,7 @@ export class MissionSession {
   private _notePath: string | null = null;
   private _corrupted = '';
   private _solution = '';
-  private _xpReward = 0;
+  private _mission: CompletedMission | null = null;
 
   constructor(private readonly deps: MissionSessionDeps) {
     this.timer = new RunTimer(deps.clock);
@@ -120,7 +105,12 @@ export class MissionSession {
     this._notePath = path;
     this._corrupted = doc.transmissionBody;
     this._solution = doc.solution;
-    this._xpReward = doc.xp_reward;
+    this._mission = {
+      mission_id: id,
+      xp_reward: doc.xp_reward,
+      par_keystrokes: doc.par_keystrokes,
+      difficulty: doc.difficulty,
+    };
     this._state = 'active';
     this._pausedAt = null;
     this.metrics.reset();
@@ -153,30 +143,20 @@ export class MissionSession {
     if (!diff.matches) return { ok: false, diff };
 
     const metrics = this.metrics.getResult(elapsed);
-    // No keystroke means the solution was not typed (paste, already-solved note, foreign
-    // sync). The win counts, the record does not.
-    const unverified = metrics.keystrokes === 0;
     const today = localDate(new Date(this.deps.clock.now()));
     const data = this.deps.getData();
     const old: MissionRecord | undefined = data.missions[this._id];
-    const record = unverified
-      ? bumpRunOnly(old, today)
-      : ProgressionEngine.recordMissionRun(old, metrics, today);
-    let next: PluginData = { ...data, missions: { ...data.missions, [this._id]: record } };
-
-    const { new_data } = ProgressionEngine.addXp(next, this._xpReward);
-    next = ProgressionEngine.recordCompletion(new_data);
-    if (!next.completed_missions.includes(this._id)) {
-      next = { ...next, completed_missions: [...next.completed_missions, this._id] };
-    }
-    await this.deps.setData(next);
+    // Scoring (XP, streak on the local day, bests, no bests without a keystroke) is the core's.
+    const done = completeMission(data, this._mission ?? { mission_id: this._id, xp_reward: 0 }, metrics, today);
+    const unverified = done.unverified;
+    await this.deps.setData(done.data);
 
     const result: RunResult = {
       mission_id: this._id,
       elapsed_ms: metrics.elapsed_ms,
       keystrokes: metrics.keystrokes,
       ks_per_min: metrics.ks_per_min,
-      xp_earned: this._xpReward,
+      xp_earned: done.xp,
       is_new_best_time: !unverified && (!old || metrics.elapsed_ms < old.best_time_ms),
       is_new_best_ks: !unverified && (!old || metrics.keystrokes < old.best_keystrokes),
       delta_time_ms: old ? metrics.elapsed_ms - old.best_time_ms : 0,

@@ -4,7 +4,7 @@
 > Standalone, Community-Store-ready Obsidian plugin. Vendored game logic from `neurovim-standalone` monorepo.
 
 > **Workspace standards (maintainer-local):** The binding conventions live in `_docs/CONVENTIONS.md`
-> in the maintainer's multi-project workspace, `../../_docs` relative to this repo — not part of this
+> in the maintainer's multi-project workspace, `../../workspace/_docs` relative to this repo — not part of this
 > repo, ignore if absent in your clone. Model: comply-or-explain.
 
 ## Stack

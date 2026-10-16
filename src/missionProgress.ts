@@ -1,4 +1,4 @@
-import { normalizeMissionText } from '@neurovim/core';
+import { getDiff, normalizeMissionText } from '@neurovim/core';
 
 /** How many solution lines the note currently reproduces. */
 export interface LineProgress {
@@ -8,19 +8,17 @@ export interface LineProgress {
 }
 
 /**
- * Count positionally matching lines. Normalizes exactly like the vendored `getDiff`
- * (frontmatter a vault plugin added, surrounding blank lines and trailing whitespace are
- * not scored), so the counter can never claim "16/16" for a body that submit rejects —
- * nor "0/16" for a body submit accepts.
+ * Count the solution lines the note reproduces, aligned like the vendored `getDiff` (longest
+ * common subsequence): a line the player deleted or inserted does not shift every later line
+ * out of place. Normalizes the same way (frontmatter a vault plugin added, surrounding blank
+ * lines and trailing whitespace are not scored), so the counter can never claim "16/16" for a
+ * body that submit rejects — nor "0/16" for a body submit accepts.
  */
 export function countMatchingLines(current: string, solution: string): LineProgress {
   const cur = normalizeMissionText(current).lines;
   const sol = normalizeMissionText(solution).lines;
-  let matched = 0;
-  for (let i = 0; i < sol.length; i++) {
-    if (cur[i] === sol[i]) matched++;
-  }
-  return { matched, total: sol.length };
+  const { lines_off } = getDiff(current, solution);
+  return { matched: Math.max(cur.length, sol.length) - lines_off, total: sol.length };
 }
 
 /**
