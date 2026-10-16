@@ -46,6 +46,10 @@ import { createBilanz, parseArgs, runDriver, Vorbedingung } from "../../tools/ob
 import { buildHerkunft, buildVault, requireEigenerBuild, stagingVaultDir } from "../../tools/obsidian-cdp/vault.js";
 
 const PLUGIN_ID = "neurovim";
+/** R7c: ein Gemma-4-Modellname (die Familie liest der Kit aus dem Namen) und die gemma-förmige Antwort des Stubs. */
+const GEMMA_MODELL = "google/gemma-4-e4b";
+const GEMMA_ANTWORT = "Use dw to delete a word.";
+const GEMMA_STUECKE = ["Thinking Process:\n", "1. The user wants a debrief.\n2. Keep it short.\n", "<channel|>", "Use dw ", "to delete a word."];
 /** src/HubView.tsx: VIEW_TYPE_NEUROVIM */
 const HUB_VIEW = "neurovim-hub";
 /** CRT-Akzent aus styles.css (.nv-crt --nv-accent). Der Reader muss ihn tragen. */
@@ -73,6 +77,7 @@ const GRUPPEN = {
     "R4-4 Tier-Farben lesbar in allen vier Schema/Theme-Kombinationen",
     "R4-3 Result-Modal trägt Badge und Par",
     "R4-5 Aktionsleiste bleibt bei langem Debrief-Text erreichbar",
+    "R7c Gemma-förmige Antwort: Debrief zeigt nur die Antwort, das Denken ist weg",
   ],
   hilfe: ["R6 Hilfe-Zeile steht als erste Zeile der Einstellungen, mit Doku-Knopf und Bug-Icon"],
   body: [
@@ -716,6 +721,7 @@ async function checkMasteryTier(cdp: Cdp, vault: string | undefined): Promise<vo
   // Keydown im Capture-Pfad an (so zählt das Plugin), der Text als Datei-Schreibvorgang,
   // denn `submit()` liest die Notiz aus dem Vault, nicht aus dem Editor.
   const KEYS = 18; // < par 20 → Gold
+  let gemmaStub: Awaited<ReturnType<typeof startLlmStub>> | null = null;
   try {
     // Kein Result-Modal darf vor dem Lauf offen sein — sonst misst der Prüfpunkt ein
     // liegen gebliebenes Modal (mit Badge) statt des neuen. Gemessen 2026-09-03: die
@@ -734,6 +740,17 @@ async function checkMasteryTier(cdp: Cdp, vault: string | undefined): Promise<vo
     if (stale > 0) {
       throw new Vorbedingung(`${stale} Result-Modal(e) ließen sich vor dem Lauf nicht schließen`);
     }
+    // R7c: ein Fake-Endpunkt antwortet gemma-förmig (Denken OHNE Öffner im `content`, dann `<channel|>`, dann die
+    // Antwort). Er muss VOR dem Abschluss stehen, denn das Result-Modal bekommt den Debrief-Knopf beim Öffnen.
+    gemmaStub = await startLlmStub({ models: [GEMMA_MODELL], standard: { stuecke: GEMMA_STUECKE } });
+    await cdp.evaluate(`
+      const p = app.plugins.plugins[${JSON.stringify(PLUGIN_ID)}];
+      window.__nvGemmaVorher = { eps: JSON.parse(JSON.stringify(p.settings.llmEndpoints)), traces: p.settings.recordTraces };
+      p.settings.llmEndpoints = [{ url: ${JSON.stringify(gemmaStub.url)}, model: ${JSON.stringify(GEMMA_MODELL)} }];
+      p.settings.recordTraces = true;
+      p.llm.invalidate();
+      return true;
+    `);
     await cdp.evaluate(`
       const p = app.plugins.plugins[${JSON.stringify(PLUGIN_ID)}];
       await p.beginMission(${JSON.stringify(PAR_MISSION)});
@@ -783,6 +800,34 @@ async function checkMasteryTier(cdp: Cdp, vault: string | undefined): Promise<vo
         : modalOk ? `"${modal.text}" nach ${typed} gezählten Anschlägen`
         : `Badge ${modal.tier ?? "fehlt"}, Text "${modal.text}", Anschläge ${typed}`,
     );
+
+    // --- R7c: gemma-förmige Antwort über den echten Weg (Knopf → Plugin → Adapter → Modal) ---------
+    // Der Kit-Client liefert das Denken zuerst als Antwort-Token und nimmt es mit `onContentReset` zurück, sobald
+    // `<channel|>` kommt. Bleibt der Reset zwischen Adapter und Modal hängen, steht das Denken bis zum Ende im Text.
+    if (modal) {
+      const rest = await cdp.evaluate<{ text: string; geklickt: boolean }>(`
+        const b = document.querySelector('.nv-result-modal .nv-btn-debrief');
+        if (b) b.click();
+        const t0 = Date.now();
+        while (Date.now() - t0 < 15000) {
+          await new Promise((r) => setTimeout(r, 200));
+          const s = document.querySelector('.nv-result-modal .nv-debrief-stream');
+          const txt = s ? s.textContent : '';
+          if (b && txt.includes(${JSON.stringify(GEMMA_ANTWORT)}) && !txt.includes('analysiert')) { await new Promise((r) => setTimeout(r, 500)); break; }
+        }
+        const s = document.querySelector('.nv-result-modal .nv-debrief-stream');
+        return { text: s ? s.textContent.trim() : '', geklickt: Boolean(b) };`);
+      const sauberG = rest.geklickt && rest.text === GEMMA_ANTWORT;
+      record(
+        "R7c Gemma-förmige Antwort: Debrief zeigt nur die Antwort, das Denken ist weg",
+        sauberG,
+        !rest.geklickt ? "kein Debrief-Knopf im Result-Modal (llmConfigured/recordTraces?)"
+          : sauberG ? `Anzeige "${rest.text}" nach Stub mit ${GEMMA_STUECKE.length} Häppchen (Denken, <channel|>, Antwort)`
+          : `Anzeige weicht ab: ${JSON.stringify(rest.text.slice(0, 160))}`,
+      );
+    } else {
+      unmeasured("R7c Gemma-förmige Antwort: Debrief zeigt nur die Antwort, das Denken ist weg", "kein Result-Modal aus R4-3");
+    }
 
     // --- R4-5: Aktionsleiste bleibt bei langem Debrief-Text erreichbar ---------------
     // Wirt-Eigenschaft aus der UI-Adoption-Task "stream-area" (kein Kit-Modul liefert sie):
@@ -837,6 +882,12 @@ async function checkMasteryTier(cdp: Cdp, vault: string | undefined): Promise<vo
       unmeasured("R4-5 Aktionsleiste bleibt bei langem Debrief-Text erreichbar", "kein Result-Modal aus R4-3");
     }
   } finally {
+    await cdp.evaluate(`
+      const p = app.plugins.plugins[${JSON.stringify(PLUGIN_ID)}];
+      const v = window.__nvGemmaVorher;
+      if (v) { p.settings.llmEndpoints = v.eps; p.settings.recordTraces = v.traces; p.llm.invalidate(); delete window.__nvGemmaVorher; }
+      return true;`).catch(() => undefined);
+    await gemmaStub?.stop().catch(() => undefined);
     // Modal schließen, einen hängen gebliebenen Lauf beenden, Missionsnotiz zumachen.
     await cdp.evaluate(`
       const p = app.plugins.plugins[${JSON.stringify(PLUGIN_ID)}];
