@@ -5,6 +5,8 @@ All notable changes to this project are documented here. Format loosely follows
 
 ## [Unreleased]
 
+## [0.15.0] — 2026-10-16
+
 ### Changed
 
 - Kit pins raised to obsidian-kit 0.61.0 / code-kit 0.28.0 (from 0.60.3 / 0.27.2). With Gemma 4 on LM Studio, "Denken aus" (thinking off) now sends the lowest level (`low`) for CIPHER, because LM Studio ignores `none` for that model and the thought would land in the answer. The debrief stays clean and the thought goes into the collapsible thinking block, but the model still thinks a little (a few tokens, a little time); the "Request" section says the setting cannot be fully switched off here. A backend or model family that this plugin's table does not know no longer throws; the Request section names it and sends only the standard fields. If the LLM Endpoint Manager is switched on after the plugin, the plugin now picks up its changes instead of staying blind for the session.
