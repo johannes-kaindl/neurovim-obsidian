@@ -2,7 +2,7 @@
  * Port: mount container for Preact UI trees.
  *
  * Decouples the Preact components from the question of WHERE they are mounted.
- * - vim-dojo (Obsidian): `ItemView` (sidebar), `Modal` (Result/LevelUp), MarkdownPostProcessor.
+ * - neurovim-obsidian: `ItemView` (HubView, sidebar), `Modal` (ResultModal).
  * - adapter-web: DOM `<div>` overlays / routes.
  *
  * The Preact components themselves (FloatHUD, SandboxHUD, *Module, modal contents)

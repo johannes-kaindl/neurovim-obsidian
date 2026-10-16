@@ -1,7 +1,7 @@
 /**
  * ContentPort — access to mission/lore content (ADR-001 §P4 / Decisions D3).
  *
- * - vim-dojo (Obsidian): Vault file API + path mapping from `data/chapters.ts`.
+ * - neurovim-obsidian: BundledContent — the vendored `@neurovim/content`, not the vault.
  * - adapter-web:      bundled `@neurovim/content` (Markdown→JSON build, D3).
  *
  * Provides both mission bodies (briefing/transmission) and lore artifacts

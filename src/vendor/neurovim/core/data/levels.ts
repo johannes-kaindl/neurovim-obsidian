@@ -7,10 +7,10 @@ export const LEVELS: Level[] = [
   { level: 4,  title: 'NEON WRAITH',      xp_required: 371,  color: '#aa44ff' },
   { level: 5,  title: 'CHROME RAVEN',     xp_required: 601,  color: '#00ff41' },
   { level: 6,  title: 'SIGNAL HUNTER',    xp_required: 800,  color: '#00ccff' },
-  { level: 7,  title: 'PROTOCOL READER',  xp_required: 1150, color: '#ff6600' },
-  { level: 8,  title: 'PATTERN BREAKER',  xp_required: 1550, color: '#cc00ff' },
-  { level: 9,  title: 'CIPHER ANALYST',   xp_required: 2000, color: '#ff0066' },
-  { level: 10, title: 'SIGNAL ARCHITECT', xp_required: 2500, color: '#ffffff' },
+  { level: 7,  title: 'PROTOCOL READER',  xp_required: 900,  color: '#ff6600' },
+  { level: 8,  title: 'PATTERN BREAKER',  xp_required: 1150, color: '#cc00ff' },
+  { level: 9,  title: 'CIPHER ANALYST',   xp_required: 1300, color: '#ff0066' },
+  { level: 10, title: 'SIGNAL ARCHITECT', xp_required: 1500, color: '#ffffff' },
 ];
 
 export const UNLOCK_MAP: Record<number, { missions: string[]; loot: string[] }> = {

@@ -16,6 +16,14 @@ export function countsAsKeystroke(key: string): boolean {
   return !MODIFIER_KEYS.has(key);
 }
 
+/** A run's metrics from its keystroke count and duration — keystrokes per minute rounded to
+ *  one decimal. Pure, so a port that counts keys elsewhere (the Neovim plugin) computes the
+ *  same number; MetricsTracker.getResult delegates to it. */
+export function metricsResult(keystrokes: number, elapsed_ms: number): MetricsResult {
+  const ks_per_min = elapsed_ms > 0 ? Math.round((keystrokes / elapsed_ms) * 60_000 * 10) / 10 : 0;
+  return { elapsed_ms, keystrokes, ks_per_min };
+}
+
 /** Counting and recording for one mission run. Both are driven by the injected clock, so
  *  elapsed time and event timestamps share a single baseline set in `start()`. */
 export class MetricsTracker {
@@ -64,8 +72,6 @@ export class MetricsTracker {
   }
 
   getResult(elapsed_ms?: number): MetricsResult {
-    const ms = elapsed_ms ?? this.getElapsedMs();
-    const ks_per_min = ms > 0 ? Math.round((this._keystrokes / ms) * 60_000 * 10) / 10 : 0;
-    return { elapsed_ms: ms, keystrokes: this._keystrokes, ks_per_min };
+    return metricsResult(this._keystrokes, elapsed_ms ?? this.getElapsedMs());
   }
 }

@@ -112,9 +112,13 @@ export interface MissionState {
   drill_count: number;
 }
 
+/** What `getDiff` reports: the player's text against the solution, both normalized first (frontmatter, surrounding blank lines and trailing whitespace ignored). */
 export interface DiffResult {
+  /** True when the normalized texts are identical. */
   matches: boolean;
+  /** Length of the common prefix of the normalized lines, i.e. the 0-based normalized-line index where the texts first differ; -1 when they match. Not a document line: `normalizeMissionText` gives the offset. */
   first_divergent_line: number;
+  /** The longer text's line count minus the longest common subsequence of the two texts' lines, so an inserted or deleted line costs one; 0 when they match. Past `LCS_CELL_LIMIT` the unaligned middle counts as no common lines. */
   lines_off: number;
 }
 

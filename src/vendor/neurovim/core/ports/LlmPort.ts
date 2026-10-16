@@ -1,8 +1,9 @@
 /**
  * LlmPort — one streaming completion against a language model (ADR-001 §P5).
  *
- * - vim-dojo (Obsidian): CipherClient + endpointResolver + XhrSseTransport.
- * - a future web/nvim consumer: fetch + EventSource, or a local process.
+ * - neurovim-obsidian: CorePortAdapter over CipherClient (obsidian-kit chat client) + EndpointResolver.
+ * - adapter-web: WebLlm over the vendored code-kit `llm-stream` (fetch + SSE).
+ * - a future nvim consumer: a local process.
  *
  * Deliberately transport-neutral: endpoint resolution, retry, model choice,
  * auth and reasoning suppression all live *behind* `complete()`. The core
