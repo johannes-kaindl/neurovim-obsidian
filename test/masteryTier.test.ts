@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { authoredPar, bestTier } from '../src/masteryTier';
 import type { MissionRecord, MissionSummary } from '@neurovim/core';
+import { BundledContent } from '../src/content/BundledContent';
 
 function mission(over: Partial<MissionSummary> = {}): MissionSummary {
   return {
@@ -35,5 +36,13 @@ describe('bestTier', () => {
 
   it('stays silent for a mission never played', () => {
     expect(bestTier(mission({ par_keystrokes: 22 }), undefined)).toBeNull();
+  });
+});
+
+describe('bundled content (core 0.2.8)', () => {
+  it('every mission carries a measured par, so every played mission gets a tier', async () => {
+    const all = await new BundledContent().listMissions();
+    expect(all.length).toBe(54);
+    expect(all.filter((m) => authoredPar(m) === null).map((m) => m.mission_id)).toEqual([]);
   });
 });

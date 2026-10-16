@@ -68,7 +68,7 @@ const GRUPPEN = {
     "R2-4 Kopier-Knopf ist ausgeblendet",
   ],
   wertung: [
-    "R4-1 Chip nur bei autorisiertem Par",
+    "R4-1 Chip nur bei gespielter Mission mit Bestwert",
     "R4-2 Chip bricht die Missionszeile nicht um",
     "R4-4 Tier-Farben lesbar in allen vier Schema/Theme-Kombinationen",
     "R4-3 Result-Modal trägt Badge und Par",
@@ -545,9 +545,9 @@ async function checkReader(cdp: Cdp): Promise<void> {
 // --- R4: Wertungs-Anzeige (ParTier) — nur im Staging-Vault ------------------------
 
 const STAGING_VAULT = "neurovim-obsidian";
-/** Mission mit autorisiertem Par (22) und gespieltem Bestwert (20 → Gold) im Fixture. */
+/** Mission mit gemessenem Par (20, Kern 0.2.8) und gespieltem Bestwert (20 → Gold) im Fixture. */
 const PAR_MISSION = "KATA-12";
-/** Mission ohne autorisiertes Par — darf NIE einen Chip tragen, egal was gespielt wurde. */
+/** Mission ohne Bestwert im Fixture (seit Kern 0.2.8 hat jede Mission ein Par) — darf keinen Chip tragen. */
 const NO_PAR_MISSION = "M-01";
 
 /**
@@ -593,7 +593,7 @@ async function checkMasteryTier(cdp: Cdp, vault: string | undefined): Promise<vo
     throw new Vorbedingung("MISSIONS-Tab nicht gefunden");
   }
 
-  // --- R4-1: Chip nur dort, wo jemand ein Par autorisiert hat ---------------------
+  // --- R4-1: Chip nur dort, wo ein Bestwert gespielt ist (Par haben seit 0.2.8 alle) ---------------------
   const rows = await cdp.evaluate<{
     par: { found: boolean; chip: string | null; height: number; chipTop: number; xpTop: number; chipMitte: number; xpMitte: number; chipH: number; xpH: number; metaRight: number; chipRight: number } | null;
     noPar: { found: boolean; chip: string | null; height: number } | null;
@@ -621,7 +621,7 @@ async function checkMasteryTier(cdp: Cdp, vault: string | undefined): Promise<vo
   }
   const chipOk = rows.par.chip !== null && rows.par.chip.includes("nv-tier-gold") && rows.noPar.chip === null;
   record(
-    "R4-1 Chip nur bei autorisiertem Par",
+    "R4-1 Chip nur bei gespielter Mission mit Bestwert",
     chipOk,
     chipOk
       ? `${PAR_MISSION} trägt nv-tier-gold, ${NO_PAR_MISSION} trägt keinen Chip`
@@ -715,7 +715,7 @@ async function checkMasteryTier(cdp: Cdp, vault: string | undefined): Promise<vo
   // Ein echter Lauf, weil das Badge an `unverified` hängt: die Tastenanschläge kommen als
   // Keydown im Capture-Pfad an (so zählt das Plugin), der Text als Datei-Schreibvorgang,
   // denn `submit()` liest die Notiz aus dem Vault, nicht aus dem Editor.
-  const KEYS = 18; // < par 22 → Gold
+  const KEYS = 18; // < par 20 → Gold
   try {
     // Kein Result-Modal darf vor dem Lauf offen sein — sonst misst der Prüfpunkt ein
     // liegen gebliebenes Modal (mit Badge) statt des neuen. Gemessen 2026-09-03: die
@@ -775,7 +775,7 @@ async function checkMasteryTier(cdp: Cdp, vault: string | undefined): Promise<vo
       20_000,
       200,
     );
-    const modalOk = Boolean(modal) && modal!.tier !== null && modal!.tier.includes("nv-tier-gold") && modal!.text.includes("PAR 22");
+    const modalOk = Boolean(modal) && modal!.tier !== null && modal!.tier.includes("nv-tier-gold") && modal!.text.includes("PAR 20");
     record(
       "R4-3 Result-Modal trägt Badge und Par",
       modalOk,

@@ -38,4 +38,9 @@ describe('BundledContent', () => {
     expect(unlockable.length).toBeGreaterThan(0);
     for (const id of unlockable) expect(lootIds).toContain(id);
   });
+
+  it('M-11 briefing keeps its FRAGMENT-10 link line (nothing cuts arrow lines any more)', async () => {
+    const doc = await new BundledContent().getMission('M-11');
+    expect(doc.briefingBody).toContain('[[_content/FRAGMENTS/FRAGMENT-10');
+  });
 });
