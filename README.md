@@ -209,9 +209,10 @@ scans with — at `--max-warnings 0`. Manual smoke test:
 
 Before opening a pull request, please read
 [`CONTRIBUTING.md`](https://github.com/johannes-kaindl/neurovim-obsidian/blob/main/CONTRIBUTING.md) —
-in particular which changes belong here and which belong in the monorepo. Architecture,
-conventions and known gotchas live in
-[`AGENTS.md`](https://github.com/johannes-kaindl/neurovim-obsidian/blob/main/AGENTS.md).
+in particular which changes belong here and which belong in the monorepo. Conventions live in
+[`AGENTS.md`](https://github.com/johannes-kaindl/neurovim-obsidian/blob/main/AGENTS.md), the architecture in
+[`docs/internal/architecture.md`](https://github.com/johannes-kaindl/neurovim-obsidian/blob/main/docs/internal/architecture.md), the known gotchas per area in
+[`.claude/rules/`](https://github.com/johannes-kaindl/neurovim-obsidian/tree/main/.claude/rules).
 
 ## Release
 

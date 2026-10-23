@@ -217,8 +217,10 @@ Community-Store prüft — bei `--max-warnings 0`. Manueller Smoke-Test:
 Vor einem Pull Request bitte
 [`CONTRIBUTING.md`](https://github.com/johannes-kaindl/neurovim-obsidian/blob/main/CONTRIBUTING.md)
 lesen — vor allem, welche Änderungen hierher gehören und welche ins Monorepo. Architektur,
-Konventionen und bekannte Fallstricke stehen in
-[`AGENTS.md`](https://github.com/johannes-kaindl/neurovim-obsidian/blob/main/AGENTS.md).
+Konventionen stehen in
+[`AGENTS.md`](https://github.com/johannes-kaindl/neurovim-obsidian/blob/main/AGENTS.md), die Architektur in
+[`docs/internal/architecture.md`](https://github.com/johannes-kaindl/neurovim-obsidian/blob/main/docs/internal/architecture.md), die bekannten Fallstricke je Bereich in
+[`.claude/rules/`](https://github.com/johannes-kaindl/neurovim-obsidian/tree/main/.claude/rules).
 
 ## Release
 

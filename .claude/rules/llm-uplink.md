@@ -1,0 +1,22 @@
+---
+paths:
+  - "src/llm/**"
+  - "src/main.ts"
+  - "src/settings.ts"
+  - "src/SettingsTab.ts"
+  - "src/CipherChat.tsx"
+  - "src/result/**"
+  - "test/connection.test.ts"
+  - "test/CorePortAdapter.test.ts"
+  - "test/request-golden.test.ts"
+  - "test/debriefSettings.test.ts"
+  - "scripts/debrief-lab/**"
+---
+
+# LLM-Anbindung (CIPHER-Uplink) — Gotchas
+
+Gotchas zu Endpunkt-Konfiguration, Kit-Verbindung und Anfragewerten. Nummerierung wie früher in der `AGENTS.md` (4, 4b, 4c), damit Verweise im Cockpit weiter stimmen.
+
+4. **Endpoint config is per-endpoint** — `llmEndpoints` is `EndpointConfig[]` (url + optional key + optional model override); there is no global model. The connection (`plugin.llm`, 4b) reads it through `getSettings()` and remembers its resolution until `llm.invalidate()` — it invalidates itself after every list or choice change, so `saveSettings()` does NOT (and must not: the connection calls `persist` from inside `resolve()`). Code that sets `settings.llmEndpoints` directly (smoke driver, shots) calls `plugin.llm.invalidate()` itself. API keys live in Obsidian's keychain (`secretId` on the row, `minAppVersion` 1.11.4); a plaintext key in `data.json` migrates on the first resolve.
+4b. **The LLM connection is the kit's `createLlmConnection` (Welle 15, 2026-10-09)** — `plugin.llm` (`src/main.ts`) owns endpoint source (LLM Endpoint Manager when installed, found fresh on every resolve, else the local list), remembered resolution, model lists, request values, client with time limits (first chunk 600 s), response check and the settings sections. `persist` writes the patch (`endpoints` → `llmEndpoints`, `choice`, `request`) into the settings synchronously and then calls `this.persist()`, never `saveSettings()` (that repaints). `settings.choice` counts only with the manager. `plugin.llmConfigured()` = manager installed OR every local endpoint has a model. The settings tab draws source, list and the "Request" section with `llm.renderSettings(host)` in one hatch with a host of its own (it empties its container on redraw); `hide()` calls `llm.hideSettings()`. The context length is the kit's line on each endpoint row (`.okit-ep-context`, drawn by `renderSettings`; the plugin has no context lookup of its own since 0.14.0); GUI-Smoke W4 measures it on two fake endpoints with a counter-probe (a server that names no number gets no line). GUI-Smoke R5-1..3 put a fake manager into the plugin slot and restore it in `finally` and in the abort handler; W1–W3 measure key-in-keychain, Bearer header and redaction on the wire.
+4c. **CIPHER's request values come from the kit's profile table, not from constants** — the plugin decides only the fixed mode `companion` and the token budget `CIPHER_MAX_TOKENS` (1024), both in `src/llm/cipherRequest.ts`; temperature, top_p, top_k and reasoning_effort come from the connection (model family × backend plus the user's overrides in `settings.request`, thinking level in `request.thinking.companion`). `CorePortAdapter` (`src/llm/CorePortAdapter.ts`) fulfils the core's `LlmPort` over `llm.complete`: uplink off unless configured, empty-model guard, one retry after a `network` failure on a fresh resolution, `no-endpoint`/`network` → `unavailable`. Reasoning is never shown (`onReasoning` left out), `truncated: 'error'`. The old switch `llmSuppressThinking` migrates once to `request.thinking.companion` (the kit's `loadRequestSettings(raw, REQUEST_MIGRATIONS)`; the migration callback lives in `src/settings.ts`). Golden requests live in `test/request-golden.test.ts` and read the body off the wire through `createLlmConnection` with an injected transport. A smoke stub for CIPHER patches `plugin.llm.resolve`, `invalidate` and `complete` (R3); N2 measures the body against a fake endpoint, N1 operates the settings section.

@@ -98,7 +98,7 @@ it you can still build and test against the committed snapshot.
 - `src/vendor/**` is linted under the same rules as first-party code. If lint breaks after a
   re-vendor, the fix belongs in the monorepo — never an override here.
 
-Architecture, conventions, and known gotchas are documented in [`AGENTS.md`](AGENTS.md).
+The conventions are documented in [`AGENTS.md`](AGENTS.md), the architecture in [`docs/internal/architecture.md`](docs/internal/architecture.md), and the known gotchas per area in [`.claude/rules/`](.claude/rules/).
 
 ### Releases (maintainer only)
 

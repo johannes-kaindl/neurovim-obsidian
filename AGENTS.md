@@ -7,14 +7,16 @@
 > in the maintainer's multi-project workspace, `../../workspace/_docs` relative to this repo — not part of this
 > repo, ignore if absent in your clone. Model: comply-or-explain.
 
-## Stack
+## Project character
 
-- **Language:** TypeScript (ES2018, strict, JSX via Preact)
-- **UI:** Preact (react-jsx, preact/compat aliasing) + CodeMirror 6 (provided by Obsidian at runtime)
-- **Build:** esbuild → `main.js` (CJS, tree-shaking, inline sourcemaps in dev)
-- **Tests:** Vitest (node environment) — `test/obsidian-mock.ts` mocks the Obsidian API
-- **Plugin ID:** `neurovim` (display name: "NeuroVim")
-- **License:** AGPL-3.0-or-later
+Plugin ID `neurovim` (display name "NeuroVim"), AGPL-3.0-or-later. TypeScript (ES2018, strict) with Preact (react-jsx, preact/compat aliasing) for the UI and CodeMirror 6 provided by Obsidian at runtime. esbuild bundles to `main.js`; tests run in Vitest (node environment, `test/obsidian-mock.ts` mocks the Obsidian API). The game logic is a pinned snapshot from the `neurovim-standalone` monorepo. Why, and the layout: `docs/internal/decisions.md`, `docs/internal/architecture.md`.
+
+## Architecture principles
+
+- **Security invariant:** vim-dojo **never** touches files outside the configured mission folder. Critical for Community Store review.
+- **The monorepo owns the game logic.** Fix it there, then `npm run vendor`; never edit `src/vendor/neurovim/` by hand.
+- **CM6 packages are external** — never bundle `@codemirror/*`; Obsidian provides them at runtime.
+- **Kit first:** the LLM connection is the kit's `createLlmConnection`; UI follows `../UI-STANDARD.md`.
 
 ## Commands
 
@@ -22,137 +24,59 @@
 |--------|---------|------|
 | Dev | `npm run dev` | esbuild watch mode (Obsidian reloads on save) |
 | Build | `npm run build` | Production bundle (no sourcemaps) |
-| Typecheck | `npm run typecheck` | `tsc --noEmit` (src/ only — test/ not included) |
+| Typecheck | `npm run typecheck` | `tsc --noEmit` (`src/`); `npm run typecheck:test` and `npm run typecheck:scripts` cover `test/` and the drivers |
 | Lint | `npm run lint` | Store gate: `eslint src --max-warnings 0` |
-| Gate | `npm run gate` | lint + typecheck + test + build — run before every release |
-| Tests | `npm run test` | Vitest run all |
-| Tests (watch) | `npm run test:watch` | Vitest watch mode |
+| Gate | `npm run gate` | lint + typecheck (src, test, scripts) + test + build — run before every release |
+| Tests | `npm run test` / `npm run test:watch` | Vitest run all / watch |
+| GUI smoke | `npm run smoke:gui -- --port <p>` | against a second instance; `--setup` builds the staging vault first; recipe in the driver head and `docs/SMOKE.md` |
+| README images | `npm run shots` | recipe in `docs/images/README.md` |
 | Vendor sync | `npm run vendor` | Pull core+content snapshot from neurovim-standalone monorepo |
 | Preflight | `npm run preflight <version>` | Store checklist (manifest, LICENSE, versions.json, remotes) |
 | Version bump | `npm run version-bump <version>` | package.json + manifest.json + versions.json |
-| Release | `npm run release <version>` | Dual push (Forgejo + GitHub), changelog, tags |
+| Release | `npm run release <version>` | Dual push (Forgejo + GitHub), changelog, tags — only the master session |
 
 > Release tooling lives centrally in `../tools/release/` — this repo only delegates. A clone
 > without the `obsidian-plugins/` parent directory can build and test, but not release.
 
-## Repo structure
+## Conventions
 
-```
-src/                    — plugin source (flat, no deep nesting)
-  main.ts               — Plugin entry point (NeuroVimPlugin)
-  HudMount.ts           — HUD mounting/unmounting lifecycle
-  MissionHud.tsx        — HUD component (Preact)
-  MissionSession.ts     — Session state: start/verify/reset/end/XP
-  ObsidianHudDom.ts     — DOM placement (host-relative, not activeDocument)
-  ObsidianMissionApp.ts — Editor integration (CM6 + vim mode)
-  SettingsTab.ts        — Settings UI (collapsible sections)
-  HubView.tsx           — Plugin pane (NEXUS/MISSIONS/GUIDE/UPLINK tabs)
-  llm/                  — CIPHER uplink (core port adapter, request mode/budget, request-dropped notice); the connection itself is the kit's `createLlmConnection` (vendored)
-  storage/              — ObsidianStorage (PluginData CRUD)
-  result/               — Result modal (post-submit)
-  briefing/             — Mission briefing modal
-  content/              — Content port adapter
-  vendor/neurovim/      — Vendored from neurovim-standalone (core + content)
-test/                   — Vitest tests + obsidian-mock
-scripts/                — vendor-neurovim.mjs (release tooling is central, see Commands)
-```
+- Changelog: write entries under `## [Unreleased]` only — the release tool auto-generates version headers.
+- Commits, branches and the trailer follow `CORE-GIT-04..06`; the lint gate (`check-no-inline-disables.mjs`, PROF-TS-05) forbids inline `eslint-disable`.
 
-## Vendor model
+## Gotchas
 
-- `src/vendor/neurovim/` is a **pinned snapshot** from `neurovim-standalone` monorepo
-- Monorepo (`neurovim-standalone`, checked out at `~/Projects/jkaindl/apps/neurovim`, override with `NEUROVIM_MONOREPO`) is the **SSOT** for game logic
-- Pin tracked in `src/vendor/neurovim/VENDOR.json` (commit SHA + version)
-- To sync: fix in monorepo → `npm run vendor` → verify → commit vendor + VENDOR.json
-- The script copies **every** top-level `.ts` of `packages/content/src` (plus `generated/`) —
-  a hardcoded file list used to drop new modules, leaving imports unresolvable
-- tsconfig/esbuild alias `@neurovim/core` and `@neurovim/content` → vendor paths
+The gotchas to one area live in `.claude/rules/` and load when a file there is read (see Context index). Two apply to the whole repo:
 
-## Coding conventions
+- **A paused mission must not count keys:** guard on `MissionSession.state === 'active'`, not on "a mission exists".
+- **Code that sets `settings.llmEndpoints` directly** (smoke driver, shots) calls `plugin.llm.invalidate()` itself; `saveSettings()` does not.
 
-### DOM creation
-- **Always** use Obsidian's shorthand helpers: `el.createDiv()`, `el.createSpan()`, `el.createEl('p')`
-- **Never** `el.createEl('div')` — Store Lint `prefer-create-el` flags it (the rule's tests contradict its README; trust the tests)
-- HUD container: build on `host.createDiv()` (inherits host's document), NOT `activeDocument`
+## Context index
 
-### Event wiring (transient elements)
-- Input fields: commit on **`blur`**, NOT `onChange` (Obsidian fires onChange per keystroke → garbage entries)
-- List item handlers: resolve by **value**, NOT render index (list mutations make stale indices delete wrong items)
-- `Component.registerDomEvent`: only for elements that live as long as the Component. For transient/re-rendered elements use plain `addEventListener` (GC'd when detached)
-
-### Timeouts / clocks
-- Use `ClockPort` injection (never `window.setTimeout` directly) — makes timeout paths testable under Vitest
-- Mission run time lives in `RunTimer` (ClockPort-injected, pausable); the vendored `MetricsTracker` cannot pause and is keystroke-only
-
-### Mission lifecycle
-- `MissionSession.state` is `idle | active | paused` — guard on `state === 'active'`, not on "a mission exists", or a paused mission counts keys typed elsewhere
-- Presence comes from the **active** note (`resolvePresence`), not from "visible somewhere": Obsidian's Vim mode is global, so leaving the note must restore it
-
-### Settings
-- `display()` re-renders the entire tab (e.g. after "Test all") — persist UI state (collapsed sections) in PluginData
-- `mergeStoredSettings`: do NOT spread raw `data.json` into defaults — legacy fields reappear via spread
-- Changelog: write entries under `## [Unreleased]` only — the release tool auto-generates version headers
-
-### Obsidian API
-- `metadataCache.getFirstLinkpathDest(link, sourcePath)` — `sourcePath` must be per-item, NOT a shared closure
-- `app.readNote(path)` — async, may throw for inaccessible notes
-- Plugin data: `this.data` loaded in `loadData()`, saved via `saveData(this.data)` — always merge, never replace
-
-### Linting (store gate)
-- `eslint.config.mjs` runs `typescript-eslint` (type-checked) + `eslint-plugin-obsidianmd` — the
-  same plugin the Community Store scanner uses. Local lint ≈ what the store will report.
-- `--max-warnings 0` is mandatory: obsidianmd files most guideline rules as **warnings**, so
-  `eslint src` alone exits 0 on findings the store then flags in review
-- **No inline `// eslint-disable`** — exceptions go into `eslint.config.mjs` as an override with
-  a written justification. Exactly one exists: `ui/sentence-case` (off repo-wide — proper nouns
-  `NeuroVim`/`Vim`/`qwen3-8b`, a URL placeholder, and the deliberate CRT-caps aesthetic)
-- `src/vendor/**` is linted under the **same sharp rules** as own code. If lint breaks after
-  `npm run vendor`, fix it in the monorepo and re-vendor — never add an override here
-- Disabling a rule locally does **not** disable it in the store scan — expect those findings in
-  review and answer them with the justification from the config
-
-### Testing
-- Vitest runs in node environment — DOM tests use `makeFakeEl` mock helpers
-- `test/` is **not** in tsconfig's `include` — type-only imports on non-existent paths won't error
-- TDD for pure logic; Settings UI has no unit tests (review gate is the safety net)
-
-## Known gotchas
-
-1. **Plan reference code is untested** — bugs in plan examples propagate verbatim to implementation. Review gate catches what TDD misses.
-2. **`tsconfig` excludes `test/`** — type-only imports on non-existent paths in tests slip through silently
-3. **Settings are dual-path** — `getSettingDefinitions()` is the single truth (Obsidian 1.13+), `display()` → `renderImperative()` draws the same structure for ≤1.12. Add new rows to the definition groups, never to `display()` alone; text controls hand back strings, so coerce in `setControlValue`. Stateful CIPHER rows stay `render` hatches.
-4. **Endpoint config is per-endpoint** — `llmEndpoints` is `EndpointConfig[]` (url + optional key + optional model override); there is no global model. The connection (`plugin.llm`, 4b) reads it through `getSettings()` and remembers its resolution until `llm.invalidate()` — it invalidates itself after every list or choice change, so `saveSettings()` does NOT (and must not: the connection calls `persist` from inside `resolve()`). Code that sets `settings.llmEndpoints` directly (smoke driver, shots) calls `plugin.llm.invalidate()` itself. API keys live in Obsidian's keychain (`secretId` on the row, `minAppVersion` 1.11.4); a plaintext key in `data.json` migrates on the first resolve.
-4b. **The LLM connection is the kit's `createLlmConnection` (Welle 15, 2026-10-09)** — `plugin.llm` (`src/main.ts`) owns endpoint source (LLM Endpoint Manager when installed, found fresh on every resolve, else the local list), remembered resolution, model lists, request values, client with time limits (first chunk 600 s), response check and the settings sections. `persist` writes the patch (`endpoints` → `llmEndpoints`, `choice`, `request`) into the settings synchronously and then calls `this.persist()`, never `saveSettings()` (that repaints). `settings.choice` counts only with the manager. `plugin.llmConfigured()` = manager installed OR every local endpoint has a model. The settings tab draws source, list and the "Request" section with `llm.renderSettings(host)` in one hatch with a host of its own (it empties its container on redraw); `hide()` calls `llm.hideSettings()`. The context length is the kit's line on each endpoint row (`.okit-ep-context`, drawn by `renderSettings`; the plugin has no context lookup of its own since 0.14.0); GUI-Smoke W4 measures it on two fake endpoints with a counter-probe (a server that names no number gets no line). GUI-Smoke R5-1..3 put a fake manager into the plugin slot and restore it in `finally` and in the abort handler; W1–W3 measure key-in-keychain, Bearer header and redaction on the wire.
-4c. **CIPHER's request values come from the kit's profile table, not from constants** — the plugin decides only the fixed mode `companion` and the token budget `CIPHER_MAX_TOKENS` (1024), both in `src/llm/cipherRequest.ts`; temperature, top_p, top_k and reasoning_effort come from the connection (model family × backend plus the user's overrides in `settings.request`, thinking level in `request.thinking.companion`). `CorePortAdapter` (`src/llm/CorePortAdapter.ts`) fulfils the core's `LlmPort` over `llm.complete`: uplink off unless configured, empty-model guard, one retry after a `network` failure on a fresh resolution, `no-endpoint`/`network` → `unavailable`. Reasoning is never shown (`onReasoning` left out), `truncated: 'error'`. The old switch `llmSuppressThinking` migrates once to `request.thinking.companion` (the kit's `loadRequestSettings(raw, REQUEST_MIGRATIONS)`; the migration callback lives in `src/settings.ts`). Golden requests live in `test/request-golden.test.ts` and read the body off the wire through `createLlmConnection` with an injected transport. A smoke stub for CIPHER patches `plugin.llm.resolve`, `invalidate` and `complete` (R3); N2 measures the body against a fake endpoint, N1 operates the settings section.
-5. **CM6 packages are external** — never bundle `@codemirror/*`; Obsidian provides them at runtime
-
-## Cockpit
-
-- Location: `$VAULT/25_Coding/vim-dojo/vim-dojo.md` (maintainer-local, `$VAULT` = the maintainer's Obsidian vault)
-- Contains: status, current focus, decision log, session history
-- Base file: `vim-dojo.base` (Kanban board for tasks)
-- Logs: `_Log/<date>.md`
-- Tasks: `_Tasks/`
-
-## Remotes
-
-- **Primary:** `https://git.jkaindl.de/jkaindl/neurovim-obsidian` (origin)
-- **Mirror:** `https://github.com/johannes-kaindl/neurovim-obsidian` (github)
-- Dual push via `npm run release`
-
-## Security invariant
-
-vim-dojo **never** touches files outside the configured mission folder. Critical for Community Store review.
+- Before you read or change DOM, event wiring, timers (`ClockPort`) or Obsidian-API code under `src/` (including the result and briefing modals): `.claude/rules/obsidian-dom-ereignisse.md`.
+- Before you change mission state, the HUD, the run timer or presence (`src/MissionSession.ts`, `src/HudMount.ts`, `src/RunTimer.ts`): `.claude/rules/mission-lebenszyklus.md`.
+- Before you change settings, `SettingsTab.ts` or plugin data (`src/settings.ts`, `src/SettingsTab.ts`, `src/main.ts`, `src/storage/`): `.claude/rules/einstellungen.md`.
+- Before you change the LLM connection, CIPHER's request values or the endpoint config (`src/llm/`, `src/main.ts`, `src/settings.ts`, `src/SettingsTab.ts`): `.claude/rules/llm-uplink.md`.
+- Before you touch lint config, tsconfig or tests: `.claude/rules/lint-und-tests.md`.
+- Before you run `npm run vendor` or edit anything under `src/vendor/`: `.claude/rules/vendor.md`.
+- Before you change the module layout or the vendor model: `docs/internal/architecture.md`.
+- Before you take over a "decided on purpose" or a deviation from the guideline: `docs/internal/decisions.md`.
+- Before you run a GUI smoke against a second instance or build a driver: `docs/SMOKE.md`, `../.claude/rules/gui-smoke-treiber.md`, `../.claude/rules/obsidian-instanz.md`, `../.claude/rules/cdp-lock.md`.
+- Before you record README images: `docs/images/README.md`, `../.claude/rules/readme-shots.md`, skill `readme-shots`.
+- Before a release or a store submission: `../.claude/rules/release-und-store.md`, skills `plugin-release-setup` and `store-rescan`.
+- Before you change a `styles.css` or UI: `../.claude/rules/store-css.md`, `../.claude/rules/ui-bausteine.md`, `../UI-STANDARD.md`.
 
 ## Memory
 
-- **SDD artifacts (since 2026-07-16): cockpit, not repo** — specs/plans/task reports live in the
-  maintainer's coding cockpit (`$VAULT/25_Coding/vim-dojo/_SDD/`, CORE-META-14, maintainer-local).
-  They carry working context (vault paths, sister-repo internals) that is of no use to anyone in a
-  public repo. The repo keeps the design essence in this file + `CHANGELOG.md`.
-- **Legacy:** Specs and plans live in the maintainer's Vault cockpit under `_SDD/` (CORE-META-14); `docs/superpowers/` no longer exists in the repo — do not add anything new there.
-- **Never in the repo:** absolute paths outside the repo (`/Users/…`, vault paths) — use placeholders
-  (`$VAULT/…`, `~/…`, repo-relative). Provenance as repo name + `file:line` is welcome.
-  Gate: `scripts/check-no-abs-paths.mjs` (part of `npm test`).
+- **SDD artifacts live in the cockpit, not in the repo** (CORE-META-14): specs, plans and task reports under `$VAULT/25_Coding/neurovim-obsidian/_SDD/` (maintainer-local). The repo keeps the design essence in `docs/internal/decisions.md` and `CHANGELOG.md`; `docs/superpowers/` does not exist in the repo — do not add anything there.
+- **Cockpit (SSOT for status, tasks, history):** `$VAULT/25_Coding/neurovim-obsidian/neurovim-obsidian.md` (maintainer-local); read it at the start, update it at the end. Tasks in `_Tasks/`, logs in `_Log/<date>.md`.
+- **Never in the repo:** absolute paths outside the repo (`/Users/…`, vault paths) — use placeholders (`$VAULT/…`, `~/…`, repo-relative). Provenance as repo name + `file:line` is welcome. Gate: `scripts/check-no-abs-paths.mjs` (part of `npm test`).
+
+## Abweichungen von der Leitkonvention
+
+Reasoned deviations (comply-or-explain); wording and derivation in `docs/internal/decisions.md`.
+
+- **UI-STANDARD (native-first)** — the CRT cyberpunk look (`--nv-*` palette) is the game's interface, not a productive panel; it stays. The hub and stream-area deviations below belong to it.
+- **Lint override `ui/sentence-case`** (off repo-wide, in `eslint.overrides.mjs`): proper nouns `NeuroVim`/`Vim`/`qwen3-8b`, a URL placeholder and the deliberate CRT-caps aesthetic.
 
 ## UI-Abweichungen
 
