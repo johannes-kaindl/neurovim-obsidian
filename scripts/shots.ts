@@ -25,7 +25,7 @@
 import { existsSync, mkdirSync, rmSync } from "node:fs";
 import { join } from "node:path";
 
-import { Cdp, attachTo, bereiteInstanzVor, closeExtraLeaves, pollUntil, schliesseDialog } from "../../tools/obsidian-cdp/cdp.js";
+import { Cdp, attachTo, bereiteInstanzVor, closeExtraLeaves, pollUntil, schliesseDialog, schliesseEinstellungen } from "../../tools/obsidian-cdp/cdp.js";
 import { startLlmStub } from "../../tools/obsidian-cdp/llm-stub.js";
 import { Vorbedingung } from "../../tools/obsidian-cdp/bilanz.js";
 import { boxOf, capture, setWindowSize, writeShot, type Rect } from "../../tools/obsidian-cdp/shot.js";
@@ -263,9 +263,8 @@ const SHOTS: Shot[] = [
     run: async (cdp, { port, vault, fake }) => {
       await endMission(cdp);
       await useFakeEndpoint(cdp, fake);
+      await schliesseEinstellungen(cdp);
       await cdp.evaluate(`
-        app.setting.close();
-        await new Promise((r) => setTimeout(r, 500));
         app.setting.open();
         await new Promise((r) => setTimeout(r, 600));
         app.setting.openTabById(${JSON.stringify(PLUGIN_ID)});
@@ -300,7 +299,7 @@ const SHOTS: Shot[] = [
         const box = await visibleBox(win, asModal ? ".modal.mod-settings" : ".vertical-tab-content", 0);
         return await capture(win, box ?? undefined);
       } finally {
-        if (asModal) await cdp.evaluate("app.setting.close(); return true;").catch(() => undefined);
+        if (asModal) await schliesseEinstellungen(cdp);
         else { await win.evaluate("window.close(); return true;").catch(() => undefined); win.close(); }
       }
     },

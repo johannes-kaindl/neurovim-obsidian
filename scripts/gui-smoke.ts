@@ -40,7 +40,7 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
-import { Cdp, attachTo, beimAbbruch, bereiteInstanzVor, entferneFakeManager, installFakeManager, closeExtraLeaves, istAbgebrochen, ladePluginNeu, pollUntil, releaseAlwaysOnTop, requireVisible, schliesseDialog, setAppConfig, setPluginSetting } from "../../tools/obsidian-cdp/cdp.js";
+import { Cdp, attachTo, beimAbbruch, bereiteInstanzVor, entferneFakeManager, installFakeManager, closeExtraLeaves, istAbgebrochen, ladePluginNeu, pollUntil, releaseAlwaysOnTop, requireVisible, schliesseDialog, schliesseEinstellungen, setAppConfig, setPluginSetting } from "../../tools/obsidian-cdp/cdp.js";
 import { startLlmStub } from "../../tools/obsidian-cdp/llm-stub.js";
 import { createBilanz, parseArgs, runDriver, Vorbedingung } from "../../tools/obsidian-cdp/bilanz.js";
 import { buildHerkunft, buildVault, requireEigenerBuild, stagingVaultDir } from "../../tools/obsidian-cdp/vault.js";
@@ -1521,8 +1521,6 @@ async function checkContextFollows(cdp: Cdp, port: number, vault: string | undef
     await p.llm.resolve({ force: true });
     return true;`;
   const oeffne = `
-    app.setting.close();
-    await new Promise((r) => setTimeout(r, 500));
     app.setting.open();
     app.setting.openTabById(${JSON.stringify(PLUGIN_ID)});
     await new Promise((r) => setTimeout(r, 2500));
@@ -1538,6 +1536,7 @@ async function checkContextFollows(cdp: Cdp, port: number, vault: string | undef
       return t.length ? t.join(" | ") : null;`;
     const messe = async (fake: { url: string }, modell: string, erwartet: string | null): Promise<string | null> => {
       await cdp.evaluate(setze(fake, modell));
+      await schliesseEinstellungen(cdp);
       await cdp.evaluate(oeffne);
       sicht?.close?.();
       sicht = await attachTo("settings", port, vault).catch(() => null);
@@ -1562,8 +1561,8 @@ async function checkContextFollows(cdp: Cdp, port: number, vault: string | undef
       const p = app.plugins.plugins[${JSON.stringify(PLUGIN_ID)}];
       if ("__nvVorherCtx" in window) { p.settings.llmEndpoints = window.__nvVorherCtx; delete window.__nvVorherCtx; }
       p.llm.invalidate();
-      app.setting.close();
       return true;`).catch(() => undefined);
+    await schliesseEinstellungen(cdp);
     sicht?.close?.();
     await a.stop();
     await b.stop();
@@ -1585,7 +1584,7 @@ async function checkRequestSection(cdp: Cdp, port: number, vault: string | undef
   `);
   const sicht = await attachTo("settings", port, vault).catch(() => null);
   if (!sicht) {
-    await cdp.evaluate(`app.setting.close(); return true;`).catch(() => undefined);
+    await schliesseEinstellungen(cdp);
     throw new Vorbedingung("kein Einstellungen-Fenster am Port");
   }
   const abschnitt = `
@@ -1668,7 +1667,7 @@ async function checkRequestSection(cdp: Cdp, port: number, vault: string | undef
       return true;
     `).catch(() => undefined);
     sicht.close?.();
-    await cdp.evaluate(`app.setting.close(); return true;`).catch(() => undefined);
+    await schliesseEinstellungen(cdp);
   }
 }
 
@@ -1682,7 +1681,7 @@ async function messeEinstellungenNv(
     return true;
   `);
   const sicht = await attachTo("settings", port, vault).catch(() => null);
-  if (!sicht) { await cdp.evaluate(`app.setting.close(); return true;`).catch(() => undefined); return null; }
+  if (!sicht) { await schliesseEinstellungen(cdp); return null; }
   try {
     return await sicht.evaluate(`
       const wurzel = document.querySelector(".modal.mod-settings") ?? document.body;
@@ -1695,7 +1694,7 @@ async function messeEinstellungenNv(
     `);
   } finally {
     sicht.close?.();
-    await cdp.evaluate(`app.setting.close(); return true;`).catch(() => undefined);
+    await schliesseEinstellungen(cdp);
   }
 }
 
@@ -1710,7 +1709,7 @@ async function checkHelpRow(cdp: Cdp, port: number, vault: string | undefined): 
   `);
   const sicht = await attachTo("settings", port, vault).catch(() => null);
   if (!sicht) {
-    await cdp.evaluate(`app.setting.close(); return true;`).catch(() => undefined);
+    await schliesseEinstellungen(cdp);
     throw new Vorbedingung("kein Einstellungen-Fenster am Port");
   }
   try {
@@ -1727,7 +1726,7 @@ async function checkHelpRow(cdp: Cdp, port: number, vault: string | undefined): 
       `erste Zeile "${d.name ?? "—"}", Knoepfe ${JSON.stringify(d.knoepfe)}, Bug-Icon: ${d.bug}`);
   } finally {
     sicht.close?.();
-    await cdp.evaluate(`app.setting.close(); return true;`).catch(() => undefined);
+    await schliesseEinstellungen(cdp);
   }
 }
 
@@ -1874,7 +1873,7 @@ async function main(): Promise<void> {
 
     // Vertrauensdialog, Restricted Mode und Aktivierung: zentrale Fassung. `pluginIds` sind
     // `manifest.id`s, `nurVault` der Name des Staging-Vaults.
-    const vorbereitung = await bereiteInstanzVor(cdp, { pluginIds: [PLUGIN_ID], nurVault: vault });
+    const vorbereitung = await bereiteInstanzVor(cdp, { pluginIds: [PLUGIN_ID], nurVault: vault, sprache: "en" });
     console.log(`   Instanz: ${vorbereitung.hinweis}`);
     await requireEnvironment(cdp, vault);
     if (args.has("reload")) {
