@@ -37,7 +37,7 @@ Obsidian). **vim-dojo** brings it back home as a first-class, standalone Obsidia
 - **Pause-safe.** Leave the mission note and the timer stops, Vim mode is restored, and a
   banner offers RETURN or ABORT — no phantom keystrokes from typing elsewhere.
 - **CIPHER uplink** (optional) — in-character Vim advice and post-run debriefs from any
-  OpenAI-compatible LLM endpoint, including fully local ones.
+  OpenAI-compatible LLM endpoint, including fully local ones — or Claude, through the LLM Endpoint Manager.
 - **Cheatsheet** — a searchable Vim reference built into the pane.
 
 <img src="https://raw.githubusercontent.com/johannes-kaindl/neurovim-obsidian/main/docs/images/briefing.png" width="584" alt="The mission briefing: CIPHER explaining the job in character before the mission starts">
@@ -55,6 +55,7 @@ Obsidian). **vim-dojo** brings it back home as a first-class, standalone Obsidia
   a local LLM server is covered once, centrally, in the
   [local LLM setup guide](https://uplink.jkaindl.de/llm-setup) — including the `/v1` pitfall
   and reaching your desktop server from a phone.
+- **Optional, for Claude:** the **LLM Endpoint Manager** plugin with a Claude entry (API key in the manager's keychain). CIPHER then sends its questions to Anthropic's API instead of a local model whenever that entry is the one in use — see the choice rule under [CIPHER uplink](#cipher-uplink) below.
 
 ## Install
 
@@ -127,6 +128,9 @@ each section remembers whether you left it open or closed.
   from 0.4.x migrate automatically — nothing to do on upgrade.
 
 If the **LLM Endpoint Manager** plugin is installed, the endpoints (and their keys) come from it instead: the settings then offer an endpoint and model choice, and your local list stays as a fallback for when the manager is off. If the manager reports no endpoint, there is no fallback to the local list.
+
+**Claude (Anthropic):** Claude is only offered through the manager: with a Claude entry in its list, CIPHER can use it, and then your questions go to Anthropic (not to a local model). With the choice on "Automatic" the first reachable, enabled chat entry in the manager's list order wins, so a Claude entry placed above your local one is used first; pick your local endpoint explicitly in the settings, or move it up in the manager's list, if you want CIPHER to stay local. Without the manager nothing changes.
+
 - **Model** — picked from a dropdown populated by the active endpoint's `/v1/models`, with
   a free-text fallback if the list is empty or the endpoint is unreachable. When the
   endpoint reports it (LM Studio, Ollama), the model's context length is shown below the endpoint row.
@@ -157,15 +161,14 @@ The plugin **never touches files outside the configured mission folder.**
 ## CIPHER uplink (experimental, optional)
 
 Ask CIPHER for Vim advice — in character, powered by any OpenAI-compatible endpoint
-(LM Studio, Ollama, OpenRouter, …). Configure endpoint + model under
+(LM Studio, Ollama, OpenRouter, …) or by Claude through the LLM Endpoint Manager. Configure endpoint + model under
 Settings → NeuroVim → CIPHER uplink; leave the endpoint list empty and the feature stays
 fully off. During a mission, the HUD gains a CIPHER button that opens the uplink with the
 mission's context attached.
 
 <img src="https://raw.githubusercontent.com/johannes-kaindl/neurovim-obsidian/main/docs/images/uplink.png" width="412" alt="The UPLINK tab: a question from the player and CIPHER's answer in character">
 
-Privacy: your questions plus the active mission's metadata (title, category, goal)
-are sent to the endpoint you configure — never any other vault content.
+Privacy: What goes out with the chat: your question, the earlier questions and answers of the same chat, and — with a mission active — its ID, title, category, the line on why the skill matters and the par; plus the bundled Vim quick reference and key cheatsheet that CIPHER works from. A debrief sends the same mission fields, the keystroke count, the time and the keystroke sequence of the run. Never any other vault content. It goes to the endpoint in use: a local one keeps it on your machine, a hosted one and Claude (Anthropic) do not.
 
 ## Run traces & privacy
 
@@ -177,6 +180,7 @@ word 3 with `l l l` — `3w` is one move") and lets you analyse mission balance 
   automatically. Requesting a CIPHER debrief sends that run's sequence to the LLM endpoint
   you configured (a local model via LM Studio/Ollama stays on your machine) — the same
   connection the CIPHER chat already uses.
+- **Claude gets the key sequence too.** If CIPHER uses a Claude entry of the Endpoint Manager, a debrief sends the run's sequence to Anthropic.
 - **Scoped.** Only keystrokes inside an active mission's editor are recorded. Nothing else
   in your vault is ever touched.
 - **Optional.** Turn it off in Settings → "Record run traces". Delete `traces.jsonl` anytime.

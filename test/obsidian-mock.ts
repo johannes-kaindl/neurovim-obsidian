@@ -1,12 +1,16 @@
 // Minimal Obsidian mock for vitest — grows only as tasks need it.
 export class Plugin {
   private _data: unknown = null;
+  constructor(public app: unknown, public manifest: { id: string }) {}
   async loadData(): Promise<unknown> { return this._data; }
   async saveData(data: unknown): Promise<void> { this._data = data; }
 }
 export class Notice { constructor(public message: string) {} }
 export class TFile { constructor(public path: string) {} }
 export class ItemView {}
+// Class-extends-undefined at module load otherwise: src/result/ResultModal.tsx extends it, and
+// src/main.ts imports that, so the plugin class is not importable without it.
+export class Modal { constructor(public app?: unknown) {} }
 export class App {}
 export class PluginSettingTab { constructor(_app?: unknown, _plugin?: unknown) {} }
 /** Zeichnet Name, Beschreibung und Knoepfe auf, damit Tests belegen koennen, was an einer Zeile haengt. */

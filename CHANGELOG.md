@@ -5,6 +5,10 @@ All notable changes to this project are documented here. Format loosely follows
 
 ## [Unreleased]
 
+### Added
+
+- CIPHER can now use Claude (Anthropic) when the LLM Endpoint Manager lists a Claude entry. This is an opt-in in the plugin (`transports: { anthropic: true }`); without the manager nothing changes, and a Claude entry never appears in your local endpoint list. **Your CIPHER questions, the earlier turns of the chat, the active mission's ID, title, category, skill line and par and — for a debrief — the keystroke count, time and key sequence then go to Anthropic**, not to a local model. Choice trap: with the choice on "Automatic" the manager's list order decides, the first reachable, enabled chat entry wins, so a Claude entry above your local one is used first; pick your local endpoint explicitly in the settings, or move it up in the manager, to stay local. The README, the privacy paragraph and `SECURITY.md` say so, and the privacy text now also names what was missing before: the mission's skill line, the par, the earlier chat turns and, for a debrief, the keystroke count, the time and the key sequence.
+
 ### Changed
 
 - Kit pins raised to obsidian-kit 0.69.1 / code-kit 0.36.0 (from 0.61.0 / 0.28.0); the four modules the newer connection needs (`anthropic-wire`, `override-guard`, `anthropic-transport`, `plugin-api`) are vendored, the bundle grows by about 32 KB (824 KB → 856 KB).

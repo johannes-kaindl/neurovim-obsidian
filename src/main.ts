@@ -86,6 +86,9 @@ export default class NeuroVimPlugin extends Plugin {
     mode: CIPHER_MODE,
     maxTokens: CIPHER_MAX_TOKENS,
     truncated: 'error',
+    // Opt in to Claude: a manager endpoint with provider "anthropic" is then offered to CIPHER
+    // too, and the question goes to Anthropic's Messages API. Without it the plugin never sees one.
+    transports: { anthropic: true },
     getSettings: () => ({ endpoints: this.settings.llmEndpoints, choice: this.settings.choice, request: this.settings.request }),
     // The patch lands in the settings BEFORE it is saved (the connection reads the rows back
     // right away). Not `saveSettings()`: that would repaint on a call the connection makes
