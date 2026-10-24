@@ -5,6 +5,12 @@ All notable changes to this project are documented here. Format loosely follows
 
 ## [Unreleased]
 
+### Changed
+
+- Kit pins raised to obsidian-kit 0.69.1 / code-kit 0.36.0 (from 0.61.0 / 0.28.0); the four modules the newer connection needs (`anthropic-wire`, `override-guard`, `anthropic-transport`, `plugin-api`) are vendored, the bundle grows by about 32 KB (824 KB → 856 KB).
+- Settings, "Endpoints and request": thinking and vision now come from the model's LM Studio metadata instead of only its name, so the thinking control can appear for more models. When a request would make LM Studio load a different model and push a loaded one out (JIT loading), the section warns about it. Where "off" is not possible (Gemma 4 on LM Studio, Claude), the control reads "Thinking: lowest level" and the reason is in its tooltip; for Claude the field is called "Thinking effort (effort)". Next to the hint "model family detected" there is a button "Set family in the manager" that opens the LLM Endpoint Manager's settings (shown when the manager supplies the endpoints). New styles for the section are in `styles.css` (`REQUEST_SECTION_CSS`).
+- Claude model names now count as models that always think (code-kit 0.33.0), so the thinking control treats them like Gemma 4 on LM Studio: "off" is not offered.
+
 ## [0.15.0] — 2026-10-16
 
 ### Changed
