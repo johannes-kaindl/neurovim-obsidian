@@ -76,6 +76,7 @@ grün, weil ein Skip kein Fehlschlag ist — nur kein Erfolg.
 | Datum | Obsidian | Ergebnis | Gegenprobe |
 |---|---|---|---|
 | 2026-08-16 | 1.13.7 | **8/8** | **3/8** mit ausgebauten Fixes — R2-1/R2-3/R2-4/R2-5 rot mit dem historischen Symptom (Tabs abgeschnitten; Modal `rgb(40,42,55)` gegen Hub `rgb(8,18,12)`; 5 Textzeilen auf 13 gerenderten; Abzeichen 80px gegen 11px). Die drei R2-2-Punkte blieben grün — korrekt, ihr Code war nicht Teil der Gegenprobe. |
+| 2026-10-25 | 1.14.5 | **42 grün · 0 rot · 2 übersprungen · 0 nichts gemessen** (von 44; R7/R7b übersprungen mit `--ohne-modell`). Davor 39 grün · 0 rot · 2 übersprungen von 41 | CL1–CL3 je einzeln rot gemacht: (A) falscher Schlüssel im Fake-Manager → CL2 und CL3 rot; (B) kein Strom-Fehler im Stub → CL3 rot, CL1/CL2 grün; (C) der Opt-in aus `main.js` entfernt (gebaut, deployt, frischer Prozess) → CL1, CL2, CL3 rot (Backend `unknown`, keine Anfrage am Stub). |
 
 Die Gegenprobe deckte außerdem **zwei Mängel im Treiber selbst** auf: `setViewState` in einer
 Poll-Schleife erzeugte pro Runde ein weiteres Hub-Blatt (16 verwaiste nach mehreren Läufen),
@@ -154,6 +155,18 @@ und öffnet den Vault über den Pfad-URI als weiteres Fenster der laufenden Inst
 | R4-4 Tier-Farben lesbar in allen vier Schema/Theme-Kombinationen | WCAG-Kontrast der drei Farbvariablen gegen den gemalten Zeilenhintergrund, je Theme (dunkel/hell) × Schema (crt/native), Schwelle 3:1; Theme und Schema werden danach zurückgestellt. Erster Lauf: hell/native Gold **1,3:1**, Silber **2,0:1** — der Befund, den die Task als „hat niemand gesehen" führte; behoben mit dunkleren Metallen unter `.theme-light .nv-native` |
 | R4-5 Aktionsleiste bleibt bei langem Debrief-Text erreichbar | Wirt-Eigenschaft aus der UI-Adoption-Deklaration „stream-area" (`AGENTS.md`) — kein Kit-Modul liefert sie. 4000 Zeichen synthetischer Text im Debrief-Bereich, danach Bounding-Rect von `.nv-btn-nexus` gegen `.nv-result-body`; `max-height`/`overflow-y: auto` auf dem Body hält den Knopf erreichbar statt ihn aus dem Modal zu schieben |
 | R7c Gemma-förmige Antwort: Debrief zeigt nur die Antwort, das Denken ist weg | Fake-Endpunkt (Modell `google/gemma-4-e4b`) streamt Denken ohne Öffner im `content`, dann `<channel|>`, dann die Antwort; der Debrief-Knopf im Result-Modal läuft den echten Weg (Plugin → Adapter → `onContentReset` → Modal). Gegenprobe: `onContentReset` im `CorePortAdapter` abgeklemmt, Build neu → rot, die Anzeige trägt das Denken |
+
+### CL1–CL3 — Claude über den Manager (Welle 26)
+
+Gegenstelle ist der zentrale LLM-Stub im Anthropic-Modus (`tools/obsidian-cdp/llm-stub.ts`: Messages-API, `x-api-key`, `anthropic-version`, `model` und `max_tokens` werden geprüft), der Manager ein Fake (`transport: "anthropic"`). Anders als R3 stubbt der Abschnitt `llm.complete` nicht: die Frage läuft über Verbindung, Kit-Client und Anthropic-Transport im Renderer bis an den Stub. Kein Schlüssel, kein Modell, kein Netz.
+
+| # | Prüft | Gemessener Effekt |
+|---|---|---|
+| CL1 Fake-Manager mit Anbieter anthropic: der Endpunkt kommt nur mit Opt-in, das Plugin wählt ihn | Opt-in `transports: { anthropic: true }` in `src/main.ts` | `list()` des Fakes ohne `transports` 0, mit `["http","anthropic"]` 1 (nur eine Kontrolle am Fake); die Verdrahtung beweist `plugin.llm.source()` nach frischer Auflösung: Backend `anthropic`, Familie `claude`, Modell aus dem Eintrag |
+| CL2 CIPHER-Frage gegen den Claude-Stub | Frage im UPLINK-Chat | Antwort steht im Chat, der Denktext des Stubs nicht; am Draht `x-api-key` gleich dem Schlüssel, `anthropic-version`, `model`, `max_tokens` (2048, die Reserve der `claude`-Familie statt der 1024 aus `cipherRequest.ts`), `stream: true`, kein `temperature`/`top_p`/`top_k`; dass `truncated: 'error'` bei einer normalen Antwort mit Denken nicht anspringt, ist damit gemessen |
+| CL3 Fehler mitten im Strom | `overloaded_error` als `event: error` nach drei Deltas | Fehlerzeile „Signal lost. Check your uplink.“ mit der Meldung der API im Detail, Eingabe wieder frei, genau eine Anfrage am Stub (der Adapter wiederholt nicht) |
+
+R7 (echter Endpunkt) bleibt `--ohne-modell`. Ein Debrief läuft über denselben Weg (`llm.complete` im Adapter); R7c deckt ihn mit einem Gemma-Stub ab, die Claude-Wire-Form kommt aus CL2.
 
 ### Gotcha — eine Gegenprobe im Speicher überlebt den Lauf
 

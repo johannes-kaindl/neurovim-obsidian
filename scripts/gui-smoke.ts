@@ -52,6 +52,11 @@ const GEMMA_ANTWORT = "Use dw to delete a word.";
 const GEMMA_STUECKE = ["Thinking Process:\n", "1. The user wants a debrief.\n2. Keep it short.\n", "<channel|>", "Use dw ", "to delete a word."];
 /** src/HubView.tsx: VIEW_TYPE_NEUROVIM */
 const HUB_VIEW = "neurovim-hub";
+/** CL1–CL3: Claude über den Manager. Modellname und Schlüssel des Anthropic-Stubs; die Antwort kommt nach dem Denken. */
+const CLAUDE_MODELL = "claude-haiku-5-5";
+const CLAUDE_SCHLUESSEL = "sk-ant-smoke-neurovim";
+const CLAUDE_DENKEN = "Ich pruefe zuerst, welcher Befehl ein Wort loescht. ";
+const CLAUDE_ANTWORT = "Use dw to delete a word.";
 /** CRT-Akzent aus styles.css (.nv-crt --nv-accent). Der Reader muss ihn tragen. */
 const CRT_ACCENT = "rgb(69, 255, 138)";
 
@@ -114,6 +119,11 @@ const GRUPPEN = {
     "R3-1 CUT behält das Teilergebnis und gibt die Eingabe frei",
     "R3-2 RST leert den Kanal",
     "R3-3 ein voller Turn landet als Antwort",
+  ],
+  claude: [
+    "CL1 Fake-Manager mit Anbieter anthropic: der Endpunkt kommt nur mit Opt-in, das Plugin wählt ihn",
+    "CL2 CIPHER-Frage gegen den Claude-Stub: Messages-API mit Schlüssel, Antwort im Chat, Denken nicht im Text",
+    "CL3 Fehler mitten im Strom: der Chat zeigt eine Fehlerzeile mit der Meldung der API, die Eingabe ist frei",
   ],
   echt: ["R7 Kit-Chat-Client streamt gegen den echten Endpunkt", "R7b Anzeigetext des Streams enthält keinen Denktext"],
 } as const satisfies Record<string, readonly string[]>;
@@ -1303,6 +1313,124 @@ async function checkFolderHide(cdp: Cdp): Promise<void> {
   }
 }
 
+/** CL1–CL3 — Claude (Anthropic API) über den LLM Endpoint Manager (Kit 0.62.0, Opt-in `transports.anthropic` in `src/main.ts`).
+ *  Gegenstelle: der zentrale LLM-Stub im Anthropic-Modus (Messages-API; geprüft werden `x-api-key`, `anthropic-version`,
+ *  `model`, `max_tokens`). Kein Aufruf an api.anthropic.com, kein Schlüssel, kein Modell. Anders als R3 stubbt dieser Abschnitt
+ *  `llm.complete` NICHT: die Anfrage läuft über Verbindung, Kit-Client und Anthropic-Transport im Renderer bis an den Stub.
+ *  Der Fake-Manager filtert in `list()` und `resolve()` nach `transports` und liefert den Claude-Eintrag nur, wenn der Aufrufer
+ *  ihn verlangt (Brücke, `fake-manager.ts`); entfernt man den Opt-in aus `main.ts`, sieht das Plugin ihn nie (CL1 rot). */
+async function checkClaude(cdp: Cdp): Promise<void> {
+  console.log("\nCL · CIPHER mit Claude über den Manager");
+  const [CL1, CL2, CL3] = GRUPPEN.claude;
+  let stub: Awaited<ReturnType<typeof startLlmStub>> | null = null;
+  let manager = false;
+  try {
+    stub = await startLlmStub({
+      anbieter: "anthropic",
+      schluessel: CLAUDE_SCHLUESSEL,
+      models: [{ id: CLAUDE_MODELL, capabilities: { effort: { supported: true }, thinking: { types: { adaptive: { supported: true } } } } }],
+      takt: 40,
+      standard: { reasoning: CLAUDE_DENKEN, text: CLAUDE_ANTWORT, laenge: 8, model: CLAUDE_MODELL },
+    });
+    await installFakeManager(cdp, {
+      endpunkte: [{
+        id: "fake-claude", label: "Claude API", url: stub.url, models: [CLAUDE_MODELL], defaultModel: CLAUDE_MODELL, configModel: "default",
+        provider: "anthropic", backend: "anthropic", apiKey: CLAUDE_SCHLUESSEL, hasSecret: true, transport: "anthropic",
+      }],
+      invalidiere: [PLUGIN_ID],
+    });
+    manager = true;
+
+    // --- CL1: Opt-in-Sicht ------------------------------------------------------------------------------------
+    // `ohne`/`mit` messen nur den Filter des Fakes (Kontrolle am Fake). Die Verdrahtung beweist `plugin.llm.source()`
+    // nach einer frischen Auflösung: Backend `anthropic`, Familie `claude`, Modell aus dem Eintrag.
+    const sicht = await cdp.evaluate<{ ohne: number; mit: number; quelle: string; modell: string; familie: string | null; backend: string }>(`
+      const api = app.plugins.plugins["llm-endpoint-manager"].api;
+      const p = app.plugins.plugins[${JSON.stringify(PLUGIN_ID)}];
+      p.llm.invalidate();
+      await p.llm.resolve({ force: true });
+      const src = p.llm.source();
+      return {
+        ohne: api.list({ capability: "chat" }).length,
+        mit: api.list({ capability: "chat", transports: ["http", "anthropic"] }).length,
+        quelle: src.backendSource, modell: src.model, familie: src.family, backend: src.backend,
+      };
+    `);
+    record(
+      CL1,
+      sicht.ohne === 0 && sicht.mit === 1 && sicht.quelle === "manager" && sicht.modell === CLAUDE_MODELL && sicht.backend === "anthropic" && sicht.familie === "claude",
+      `Kontrolle am Fake: list() ohne transports ${sicht.ohne}, mit ["http","anthropic"] ${sicht.mit}; Plugin: Backend ${sicht.backend} (Quelle ${sicht.quelle}), Familie ${sicht.familie}, Modell ${sicht.modell}`,
+    );
+
+    // UPLINK gibt es, sobald ein Manager da ist; der Hub rendert im 500-ms-Takt.
+    const tabDa = await pollUntil<boolean>(cdp, "return [...document.querySelectorAll('.nv-tabs .nv-tab')].some((b) => b.textContent.trim() === 'UPLINK');", 5_000, 250);
+    if (!tabDa || !(await selectTab(cdp, "UPLINK"))) throw new Vorbedingung("UPLINK-Tab erschien trotz Fake-Manager nicht");
+    await cdp.evaluate(`const p = app.plugins.plugins[${JSON.stringify(PLUGIN_ID)}]; p.cipherSession.reset(); p.cipherUplink = null; return true;`);
+
+    // --- CL2: eine Frage über den echten Weg -----------------------------------------------------------------
+    await cdp.evaluate(`
+      const input = document.querySelector('.nv-uplink-input');
+      input.value = 'wie loesche ich ein Wort?';
+      input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+      return true;
+    `);
+    const beantwortet = await pollUntil<boolean>(
+      cdp,
+      `return [...document.querySelectorAll('.nv-uplink-assistant .nv-uplink-text')].some((e) => e.textContent.includes(${JSON.stringify(CLAUDE_ANTWORT)})) && !document.querySelector('.nv-btn-abort') ? true : null;`,
+      20_000,
+      250,
+    );
+    const anzeige = await cdp.evaluate<string>(`return [...document.querySelectorAll('.nv-uplink-line')].map((l) => l.textContent).join(' | ');`);
+    const nachrichten = stub.anfragen().filter((a) => a.route === "messages");
+    const letzte = nachrichten.at(-1);
+    const body = (letzte?.json ?? {}) as Record<string, unknown>;
+    const kopf = letzte?.header ?? {};
+    const verboten = ["temperature", "top_p", "top_k", "min_p", "presence_penalty"].filter((k) => k in body);
+    const draht = nachrichten.length > 0 && kopf["x-api-key"] === CLAUDE_SCHLUESSEL && typeof kopf["anthropic-version"] === "string"
+      && body.model === CLAUDE_MODELL && typeof body.max_tokens === "number" && body.stream === true && verboten.length === 0;
+    const ohneDenken = !anzeige.includes("pruefe zuerst");
+    record(
+      CL2,
+      beantwortet === true && draht && ohneDenken,
+      `Antwort ${beantwortet === true ? "im Chat" : "NICHT im Chat"}, Denken ${ohneDenken ? "nicht im Text" : "IM TEXT"}; Anfragen ${nachrichten.length}, x-api-key ${kopf["x-api-key"] === CLAUDE_SCHLUESSEL ? "ok" : "FALSCH"}, anthropic-version ${String(kopf["anthropic-version"])}, model ${String(body.model)}, max_tokens ${String(body.max_tokens)}, stream ${String(body.stream)}, verbotene Felder: ${verboten.length === 0 ? "keine" : verboten.join(",")}, Body-Felder: ${Object.keys(body).filter((k) => k !== "messages" && k !== "system").join(",")}`,
+    );
+
+    // --- CL3: Fehler mitten im Strom --------------------------------------------------------------------------
+    // Zwei gleiche Einträge: ein `network`-Fehler wiederholt der Adapter einmal auf frischer Auflösung (CorePortAdapter).
+    const fehlerAntwort = { text: "Teilantwort vor dem Fehler und mehr Text. ".repeat(3), laenge: 8, model: CLAUDE_MODELL, stromFehler: { nach: 3, typ: "overloaded_error", meldung: "Overloaded" } };
+    stub.antworten([fehlerAntwort, fehlerAntwort]);
+    const vorher = stub.anfragen().filter((a) => a.route === "messages").length;
+    await cdp.evaluate(`
+      const input = document.querySelector('.nv-uplink-input');
+      input.value = 'zweite Frage';
+      input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+      return true;
+    `);
+    const fehlerZeile = await pollUntil<{ text: string; detail: string; frei: boolean }>(
+      cdp,
+      `const e = document.querySelector('.nv-uplink-line.nv-uplink-error');
+       if (!e || document.querySelector('.nv-btn-abort')) return null;
+       const input = document.querySelector('.nv-uplink-input');
+       return { text: e.querySelector('.nv-uplink-text')?.textContent ?? '', detail: e.querySelector('.nv-uplink-detail')?.textContent ?? '', frei: Boolean(input) && !input.disabled };`,
+      30_000,
+      300,
+    );
+    const nachFehler = stub.anfragen().filter((a) => a.route === "messages").length - vorher;
+    record(
+      CL3,
+      fehlerZeile !== null && fehlerZeile.frei && /overload/i.test(fehlerZeile.detail),
+      fehlerZeile === null ? `keine Fehlerzeile (Anfragen seit CL2: ${nachFehler})`
+        : `Fehlerzeile "${fehlerZeile.text}", Detail ${JSON.stringify(fehlerZeile.detail.slice(0, 80))}, Eingabe ${fehlerZeile.frei ? "frei" : "GESPERRT"}, Anfragen am Stub: ${nachFehler}`,
+    );
+  } finally {
+    if (manager) await entferneFakeManager(cdp).catch(() => undefined);
+    await cdp
+      .evaluate(`const p = app.plugins.plugins[${JSON.stringify(PLUGIN_ID)}]; p.cipherSession.reset(); p.cipherUplink = null; p.llm.invalidate(); return true;`)
+      .catch(() => undefined);
+    if (stub) await stub.stop().catch(() => undefined);
+  }
+}
+
 /** Ein bereits GELADENES Chat-Modell auf dem lokalen LM-Studio-Endpunkt, sonst `null` — bewusst
  *  nur ein geladenes: eine Anfrage an ein nicht geladenes Modell löst ein JIT-Laden aus und
  *  verdrängt das Modell, an dem eine andere Sitzung gerade arbeitet. */
@@ -1935,6 +2063,7 @@ async function main(): Promise<void> {
     await gruppe("quelle", () => checkEndpointSource(live, port, vault));
     await gruppe("ordner", () => checkFolderHide(live));
     await gruppe("cipher", () => checkCipherUplink(live));
+    await gruppe("claude", () => checkClaude(live));
     await gruppe("echt", () => checkCipherReal(live));
   } catch (err) {
     if (err instanceof Vorbedingung) {
