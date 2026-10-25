@@ -75,6 +75,18 @@ describe('mountModelBarHost', () => {
     expect(select(s.el).value).toBe('m2');
   });
 
+  it('redraws when the family of the model changed (the thinking control depends on it), and only then', async () => {
+    const s = setup();
+    const host = mountModelBarHost(s.el, s.opts);
+    await flush();
+    const option = select(s.el).children[0];
+    host.update();
+    expect(select(s.el).children[0]).toBe(option);
+    s.state.family = 'qwen3';
+    host.update();
+    expect(select(s.el).children[0]).not.toBe(option);
+  });
+
   it('busy locks the row, idle frees it; the host reads the latest state, not the state at mount', async () => {
     const s = setup();
     const host = mountModelBarHost(s.el, s.opts);
@@ -139,7 +151,7 @@ describe('mountModelBarHost', () => {
   });
 });
 
-describe('setCipherThinking', () => {
+describe('setCipherThinking (the call around the kit\'s withThinkingLevel)', () => {
   it('writes the level for CIPHER\'s mode, remembers the last on-level, and saves once', async () => {
     const settings: { request: RequestSettings } = { request: { ...DEFAULT_REQUEST_SETTINGS } };
     const save = vi.fn(async () => undefined);

@@ -43,7 +43,7 @@ export function mountModelBarHost(el: HTMLElement, source: () => ModelBarHostOpt
   const stamp = (): string => {
     const o = source();
     const src = o.llm.source();
-    return [o.busy(), o.llm.modelInUse(), o.thinking.current(), o.thinking.levelPicker(), src.family, src.backend, src.defaultModel ?? ''].join('|');
+    return [o.busy(), o.llm.modelInUse(), o.thinking.current(), o.thinking.levelPicker(), o.thinking.family(), o.thinking.backend?.(), src.defaultModel ?? ''].join('|');
   };
   const first = source();
   let seen = stamp();
