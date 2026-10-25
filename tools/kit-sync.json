@@ -28,14 +28,14 @@
       "dir": "src/vendor/kit-obsidian",
       "source": "obsidian-kit",
       "from": "src/obsidian",
-      "modules": ["anthropic-transport", "backend-probe", "chat-client", "chat-transport", "clipboard", "clock", "collapsible", "embedding-connection", "endpoint-list", "endpoint-plumbing", "endpoint-secrets", "endpoint-status-text", "endpoint-source", "folder-hide", "folder-suggest", "help-setting", "llm-connection", "llm-connection-strings", "model-picker", "plugin-api", "request-section", "request-session", "secrets", "settings_walker", "shortcuts-bridge"],
+      "modules": ["anthropic-transport", "backend-probe", "chat-client", "chat-transport", "clipboard", "clock", "collapsible", "embedding-connection", "endpoint-list", "endpoint-plumbing", "endpoint-secrets", "endpoint-status-text", "endpoint-source", "folder-hide", "folder-suggest", "help-setting", "llm-connection", "llm-connection-strings", "model-bar", "model-bar-strings", "model-picker", "plugin-api", "request-section", "request-session", "secrets", "settings_walker", "shortcuts-bridge", "thinking-control"],
       "rewrite": [["../vendor/code-kit/pure/", "../kit/"], ["../vendor/code-kit/web/", "../kit/"], ["../pure/", "../kit/"]]
     },
     {
       "dir": "test/vendor/kit",
       "source": "obsidian-kit",
       "from": "src/testing",
-      "modules": ["kit-css"]
+      "modules": ["kit-css", "obsidian-mock"]
     }
   ]
 }
