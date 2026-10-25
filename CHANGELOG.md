@@ -13,6 +13,10 @@ All notable changes to this project are documented here. Format loosely follows
 
 - `SECURITY.md` said the API key is stored in plaintext in `data.json`; since 0.13.0 it is kept in Obsidian's keychain, and a key from an earlier version moves there when CIPHER first connects or when you open the settings. The text now says so and matches the README (documentation only, no change in behaviour).
 
+### Changed
+
+- Kit pins raised to obsidian-kit 0.70.0 / code-kit 0.37.5 (from 0.69.1 / 0.36.0). For CIPHER nothing changes on screen: the model row now reads the family and backend for its redraw from the thinking control, the model list no longer reports to its listeners when nothing changed (no endless redraw), and the thinking level is written by the kit's `withThinkingLevel` instead of a copy in the plugin (same result: the level, and the one the toggle switches back to). The kit's new link protection and chat window are not used by this plugin.
+
 ## [0.16.0] — 2026-10-24
 
 ### Added
