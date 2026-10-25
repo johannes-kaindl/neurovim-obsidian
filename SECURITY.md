@@ -59,9 +59,7 @@ spelled out here honestly.
 - When configured, requests go **only to the endpoints you entered** — or, with the LLM Endpoint Manager installed, to the endpoints the manager supplies. What is sent: your chat message and the earlier questions and answers of the same chat, the active mission's ID, title, category, the line on why the skill matters and the par, the bundled Vim reference and key cheatsheet, and — if you request a debrief — the keystroke count, the time and that run's keystroke sequence. No other vault content is ever included.
 - A local endpoint (LM Studio, Ollama) keeps all of it on your machine; a hosted endpoint (OpenRouter, …) does not. That choice is yours and the plugin does not second-guess it.
 - **Claude (Anthropic) is offered only through the LLM Endpoint Manager.** If the manager lists a Claude entry, CIPHER can use it, and everything listed above then goes to Anthropic's API over the internet. With the choice on "Automatic" the first reachable, enabled chat entry in the manager's list order wins, so a Claude entry above your local one is used first; pick your local endpoint explicitly in the settings, or move it up in the manager's list, to stay local. The key stays in the manager's keychain. Without the manager, CIPHER never talks to Claude.
-- **The API key is stored in plaintext** in the plugin's `data.json`, like every Obsidian
-  plugin setting. If your vault is synced or shared, that file goes with it. Use a scoped or
-  throwaway key for endpoints that require one.
+- **The API key is kept in Obsidian's keychain, not in the plugin's `data.json`.** A key that an earlier version wrote into `data.json` is moved there the first time CIPHER connects or you open the settings, and removed from `data.json`. If Obsidian's keychain is not available (the plugin requires Obsidian 1.11.4 or newer, which has it), nothing is moved, so a key already in `data.json` stays there, and the settings cannot store a new key.
 - Requests use Obsidian's `requestUrl` and a scoped `XMLHttpRequest` for streaming — never
   the global `fetch`.
 

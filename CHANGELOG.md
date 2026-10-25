@@ -5,6 +5,10 @@ All notable changes to this project are documented here. Format loosely follows
 
 ## [Unreleased]
 
+### Fixed
+
+- `SECURITY.md` said the API key is stored in plaintext in `data.json`; since 0.13.0 it is kept in Obsidian's keychain, and a key from an earlier version moves there when CIPHER first connects or when you open the settings. The text now says so and matches the README (documentation only, no change in behaviour).
+
 ## [0.16.0] — 2026-10-24
 
 ### Added
