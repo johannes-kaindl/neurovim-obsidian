@@ -77,6 +77,7 @@ grün, weil ein Skip kein Fehlschlag ist — nur kein Erfolg.
 |---|---|---|---|
 | 2026-08-16 | 1.13.7 | **8/8** | **3/8** mit ausgebauten Fixes — R2-1/R2-3/R2-4/R2-5 rot mit dem historischen Symptom (Tabs abgeschnitten; Modal `rgb(40,42,55)` gegen Hub `rgb(8,18,12)`; 5 Textzeilen auf 13 gerenderten; Abzeichen 80px gegen 11px). Die drei R2-2-Punkte blieben grün — korrekt, ihr Code war nicht Teil der Gegenprobe. |
 | 2026-10-25 | 1.14.5 | **42 grün · 0 rot · 2 übersprungen · 0 nichts gemessen** (von 44; R7/R7b übersprungen mit `--ohne-modell`). Davor 39 grün · 0 rot · 2 übersprungen von 41 | CL1–CL3 je einzeln rot gemacht: (A) falscher Schlüssel im Fake-Manager → CL2 und CL3 rot; (B) kein Strom-Fehler im Stub → CL3 rot, CL1/CL2 grün; (C) der Opt-in aus `main.js` entfernt (gebaut, deployt, frischer Prozess) → CL1, CL2, CL3 rot (Backend `unknown`, keine Anfrage am Stub). |
+| 2026-10-25 | 1.14.5 | **50 grün · 0 rot · 2 übersprungen · 0 nichts gemessen** (von 52; M-a bis M-h neu, R7/R7b übersprungen mit `--ohne-modell`; Baseline davor 42/0/2/0) | M-a bis M-h gegen die Quelle: (S1) der Effekt im Preact-Behälter mit wechselnder Abhängigkeit statt leerer Liste (baut bei jedem Anstrich neu) → nur M-h rot (1 von 1), der Vitest bleibt grün (er sieht die Preact-Ebene nicht); (S2) `disabled` weg → nur M-d rot; (S3) `setModel`-Aufruf weg → nur M-c rot; (S4b) die Denkstufe nicht im Stempel des Hosts → nur M-g rot; (S4) der `update()`-Effekt nach dem Anstrich weg → die Liste kommt nie an (M-a, M-b rot, der Rest „nichts gemessen“ durch den Abbruch) |
 
 Die Gegenprobe deckte außerdem **zwei Mängel im Treiber selbst** auf: `setViewState` in einer
 Poll-Schleife erzeugte pro Runde ein weiteres Hub-Blatt (16 verwaiste nach mehreren Läufen),
@@ -165,6 +166,23 @@ Gegenstelle ist der zentrale LLM-Stub im Anthropic-Modus (`tools/obsidian-cdp/ll
 | CL1 Fake-Manager mit Anbieter anthropic: der Endpunkt kommt nur mit Opt-in, das Plugin wählt ihn | Opt-in `transports: { anthropic: true }` in `src/main.ts` | `list()` des Fakes ohne `transports` 0, mit `["http","anthropic"]` 1 (nur eine Kontrolle am Fake); die Verdrahtung beweist `plugin.llm.source()` nach frischer Auflösung: Backend `anthropic`, Familie `claude`, Modell aus dem Eintrag |
 | CL2 CIPHER-Frage gegen den Claude-Stub | Frage im UPLINK-Chat | Antwort steht im Chat, der Denktext des Stubs nicht; am Draht `x-api-key` gleich dem Schlüssel, `anthropic-version`, `model`, `max_tokens` (2048, die Reserve der `claude`-Familie statt der 1024 aus `cipherRequest.ts`), `stream: true`, kein `temperature`/`top_p`/`top_k`; dass `truncated: 'error'` bei einer normalen Antwort mit Denken nicht anspringt, ist damit gemessen |
 | CL3 Fehler mitten im Strom | `overloaded_error` als `event: error` nach drei Deltas | Fehlerzeile „Signal lost. Check your uplink.“ mit der Meldung der API im Detail, Eingabe wieder frei, genau eine Anfrage am Stub (der Adapter wiederholt nicht) |
+
+### M-a bis M-h — die Modellzeile im UPLINK (Welle 27)
+
+Gegenstelle ist der zentrale LLM-Stub mit **zwei Modellen** (`nv-model-a`, `nv-model-b`) und einer Antwort, die erst nach 4 s kommt (damit „CIPHER antwortet“ messbar ist). Anders als R3 stubbt der Abschnitt nichts im Plugin: die Kette ist die echte (Uplink, Verbindung, Kit-Client, XHR), nur der Endpunkt ist ein Stub. Der Hub zeichnet alle 500 ms neu.
+
+| # | Prüft | Gemessener Effekt |
+|---|---|---|
+| M-a Die Modellzeile steht über dem Chat, genau einmal, und trägt ihren Namen | Host-Behälter `.nv-uplink-model` in `CipherChat.tsx` | eine Wurzel `.okit-model-bar`, vor `.nv-uplink-log`, `aria-label` „Model for CIPHER“ |
+| M-b Das Dropdown listet die Modelle des Stub-Endpunkts plus Automatisch | `llm.models()` am Stub | Werte `""`, `nv-model-a`, `nv-model-b` |
+| M-c Ein Modellwechsel wirkt am Draht | `change` am Dropdown, dann eine Frage | `modelInUse`, gespeichertes Modell der Zeile und das `model` im Body der Frage am Stub sind das neue Modell |
+| M-d Während CIPHER antwortet, ist die Zeile gesperrt | `disabled: () => busy` | Dropdown, Neu-laden und Denk-Steuerung gesperrt, solange die Antwort aussteht; Gegenprobe: nach der Antwort alles wieder frei |
+| M-e Die Denk-Steuerung steht in der Zeile, kein zweiter Knopf | `thinking`-Option | genau ein `.okit-thinking-control`, in der Zeile |
+| M-f Bei 240 px Breite läuft die Zeile nicht über | `flex-wrap` der Kit-CSS | Zeile endet im Panel, kein Kind rechts über dem Rand, Dropdown nicht auf null gedrückt |
+| M-g Ein Wechsel außerhalb der Zeile erscheint ohne Bedienung | `llm.setModel` von außen, `saveSettings()` mit neuer Denkstufe | Dropdown zeigt das Modell, Denk-Knopf `aria-pressed` ohne Klick (innerhalb weniger Takte) |
+| M-h Die Zeile übersteht den 500-ms-Takt | Effekt mit leerer Abhängigkeitsliste, `update()` nur bei Änderung | nach 1,8 s dieselbe Wurzel und derselbe erste Eintrag (ein markierter Knoten überlebt die Takte) |
+
+**M-h misst den Mechanismus, nicht das native Popup:** ein geöffnetes `<select>` ist in Chromium kein DOM-Knoten, der Treiber kann es nicht aufklappen und nicht sehen, ob es offen bleibt. Gemessen wird, dass die Einträge, aus denen es besteht, nicht neu gebaut werden; das ist die Bedingung dafür, nicht der Beweis. Das Aussehen (CRT und `native`, hell und dunkel) prüft ein Bild, kein Punkt.
 
 R7 (echter Endpunkt) bleibt `--ohne-modell`. Ein Debrief läuft über denselben Weg (`llm.complete` im Adapter); R7c deckt ihn mit einem Gemma-Stub ab, die Claude-Wire-Form kommt aus CL2.
 

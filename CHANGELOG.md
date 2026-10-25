@@ -5,6 +5,10 @@ All notable changes to this project are documented here. Format loosely follows
 
 ## [Unreleased]
 
+### Added
+
+- A model row at the top of the UPLINK tab shows which model CIPHER uses and switches it without leaving the pane: a dropdown with the models of the active endpoint ("Automatic" leaves the choice to the endpoint), a reload button, "Other endpoint …" (opens the LLM Endpoint Manager when it is installed), and the thinking toggle in the same row. The row is locked while CIPHER answers, picks up a model or thinking change made elsewhere (settings, manager) within a moment, and reloads its list when the endpoint changes. The thinking level it sets is the one the Request section shows for CIPHER.
+
 ### Fixed
 
 - `SECURITY.md` said the API key is stored in plaintext in `data.json`; since 0.13.0 it is kept in Obsidian's keychain, and a key from an earlier version moves there when CIPHER first connects or when you open the settings. The text now says so and matches the README (documentation only, no change in behaviour).

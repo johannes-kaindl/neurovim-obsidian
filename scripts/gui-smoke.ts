@@ -125,6 +125,16 @@ const GRUPPEN = {
     "CL2 CIPHER-Frage gegen den Claude-Stub: Messages-API mit Schlüssel, Antwort im Chat, Denken nicht im Text",
     "CL3 Fehler mitten im Strom: der Chat zeigt eine Fehlerzeile mit der Meldung der API, die Eingabe ist frei",
   ],
+  modellzeile: [
+    "M-a Die Modellzeile steht über dem Chat, genau einmal, und trägt ihren Namen",
+    "M-b Das Dropdown listet die Modelle des Stub-Endpunkts plus Automatisch",
+    "M-c Ein Modellwechsel wirkt am Draht: die nächste Frage trägt das neue Modell",
+    "M-d Während CIPHER antwortet, ist die Zeile gesperrt (Gegenprobe: danach frei)",
+    "M-e Die Denk-Steuerung steht in der Zeile, kein zweiter Knopf",
+    "M-f Bei 240 px Breite läuft die Zeile nicht über",
+    "M-g Ein Modell- oder Denkstufenwechsel außerhalb der Zeile erscheint ohne Bedienung",
+    "M-h Die Zeile übersteht den 500-ms-Takt: dieselbe Wurzel, dieselben Einträge",
+  ],
   echt: ["R7 Kit-Chat-Client streamt gegen den echten Endpunkt", "R7b Anzeigetext des Streams enthält keinen Denktext"],
 } as const satisfies Record<string, readonly string[]>;
 type Gruppe = keyof typeof GRUPPEN;
@@ -1569,6 +1579,207 @@ async function checkRequestBody(cdp: Cdp): Promise<void> {
   }
 }
 
+/** M-a … M-h (Welle 27): die Kit-Modellzeile im UPLINK, am echten Hub und über die echte Kette (Uplink → Verbindung → Kit-Client → XHR);
+ *  nur der Endpunkt ist ein Stub (zwei Modelle, die Antwort kommt nach 4 s, damit „CIPHER antwortet“ messbar ist). Der Hub zeichnet alle 500 ms
+ *  neu: M-h misst, dass die Zeile das übersteht (dieselbe Wurzel und dieselben Einträge, also kein Neuzeichnen, das ein offenes Dropdown
+ *  schlösse). Ob ein offenes NATIVES Dropdown offen bleibt, misst das nicht (das Popup ist kein DOM): der Punkt sagt, was er misst. */
+async function checkModelRow(cdp: Cdp): Promise<void> {
+  const A = "nv-model-a";
+  const B = "nv-model-b";
+  const P = JSON.stringify(PLUGIN_ID);
+  const stub = await startLlmStub({ models: [A, B], standard: { text: "Use dw.", verzoegerungMs: 4_000 } });
+  const chats = () => stub.anfragen().filter((a) => a.route === "chat");
+  const ROW = `document.querySelector('.nv-uplink-model .okit-model-bar')`;
+  const SELECT = `document.querySelector('.nv-uplink-model .okit-model-bar-select')`;
+  try {
+    await cdp.evaluate(`
+      const p = app.plugins.plugins[${P}];
+      window.__nvVorherZeile = { eps: JSON.parse(JSON.stringify(p.settings.llmEndpoints)), request: JSON.parse(JSON.stringify(p.settings.request)) };
+      p.settings.llmEndpoints = [{ url: ${JSON.stringify(stub.url)}, model: ${JSON.stringify(A)} }];
+      p.settings.request = { overrides: {}, thinking: {}, lastOnLevel: {}, levelPickerInChat: false };
+      p.llm.invalidate();
+      p.cipherUplink = null;
+      p.cipherSession.reset();
+      return true;
+    `);
+    const tabShown = await pollUntil<boolean>(
+      cdp,
+      "return [...document.querySelectorAll('.nv-tabs .nv-tab')].some((b) => b.textContent.trim() === 'UPLINK');",
+      5_000,
+      250,
+    );
+    if (!tabShown || !(await selectTab(cdp, "UPLINK"))) throw new Vorbedingung("UPLINK-Tab erschien mit dem Stub-Endpunkt nicht");
+    const listeDa = (await pollUntil<boolean>(cdp, `return Boolean(${ROW}) && document.querySelectorAll('.nv-uplink-model .okit-model-bar-select option').length >= 2;`, 8_000, 250)) === true;
+
+    // --- M-a ---
+    const a = await cdp.evaluate<{ zeilen: number; ueberLog: boolean; label: string }>(`
+      const rows = document.querySelectorAll('.okit-model-bar');
+      const row = ${ROW};
+      const log = document.querySelector('.nv-uplink-log');
+      return {
+        zeilen: rows.length,
+        ueberLog: Boolean(row && log && (row.compareDocumentPosition(log) & Node.DOCUMENT_POSITION_FOLLOWING)),
+        label: (${SELECT})?.getAttribute('aria-label') ?? '',
+      };
+    `);
+    record(
+      "M-a Die Modellzeile steht über dem Chat, genau einmal, und trägt ihren Namen",
+      listeDa && a.zeilen === 1 && a.ueberLog && a.label.includes("CIPHER"),
+      `Zeilen ${a.zeilen}, vor dem Chat-Log ${a.ueberLog}, aria-label „${a.label}“${listeDa ? "" : " (die Liste kam nicht an)"}`,
+    );
+
+    // --- M-b ---
+    const werte = await cdp.evaluate<string[]>(`return [...document.querySelectorAll('.nv-uplink-model .okit-model-bar-select option')].map((o) => o.value);`);
+    record(
+      "M-b Das Dropdown listet die Modelle des Stub-Endpunkts plus Automatisch",
+      werte.includes(A) && werte.includes(B) && werte.includes(""),
+      `Einträge: ${JSON.stringify(werte)} (Stub nennt ${A}, ${B})`,
+    );
+
+    // --- M-h (vor jeder Bedienung: der Ruhezustand über mehrere Takte) ---
+    await cdp.evaluate(`
+      window.__nvZeile = ${ROW};
+      window.__nvOption = (${SELECT}).options[0];
+      window.__nvOption.__nvMarke = true;
+      return true;
+    `);
+    await new Promise((r) => setTimeout(r, 1_800));
+    const h = await cdp.evaluate<{ gleicheWurzel: boolean; gleicherEintrag: boolean; zeilen: number }>(`
+      return {
+        gleicheWurzel: ${ROW} === window.__nvZeile,
+        gleicherEintrag: (${SELECT}).options[0] === window.__nvOption && window.__nvOption.__nvMarke === true,
+        zeilen: document.querySelectorAll('.okit-model-bar').length,
+      };
+    `);
+    record(
+      "M-h Die Zeile übersteht den 500-ms-Takt: dieselbe Wurzel, dieselben Einträge",
+      h.gleicheWurzel && h.gleicherEintrag && h.zeilen === 1,
+      `nach 1,8 s (3 bis 4 Takte): dieselbe Wurzel ${h.gleicheWurzel}, derselbe erste Eintrag ${h.gleicherEintrag}, Zeilen ${h.zeilen}`,
+    );
+
+    // --- M-c und M-d: Wechsel auf B, dann eine Frage; währenddessen ist die Zeile gesperrt ---
+    await cdp.evaluate(`
+      const s = ${SELECT};
+      s.value = ${JSON.stringify(B)};
+      s.dispatchEvent(new Event('change', { bubbles: true }));
+      return true;
+    `);
+    await pollUntil<boolean>(cdp, `return app.plugins.plugins[${P}].llm.modelInUse() === ${JSON.stringify(B)};`, 4_000, 200);
+    const gewaehlt = await cdp.evaluate<{ imUse: string; gespeichert: string }>(`
+      const p = app.plugins.plugins[${P}];
+      return { imUse: p.llm.modelInUse(), gespeichert: p.settings.llmEndpoints[0]?.model ?? '' };
+    `);
+    await cdp.evaluate(`
+      const input = document.querySelector('.nv-uplink-input');
+      input.value = 'how do I delete a word?';
+      input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+      return true;
+    `);
+    const gesperrt = (await pollUntil<boolean>(
+      cdp,
+      `const s = ${SELECT}; const r = document.querySelector('.nv-uplink-model .okit-model-bar-refresh');
+       return Boolean(s && s.disabled && r && r.disabled);`,
+      3_000,
+      150,
+    )) === true;
+    const mitten = await cdp.evaluate<{ denk: boolean }>(`
+      const d = [...document.querySelectorAll('.nv-uplink-model .okit-thinking-control button, .nv-uplink-model .okit-thinking-control select')];
+      return { denk: d.length > 0 && d.every((e) => e.disabled) };
+    `);
+    const t0 = Date.now();
+    while (Date.now() - t0 < 6_000 && chats().length === 0) await new Promise((r) => setTimeout(r, 150));
+    const amDraht = chats()[0];
+    const modellAmDraht = (amDraht?.json as { model?: string } | null | undefined)?.model;
+    record(
+      "M-c Ein Modellwechsel wirkt am Draht: die nächste Frage trägt das neue Modell",
+      gewaehlt.imUse === B && gewaehlt.gespeichert === B && modellAmDraht === B,
+      `modelInUse ${gewaehlt.imUse}, gespeichert ${gewaehlt.gespeichert}, Modell im Body der Frage am Stub: ${String(modellAmDraht)}`,
+    );
+    const wiederFrei = (await pollUntil<boolean>(
+      cdp,
+      `const s = ${SELECT}; const r = document.querySelector('.nv-uplink-model .okit-model-bar-refresh');
+       return !document.querySelector('.nv-btn-abort') && Boolean(s && !s.disabled && r && !r.disabled);`,
+      15_000,
+      250,
+    )) === true;
+    record(
+      "M-d Während CIPHER antwortet, ist die Zeile gesperrt (Gegenprobe: danach frei)",
+      gesperrt && mitten.denk && wiederFrei,
+      `Dropdown und Neu-laden gesperrt während der Antwort ${gesperrt}, Denk-Steuerung gesperrt ${mitten.denk}, nach der Antwort wieder frei ${wiederFrei}`,
+    );
+
+    // --- M-e ---
+    const e = await cdp.evaluate<{ inZeile: number; gesamt: number }>(`
+      return {
+        inZeile: document.querySelectorAll('.nv-uplink-model .okit-model-bar .okit-thinking-control').length,
+        gesamt: document.querySelectorAll('.okit-thinking-control').length,
+      };
+    `);
+    record(
+      "M-e Die Denk-Steuerung steht in der Zeile, kein zweiter Knopf",
+      e.inZeile === 1 && e.gesamt === 1,
+      `in der Zeile ${e.inZeile}, im ganzen Dokument ${e.gesamt}`,
+    );
+
+    // --- M-g: von außen (Einstellungen, Verbindung) ändern, nichts bedienen ---
+    await cdp.evaluate(`await app.plugins.plugins[${P}].llm.setModel(${JSON.stringify(A)}); return true;`);
+    const modellZeigt = (await pollUntil<boolean>(cdp, `return (${SELECT})?.value === ${JSON.stringify(A)};`, 3_000, 200)) === true;
+    await cdp.evaluate(`
+      const p = app.plugins.plugins[${P}];
+      p.settings.request = { ...p.settings.request, thinking: { companion: 'high' }, lastOnLevel: { companion: 'high' } };
+      await p.saveSettings();
+      return true;
+    `);
+    const denkZeigt = (await pollUntil<boolean>(cdp, "return document.querySelector('.nv-uplink-model .okit-thinking-toggle')?.getAttribute('aria-pressed') === 'true';", 3_000, 200)) === true;
+    record(
+      "M-g Ein Modell- oder Denkstufenwechsel außerhalb der Zeile erscheint ohne Bedienung",
+      modellZeigt && denkZeigt,
+      `Modell von außen auf ${A}: Zeile zeigt es ${modellZeigt}; Denkstufe von außen auf high: Knopf gedrückt ${denkZeigt}`,
+    );
+
+    // --- M-f: schmale Seitenleiste ---
+    const f = await cdp.evaluate<{ ok: boolean; zeileBreite: number; ueber: number; selectBreite: number } | null>(`
+      const split = app.workspace.rightSplit;
+      const before = split.getSize ? split.getSize() : null;
+      if (split.setSize) split.setSize(240);
+      await new Promise((r) => setTimeout(r, 700));
+      const row = ${ROW};
+      const box = document.querySelector('.nv-uplink').getBoundingClientRect();
+      let result = null;
+      if (row) {
+        const r = row.getBoundingClientRect();
+        const kinder = [...row.children].filter((c) => c.getBoundingClientRect().width > 0);
+        const ueber = kinder.filter((c) => c.getBoundingClientRect().right > r.right + 1).length;
+        const sel = row.querySelector('select');
+        result = {
+          ok: r.right <= box.right + 1 && row.scrollWidth <= row.clientWidth + 1 && ueber === 0,
+          zeileBreite: Math.round(r.width), ueber, selectBreite: Math.round(sel ? sel.getBoundingClientRect().width : 0),
+        };
+      }
+      if (split.setSize && before) split.setSize(before);
+      await new Promise((r) => setTimeout(r, 300));
+      return result;
+    `);
+    record(
+      "M-f Bei 240 px Breite läuft die Zeile nicht über",
+      f !== null && f.ok && f.selectBreite >= 60,
+      f ? `Zeile ${f.zeileBreite} px breit, ${f.ueber} Kind(er) rechts über dem Rand, Dropdown ${f.selectBreite} px (nicht auf null gedrückt)` : "keine Zeile gefunden",
+    );
+  } finally {
+    await cdp.evaluate(`
+      const p = app.plugins.plugins[${P}];
+      const v = window.__nvVorherZeile;
+      if (v) { p.settings.llmEndpoints = v.eps; p.settings.request = v.request; delete window.__nvVorherZeile; }
+      delete window.__nvZeile; delete window.__nvOption;
+      p.llm.invalidate();
+      p.cipherUplink = null;
+      p.cipherSession.reset();
+      return true;
+    `).catch(() => undefined);
+    await stub.stop();
+  }
+}
+
 /** W1–W3 (Welle 15, Verbindungs-Tausch): was der Tausch dem Spieler zusagt, am echten Plugin gemessen.
  *  W1 Schlüssel verlässt `data.json` (Klartext-Schlüssel gesetzt, `resolve({ force: true })`, Datei gelesen —
  *  ohne vorher gesetzten Schlüssel misst der Punkt nichts), W2 der Schlüssel kommt als Bearer-Header am Draht an,
@@ -2064,6 +2275,7 @@ async function main(): Promise<void> {
     await gruppe("ordner", () => checkFolderHide(live));
     await gruppe("cipher", () => checkCipherUplink(live));
     await gruppe("claude", () => checkClaude(live));
+    await gruppe("modellzeile", () => checkModelRow(live));
     await gruppe("echt", () => checkCipherReal(live));
   } catch (err) {
     if (err instanceof Vorbedingung) {

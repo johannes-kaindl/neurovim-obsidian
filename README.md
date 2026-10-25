@@ -166,7 +166,9 @@ Settings → NeuroVim → CIPHER uplink; leave the endpoint list empty and the f
 fully off. During a mission, the HUD gains a CIPHER button that opens the uplink with the
 mission's context attached.
 
-<img src="https://raw.githubusercontent.com/johannes-kaindl/neurovim-obsidian/main/docs/images/uplink.png" width="412" alt="The UPLINK tab: a question from the player and CIPHER's answer in character">
+A model row at the top of the UPLINK tab shows which model CIPHER is using and lets you switch without leaving the pane: the dropdown lists the models of the active endpoint ("Automatic" lets the endpoint decide), "Reload models" asks the endpoint again, "Other endpoint …" opens the LLM Endpoint Manager when it is installed, and the thinking toggle sits in the same row ("Thinking: off" switches it on at your last level; a level picker instead of the toggle is a setting under Request). The row is locked while CIPHER is answering.
+
+<img src="https://raw.githubusercontent.com/johannes-kaindl/neurovim-obsidian/main/docs/images/uplink.png" width="412" alt="The UPLINK tab: the model row above the chat, a question from the player and CIPHER's answer in character">
 
 Privacy: What goes out with the chat: your question, the earlier questions and answers of the same chat, and — with a mission active — its ID, title, category, the line on why the skill matters and the par; plus the bundled Vim quick reference and key cheatsheet that CIPHER works from. A debrief sends the same mission fields, the keystroke count, the time and the keystroke sequence of the run. Never any other vault content. It goes to the endpoint in use: a local one keeps it on your machine, a hosted one and Claude (Anthropic) do not.
 

@@ -171,7 +171,9 @@ Einstellungen → NeuroVim → CIPHER uplink ein; lässt du die Endpunktliste le
 Funktion vollständig aus. Während einer Mission bekommt das HUD einen CIPHER-Knopf, der den
 Uplink mit dem Kontext der Mission öffnet.
 
-<img src="https://raw.githubusercontent.com/johannes-kaindl/neurovim-obsidian/main/docs/images/uplink.png" width="412" alt="The UPLINK tab: a question from the player and CIPHER's answer in character">
+Eine Modellzeile oben im UPLINK-Tab zeigt, welches Modell CIPHER benutzt, und wechselt es, ohne die Ansicht zu verlassen: das Dropdown listet die Modelle des aktiven Endpunkts („Automatic“ überlässt die Wahl dem Endpunkt), „Reload models“ fragt den Endpunkt neu, „Other endpoint …“ öffnet den LLM Endpoint Manager, wenn er installiert ist, und der Denk-Knopf steht in derselben Zeile („Thinking: off“ schaltet es auf deiner letzten Stufe ein; statt des Knopfs eine Stufenauswahl ist eine Einstellung unter Request). Während CIPHER antwortet, ist die Zeile gesperrt. Die Texte der Zeile sind englisch, wie der Rest des Plugins.
+
+<img src="https://raw.githubusercontent.com/johannes-kaindl/neurovim-obsidian/main/docs/images/uplink.png" width="412" alt="The UPLINK tab: the model row above the chat, a question from the player and CIPHER's answer in character">
 
 Privatsphäre: Mit dem Chat geht heraus: deine Frage, die früheren Fragen und Antworten desselben Chats und — bei aktiver Mission — deren ID, Titel, Kategorie, die Zeile dazu, warum die Fertigkeit zählt, und der Par-Wert; dazu die mitgelieferte Vim-Kurzreferenz und der Tastenspickzettel, aus denen CIPHER arbeitet. Ein Debriefing schickt dieselben Missionsfelder, die Anschlagzahl, die Zeit und die Tastenfolge des Laufs. Niemals sonstige Vault-Inhalte. Es geht an den Endpunkt, der gerade benutzt wird: Ein lokaler behält es auf deinem Rechner, ein gehosteter und Claude (Anthropic) nicht.
 

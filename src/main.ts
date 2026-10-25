@@ -23,13 +23,14 @@ import { authoredPar } from './masteryTier';
 import { ResultModal } from './result/ResultModal';
 import { BriefingModal } from './briefing/BriefingModal';
 import { LoreModal } from './lore/LoreModal';
-import { MODE as CIPHER_MODE, CIPHER_MAX_TOKENS, ENDPOINT_CALLER } from './llm/cipherRequest';
+import { MODE as CIPHER_MODE, CIPHER_MAX_TOKENS, ENDPOINT_CALLER, setCipherThinking } from './llm/cipherRequest';
+import { THINKING_STRINGS, type ModelBarHostOptions } from './llm/modelBarHost';
 import { CorePortAdapter } from './llm/CorePortAdapter';
 import { createLlmConnection, type LlmConnection } from './vendor/kit-obsidian/llm-connection';
-import { findEndpointManager } from './vendor/kit-obsidian/endpoint-source';
+import { findEndpointManager, onEndpointManagerChanged } from './vendor/kit-obsidian/endpoint-source';
 import { requestDroppedNotice } from './llm/requestStrings';
 import { DEFAULT_SETTINGS, isLlmConfigured, mergeStoredSettings, REQUEST_MIGRATIONS, type VimDojoSettings } from './settings';
-import { loadRequestSettings } from './vendor/kit/sampling-profiles';
+import { loadRequestSettings, onLevelFor, thinkingFor } from './vendor/kit/sampling-profiles';
 import {
   buildRunTrace, TraceStore, CipherUplink, ChatSession, buildKnowledge, quickReference,
   type RunTrace, type LlmResult, type MissionContext,
@@ -100,6 +101,31 @@ export default class NeuroVimPlugin extends Plugin {
       await this.persist();
     },
   });
+
+  /** Bumped when the endpoint manager's list changes: the model row reloads its model list on it. */
+  private endpointEpoch = 0;
+  private modelBarOptions: ModelBarHostOptions | null = null;
+  /** What the UPLINK model row needs. One object for the plugin's lifetime: every closure reads live state, and the
+   *  row (built once into the pane) reads the latest options through the pane on each repaint. */
+  private modelBar(): ModelBarHostOptions {
+    return this.modelBarOptions ??= {
+      app: this.app,
+      llm: this.llm,
+      label: 'CIPHER',
+      busy: () => this.cipherSession.busy,
+      listKey: () => JSON.stringify([this.endpointEpoch, this.settings.choice, this.settings.llmEndpoints.map((e) => e.url)]),
+      onError: (e) => console.warn('[neurovim] model row', e),
+      thinking: {
+        family: () => this.llm.source().family,
+        backend: () => this.llm.source().backend,
+        current: () => thinkingFor(this.settings.request, CIPHER_MODE),
+        onLevel: () => onLevelFor(this.settings.request, CIPHER_MODE),
+        setLevel: (l) => setCipherThinking(this.settings, l, () => this.saveSettings()),
+        levelPicker: () => this.settings.request.levelPickerInChat,
+        strings: THINKING_STRINGS,
+      },
+    };
+  }
 
   /** The CIPHER uplink is usable: with the manager installed it decides (endpoint and model
    *  come from it); without it every local endpoint needs its own model. */
@@ -183,6 +209,9 @@ export default class NeuroVimPlugin extends Plugin {
       );
     });
     this.register(() => { this.folderHide?.remove(); this.folderHide = null; });
+    // A change in the manager's list (endpoint added, switched, a Claude entry above the local one): forget the remembered
+    // resolution and let the model row reload its list on the next repaint.
+    this.register(onEndpointManagerChanged(this.app, () => { this.endpointEpoch++; this.llm.invalidate(); this.repaint(); }));
     this.tick = window.setInterval(() => { this.syncPresence(); this.repaint(); }, 500);
     // Only auto-open the pane on startup if the user opted in (default off) — otherwise the
     // pane still opens on demand via the ribbon icon or the "Open NeuroVim" command.
@@ -593,6 +622,7 @@ export default class NeuroVimPlugin extends Plugin {
               // RST disowns it so it cannot append into the cleared channel. See CipherUplink.
               onAbort: () => this.cipherUplink?.abort(),
               onReset: () => this.cipherUplink?.reset(this.cipherSession),
+              modelBar: this.modelBar(),
             }
           : null,
         activeTab: this.hubTab,

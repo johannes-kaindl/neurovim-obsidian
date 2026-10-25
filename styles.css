@@ -424,6 +424,17 @@
 .nv-root .nv-nexus .nv-uplink .nv-uplink-input-row .nv-btn-submit { background: var(--nv-submit-bg); border-color: var(--nv-accent); color: var(--nv-submit-fg); }
 .nv-root .nv-nexus .nv-uplink .nv-uplink-input-row .nv-btn-abort:hover { border-color: var(--nv-danger); color: var(--nv-danger); }
 .nv-crt .nv-uplink-error .nv-uplink-text { color: var(--nv-danger); }
+/* The kit's model row (MODEL_BAR_CSS and THINKING_CONTROL_CSS at the end of this file, pasted verbatim) speaks Obsidian
+   variables; the CRT pane has its own palette, and a light theme would paint a light select with pale text on the dark
+   pane (same trap as .nv-uplink-input above). In the CRT scheme the row takes the pane's colors; in `native` the Obsidian
+   variables already fit. Selectors are stronger than the kit's, so the pasted constants stay untouched. */
+.nv-uplink-model { margin-top: 0.6em; }
+.nv-crt .nv-uplink .okit-model-bar-label { color: var(--nv-text-dim); }
+.nv-crt .nv-uplink .okit-model-bar select { background: var(--nv-panel); border: 1px solid var(--nv-border-soft); color: var(--nv-text); font-family: inherit; }
+.nv-crt .nv-uplink .okit-model-bar .clickable-icon { color: var(--nv-accent-dim); }
+.nv-crt .nv-uplink .okit-model-bar .okit-thinking-toggle { color: var(--nv-accent); }
+.nv-crt .nv-uplink .okit-model-bar .okit-thinking-toggle.is-off { color: var(--nv-text-dim); }
+.nv-crt .nv-uplink .okit-model-bar-status { color: var(--nv-text-dim); }
 .nv-native .nv-uplink-error .nv-uplink-text { color: var(--text-error); }
 
 /* ── Hub tabs ─────────────────────────────────────────────────── */
