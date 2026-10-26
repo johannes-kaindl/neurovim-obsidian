@@ -46,7 +46,7 @@ Each entry starts with what you see — the wording is the plugin's own text —
 
 **Cause:** no CIPHER endpoint is configured. The tab only appears once there is one, and the whole feature stays off until then. The **CIPHER** button in the mission HUD depends on it too.
 
-**Fix:** add an address under **Settings → NeuroVim → CIPHER uplink → Endpoints**, for example `http://localhost:1234` for LM Studio. Setting up a local server is covered in the [local LLM setup guide](https://uplink.jkaindl.de/llm-setup).
+**Fix:** add an address under **Settings → NeuroVim → CIPHER uplink → Endpoints**, for example `http://localhost:1234` for LM Studio. Setting up a local server is covered in the [local LLM setup guide](https://jkaindl.de/uplink/llm-setup/).
 
 ## CIPHER answers "Signal lost"
 

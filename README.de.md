@@ -54,7 +54,7 @@ NeuroVim begann als Obsidian-Plugin, wuchs dann zu einem Multi-Target-Spiel hera
 - **Optional, nur für CIPHER:** ein OpenAI-kompatibler Endpunkt (LM Studio, Ollama,
   OpenRouter, …). Lässt du die Endpunktliste leer, bleibt die Funktion vollständig aus. Wie
   du einen lokalen LLM-Server aufsetzt, steht zentral im
-  [Setup-Guide für lokale LLMs](https://uplink.jkaindl.de/llm-setup) — inklusive der
+  [Setup-Guide für lokale LLMs](https://jkaindl.de/uplink/llm-setup/) — inklusive der
   `/v1`-Falle und dem Zugriff vom Handy auf den Rechner.
 - **Optional, für Claude:** das Plugin **LLM Endpoint Manager** mit einem Claude-Eintrag (API-Schlüssel im Schlüsselbund des Managers). CIPHER schickt seine Fragen dann an die API von Anthropic statt an ein lokales Modell, sobald dieser Eintrag der benutzte ist — die Wahlregel steht unten unter [CIPHER-Uplink](#cipher-uplink).
 

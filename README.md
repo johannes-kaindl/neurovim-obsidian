@@ -53,7 +53,7 @@ Obsidian). **vim-dojo** brings it back home as a first-class, standalone Obsidia
 - **Optional, for CIPHER only:** an OpenAI-compatible endpoint (LM Studio, Ollama,
   OpenRouter, …). Leave the endpoint list empty and the whole feature stays off. Setting up
   a local LLM server is covered once, centrally, in the
-  [local LLM setup guide](https://uplink.jkaindl.de/llm-setup) — including the `/v1` pitfall
+  [local LLM setup guide](https://jkaindl.de/uplink/llm-setup/) — including the `/v1` pitfall
   and reaching your desktop server from a phone.
 - **Optional, for Claude:** the **LLM Endpoint Manager** plugin with a Claude entry (API key in the manager's keychain). CIPHER then sends its questions to Anthropic's API instead of a local model whenever that entry is the one in use — see the choice rule under [CIPHER uplink](#cipher-uplink) below.
 
