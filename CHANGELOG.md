@@ -5,6 +5,10 @@ All notable changes to this project are documented here. Format loosely follows
 
 ## [Unreleased]
 
+### Changed
+
+- **The command that opens the pane is now called "Open hub" in the command palette** (it was just "Open"; Obsidian shows it as "NeuroVim: Open hub"). A name that says what it opens, as the other commands do ("Submit mission", "Reset mission"). A hotkey you bound to it stays, because it hangs on the command id, which did not change. The README and the getting-started guide use the new name.
+
 ## [0.17.0] — 2026-10-25
 
 ### Added

@@ -72,7 +72,7 @@ Das Bauen aus dem Quelltext ist unter [Entwickeln / aus dem Quelltext bauen](#en
 ## Verwendung
 
 Öffne den Bereich über das Terminal-Symbol in der Seitenleiste oder den Befehl
-**NeuroVim: Open**. Er ist in Reiter gegliedert:
+**NeuroVim: Open hub**. Er ist in Reiter gegliedert:
 
 - **NEXUS** — dein Status (Level/XP), die Willkommens-Transmission und ein Knopf für die
   nächste Mission.
@@ -90,7 +90,7 @@ Eine Mission läuft so ab:
 3. **SUBMIT**, sobald der Text stimmt. Du erhältst XP, Zeit und Tastenanschläge werden
    festgehalten — sie später zu unterbieten, ist das eigentliche Spiel.
 
-Verfügbare Befehle in der Palette: **NeuroVim: Open**, **NeuroVim: Submit mission**,
+Verfügbare Befehle in der Palette: **NeuroVim: Open hub**, **NeuroVim: Submit mission**,
 **NeuroVim: Reset mission**.
 
 ## Konfiguration

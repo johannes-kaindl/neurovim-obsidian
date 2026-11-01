@@ -181,7 +181,7 @@ export default class NeuroVimPlugin extends Plugin {
     this.registerView(VIEW_TYPE_NEUROVIM, (leaf) => new HubView(leaf));
     this.addRibbonIcon('terminal', 'NeuroVim', () => void this.activateView());
 
-    this.addCommand({ id: 'open', name: 'Open', callback: () => void this.activateView() });
+    this.addCommand({ id: 'open', name: 'Open hub', callback: () => void this.activateView() });
     this.addCommand({ id: 'submit', name: 'Submit mission', callback: () => void this.handleSubmit() });
     this.addCommand({ id: 'reset', name: 'Reset mission', callback: () => void this.handleReset() });
 

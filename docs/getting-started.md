@@ -8,7 +8,7 @@ Open **Settings → Editor** and switch on **Vim key bindings**. NeuroVim teache
 
 ## 2. Open the pane
 
-Click the terminal icon **NeuroVim** in the ribbon, or run **NeuroVim: Open** from the command palette. The pane opens on **NEXUS**: your level and XP, a welcome transmission and a button for the next mission. The other tabs are **MISSIONS**, **ARCHIVE** and **GUIDE**; **UPLINK** appears once you configure a CIPHER endpoint.
+Click the terminal icon **NeuroVim** in the ribbon, or run **NeuroVim: Open hub** from the command palette. The pane opens on **NEXUS**: your level and XP, a welcome transmission and a button for the next mission. The other tabs are **MISSIONS**, **ARCHIVE** and **GUIDE**; **UPLINK** appears once you configure a CIPHER endpoint.
 
 ## 3. Start the first mission
 

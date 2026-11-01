@@ -70,7 +70,7 @@ Building from source is described under [Develop / build from source](#develop--
 
 ## Usage
 
-Open the pane via the ribbon's terminal icon or the command **NeuroVim: Open**. It is
+Open the pane via the ribbon's terminal icon or the command **NeuroVim: Open hub**. It is
 organized in tabs:
 
 - **NEXUS** — your status (level/XP), the welcome transmission, and a one-click
@@ -89,7 +89,7 @@ A mission runs like this:
 3. **SUBMIT** when the text matches. You earn XP, and your time and keystroke count are
    recorded — beating them later is the actual game.
 
-Commands available in the palette: **NeuroVim: Open**, **NeuroVim: Submit mission**,
+Commands available in the palette: **NeuroVim: Open hub**, **NeuroVim: Submit mission**,
 **NeuroVim: Reset mission**.
 
 ## Configuration
