@@ -16,7 +16,7 @@ export class ObsidianHudDom implements HudDom {
       const view = leaf.view;
       if (view instanceof MarkdownView && view.file?.path === notePath) {
         const el = view.contentEl.querySelector('.cm-editor');
-        if (el instanceof HTMLElement) return el;
+        if (el?.instanceOf(HTMLElement)) return el;
       }
     }
     return null;
