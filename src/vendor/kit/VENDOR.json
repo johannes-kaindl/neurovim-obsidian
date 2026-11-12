@@ -6,5 +6,6 @@
   "note": "Verbatim snapshot. Pins in tools/kit-sync.json, re-vendor via tools/sync-kit.sh (zentrales kit-sync im Dach). Never hand-edit. obsidian/clock.ts + obsidian/collapsible.ts + obsidian/endpoint-list.ts + obsidian/model-picker.ts liegen in ../kit-obsidian/, siehe dortige VENDOR.json.",
   "obsidian_kit_version": "0.70.0",
   "obsidian_kit_sha": "86a2d2d",
-  "obsidian_kit_vendored": "folder-hide.ts, anthropic-wire.ts, endpoint-secret-hook.ts, endpoint-source.ts, override-guard.ts"
+  "obsidian_kit_vendored": "folder-hide.ts, anthropic-wire.ts, endpoint-secret-hook.ts, endpoint-source.ts, override-guard.ts",
+  "license": "AGPL-3.0-or-later"
 }
