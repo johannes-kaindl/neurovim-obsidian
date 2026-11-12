@@ -5,6 +5,10 @@ All notable changes to this project are documented here. Format loosely follows
 
 ## [Unreleased]
 
+### Changed
+
+- **CIPHER now answers in plain text and puts every Vim command in square brackets**, like `[ci"]` or `[:%s/old/new/g]`. The uplink shows the reply as raw text, so Markdown (backticks, bold, lists) only added noise; the brackets make the commands stand out without rendering.
+
 ## [0.18.0] — 2026-11-01
 
 ### Changed
