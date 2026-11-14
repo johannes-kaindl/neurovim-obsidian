@@ -5,6 +5,8 @@ All notable changes to this project are documented here. Format loosely follows
 
 ## [Unreleased]
 
+## [0.19.0] — 2026-11-14
+
 ### Added
 
 - **A "Status bar" switch in the settings (Appearance group), on by default.** It shows or hides the mission timer in the status bar. An existing install keeps the timer; turning the switch off removes the entry, turning it on puts it back at the end of the bar. With the entry hidden a paused mission is no longer visible there (the floating reminder after the configured minutes still appears). The status bar is not shown on phones.
