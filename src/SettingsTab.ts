@@ -2,6 +2,7 @@ import { App, PluginSettingTab, Setting } from 'obsidian';
 import type { SettingDefinitionGroup, SettingDefinitionItem } from 'obsidian';
 import type NeuroVimPlugin from './main';
 import { githubHelpUrls, helpSettingDefinition, HELP_SETTING_TEXTS_EN } from './vendor/kit-obsidian/help-setting';
+import { statusBarSettingDefinition } from './vendor/kit-obsidian/status-bar-item';
 import { installTabRefreshOnOpen, renderSettingDefinitions, settingBodyHost } from './vendor/kit-obsidian/settings_walker';
 
 export class NeuroVimSettingTab extends PluginSettingTab {
@@ -75,7 +76,7 @@ export class NeuroVimSettingTab extends PluginSettingTab {
         desc: 'Open the NeuroVim pane automatically when Obsidian starts. Off by default — open it anytime via the ribbon icon or the "Open NeuroVim" command.',
         control: { type: 'toggle', key: 'openPaneOnStartup' } },
       { name: 'Paused reminder after',
-        desc: 'Minutes a mission may stay paused before a floating reminder appears over the workspace. A paused mission always shows in the status bar; this is the extra nudge. Set to 0 to disable it.',
+        desc: 'Minutes a mission may stay paused before a floating reminder appears over the workspace. A paused mission shows in the status bar (unless you hide the status bar entry below); this is the extra nudge. Set to 0 to disable it.',
         control: { type: 'text', key: 'pausedBannerMinutes', placeholder: '5' } },
       { name: 'Record run traces',
         desc: 'Save the keystroke sequence of each successful mission to a local file (traces.jsonl in the plugin folder). Powers CIPHER debriefs and offline balance analysis. Stored locally, never sent automatically. On by default.',
@@ -95,6 +96,11 @@ export class NeuroVimSettingTab extends PluginSettingTab {
       { name: 'CRT color scheme',
         desc: 'On: fixed cyberpunk look (dark background, phosphor green) — theme-independent, always legible. Off: adaptive Obsidian-theme colors that blend into your light/dark theme.',
         control: { type: 'toggle', key: 'colorScheme' } },
+      // UI-STANDARD §8 status bar entry: the mission timer lives there; on by default.
+      statusBarSettingDefinition({
+        value: this.plugin.settings.showStatusBar,
+        onChange: (v) => this.setControlValue('showStatusBar', v),
+      }),
     ] };
   }
 

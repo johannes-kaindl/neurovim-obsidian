@@ -34,6 +34,8 @@ export interface VimDojoSettings {
   request: RequestSettings;
   recordTraces: boolean;
   pausedBannerMinutes: number;
+  /** Mission timer in the status bar. On by default: an update must not make a display in use disappear (UI-STANDARD §8). */
+  showStatusBar: boolean;
   uiCollapsed: Record<string, boolean>;
 }
 
@@ -49,6 +51,7 @@ export const DEFAULT_SETTINGS: VimDojoSettings = {
   request: DEFAULT_REQUEST_SETTINGS,
   recordTraces: true,
   pausedBannerMinutes: 5,
+  showStatusBar: true, // = STATUS_BAR_DEFAULT of the kit block (this file stays free of obsidian imports; a test keeps both equal)
   uiCollapsed: {},
 };
 
@@ -110,5 +113,7 @@ export function mergeStoredSettings(raw: unknown): VimDojoSettings {
     choice: sanitizeChoice(rest.choice),
     request: loadRequestSettings(raw, REQUEST_MIGRATIONS).request,
     uiCollapsed: { ...DEFAULT_SETTINGS.uiCollapsed, ...rest.uiCollapsed },
+    // A boolean counts, anything else (key missing in an old data.json, junk) falls back to ON — same rule as the kit's statusBarEnabled().
+    showStatusBar: typeof rest.showStatusBar === 'boolean' ? rest.showStatusBar : DEFAULT_SETTINGS.showStatusBar,
   };
 }

@@ -1,4 +1,4 @@
-// vendored from obsidian-kit@0.70.0, src/pure/endpoint-source.ts — do not hand-edit; re-vendor via tools/sync-kit.sh
+// vendored from obsidian-kit@0.88.0, src/pure/endpoint-source.ts — do not hand-edit; re-vendor via tools/sync-kit.sh
 import { hydrateEndpointSecrets, resolveActiveEndpointConfig, type EndpointConfig } from "./endpoint_config";
 import type { SecretStore } from "./secrets";
 import { familyFromName, type BackendId, type FamilyId, type ModelFamilyId } from "./sampling-profiles";
@@ -100,6 +100,10 @@ export interface EndpointSourceInput {
   /** Opt-in für `resolve()` wie `list()`: ohne Angabe nur `"http"` (ein älterer Manager ignoriert das Feld). Wer `"anthropic"`
    *  oder `"shortcuts"` anfordert, muss den passenden Transport bereitstellen (`llm-connection` `transports`). */
   transports?: EndpointTransport[];
+  /** Seit 0.73.0: die Transporte nur für den AUTOMATISCHEN Weg (`manager.resolve`). Fehlt die Angabe, gilt `transports` auch dort. Eine
+   *  ausdrückliche Wahl (`materialize`) und die wählbare Liste bleiben bei `transports`: so kennt „Automatisch“ einen Endpunkt nicht,
+   *  den der Nutzer nur ausdrücklich wählen kann (`llm-connection` `transports.anthropic: "explicit"`). */
+  autoTransports?: EndpointTransport[];
   backendOf?: (cfg: EndpointConfig) => Promise<BackendId | null>;
 }
 export interface EndpointSourceResult {
@@ -192,7 +196,10 @@ export async function resolveEndpointSource(
     const config = await resolveActiveEndpointConfig(input.secrets && input.secretPrefix ? hydrateEndpointSecrets(input.local, input.secrets, input.secretPrefix) : input.local, ping);
     return finish({ kind: "local", config, model: config ? localModelOf(input.choice, config) : "" }, input, null);
   }
-  const opts = input.caller || input.transports ? { ...(input.caller ? { caller: input.caller } : {}), ...(input.transports ? { transports: input.transports } : {}) } : undefined;
+  const optsFor = (transports: EndpointTransport[] | undefined) => input.caller || transports
+    ? { ...(input.caller ? { caller: input.caller } : {}), ...(transports ? { transports } : {}) } : undefined;
+  const opts = optsFor(input.transports);
+  const autoOpts = optsFor(input.autoTransports ?? input.transports);
   try {
     let reason: ApiErrorCode | undefined;
     const wanted = input.choice?.endpointId;
@@ -203,7 +210,7 @@ export async function resolveEndpointSource(
       }
       reason = m.error;   // verwaiste Wahl → automatisch weiter, Grund mitteilen
     }
-    const r = await manager.resolve(input.capability, opts);
+    const r = await manager.resolve(input.capability, autoOpts);
     if ("error" in r) {
       // Der Manager-`resolve` kennt nur `no-endpoint` (er überspringt abgeschaltete und schlüssellose Endpunkte still).
       // Hat der Nutzer einen Endpunkt ausdrücklich gewählt und DER scheiterte an etwas, das er abstellen kann, ist das
@@ -212,7 +219,10 @@ export async function resolveEndpointSource(
       const fixable = reason === "disabled" || reason === "secret-missing" ? reason : undefined;
       return finish({ kind: "manager", config: null, model: "", reason: fixable ?? r.error }, input, null);
     }
-    const base = { kind: "manager" as const, config: r.config, model: modelOf(input.choice, r.defaultModel), ...(reason ? { reason } : {}) };
+    // Verwaiste Wahl (`reason` gesetzt): `choice.model` gehörte zum gewählten, nicht erreichbaren Endpunkt. An den automatischen geschickt wäre es ein
+    // fremder Modellname an einen fremden Endpunkt (0.87.0, Spec § 4.9); es gilt dessen Standard-Modell. Die gespeicherte Wahl bleibt unberührt:
+    // wird der Endpunkt wieder eingeschaltet, gilt sie wieder. Eine Alt-Wahl `{ model }` ohne `endpointId` hat keinen `reason` und behält ihr Modell.
+    const base = { kind: "manager" as const, config: r.config, model: reason ? modelOf(undefined, r.defaultModel) : modelOf(input.choice, r.defaultModel), ...(reason ? { reason } : {}) };
     return finish(base, input, r);
   } catch {
     return finish({ kind: "manager", config: null, model: "", reason: "unreachable" }, input, null);

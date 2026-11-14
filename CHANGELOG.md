@@ -5,6 +5,15 @@ All notable changes to this project are documented here. Format loosely follows
 
 ## [Unreleased]
 
+### Added
+
+- **A "Status bar" switch in the settings (Appearance group), on by default.** It shows or hides the mission timer in the status bar. An existing install keeps the timer; turning the switch off removes the entry, turning it on puts it back at the end of the bar. With the entry hidden a paused mission is no longer visible there (the floating reminder after the configured minutes still appears). The status bar is not shown on phones.
+
+### Changed
+
+- **The model row in the CIPHER pane lists the models of every endpoint, grouped by endpoint.** With the LLM Endpoint Manager installed the dropdown shows one group per endpoint (its "Default" entry, then its models) and picking a model also fixes its endpoint. A stored choice whose endpoint was switched off or deleted shows "Automatic" with a warning icon and the reason instead of silently sending the old model name to the automatic endpoint; the stored choice itself is left alone. The "Another endpoint …" entry is now "Manage endpoints …" and appears only when the manager is installed.
+- **Thinking is a level dropdown inside the model row** (the levels of the chosen model, the icon in front) instead of an on/off button next to it; models without levels show no control.
+
 ## [0.18.1] — 2026-11-12
 
 ### Changed

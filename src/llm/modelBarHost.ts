@@ -13,7 +13,7 @@ export const THINKING_STRINGS: ThinkingControlStrings = {
 
 export interface ModelBarHostOptions {
   app: App;
-  /** The four methods of `LlmConnection` the row needs (`plugin.llm`). */
+  /** The methods of `LlmConnection` the row needs (`plugin.llm`; the kit's `ModelBarConnection`, six more since 0.87.0). */
   llm: ModelBarConnection;
   /** Name of the task, shown before the dropdown and in its `aria-label`. */
   label: string;
@@ -57,6 +57,14 @@ export function mountModelBarHost(el: HTMLElement, source: () => ModelBarHostOpt
       setModel: (m) => source().llm.setModel(m),
       modelInUse: () => source().llm.modelInUse(),
       source: () => source().llm.source(),
+      // Seit kit 0.87.0 Pflicht: Gruppen je Endpunkt, verwaiste Wahl, Selbst-Abo. Alles durchreichen — `llm` ist die
+      // LlmConnection des Plugins und liefert sie; ein `[]` für endpoints() wäre eine Umgehung.
+      endpoints: () => source().llm.endpoints(),
+      activeEndpointId: () => source().llm.activeEndpointId(),
+      modelsOf: (id, o) => source().llm.modelsOf(id, o),
+      choice: () => source().llm.choice(),
+      setChoice: (c) => source().llm.setChoice(c),
+      subscribe: (cb) => source().llm.subscribe(cb),
     },
     label: first.label,
     strings: { lang: 'en' },

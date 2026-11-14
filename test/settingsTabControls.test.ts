@@ -80,3 +80,42 @@ describe('SettingsTab declarative control layer', () => {
     expect(h.saves()).toBe(2);
   });
 });
+
+describe('status bar row (UI-STANDARD §8 Statusleisten-Eintrag)', () => {
+  type Row = { name?: string; render?: (s: unknown) => void };
+  const rowOf = (tab: NeuroVimSettingTab): Row | undefined => {
+    const groups = tab.getSettingDefinitions() as unknown as Array<{ type?: string; items?: Row[] }>;
+    return groups.flatMap((g) => g.items ?? []).find((i) => i.name === 'Status bar');
+  };
+  const stubSetting = (): { setting: Record<string, unknown>; value: () => boolean | undefined; change: (v: boolean) => void } => {
+    let value: boolean | undefined; let onChange: ((v: boolean) => void) | undefined;
+    const setting: Record<string, unknown> = {
+      setName: () => setting, setDesc: () => setting,
+      addToggle: (cb: (t: unknown) => void) => {
+        const t: Record<string, unknown> = { setValue: (v: boolean) => { value = v; return t; }, onChange: (f: (v: boolean) => void) => { onChange = f; return t; } };
+        cb(t); return setting;
+      },
+    };
+    return { setting, value: () => value, change: (v) => onChange?.(v) };
+  };
+
+  it('is a row in the Appearance group, shows the stored state and saves showStatusBar when flipped', async () => {
+    const { tab, settings, saves } = makeTab();
+    const row = rowOf(tab);
+    expect(row).toBeDefined();
+    const s = stubSetting();
+    row!.render!(s.setting);
+    expect(s.value()).toBe(true);   // on by default
+    s.change(false);
+    await Promise.resolve(); await Promise.resolve();
+    expect(settings.showStatusBar).toBe(false);
+    expect(saves()).toBe(1);
+  });
+
+  it('shows an off switch when the stored value is off', () => {
+    const { tab } = makeTab({ showStatusBar: false });
+    const s = stubSetting();
+    rowOf(tab)!.render!(s.setting);
+    expect(s.value()).toBe(false);
+  });
+});

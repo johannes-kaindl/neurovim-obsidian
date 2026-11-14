@@ -2,6 +2,6 @@
   "source": "obsidian-kit",
   "version": "0.70.0",
   "sha": "86a2d2d",
-  "vendored": "kit-css.ts, obsidian-mock.ts",
+  "vendored": "kit-css.ts, obsidian-mock.ts (obsidian-kit@0.88.0, 442316f)",
   "license": "AGPL-3.0-or-later"
 }

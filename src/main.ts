@@ -13,7 +13,6 @@ import { resolveHudTarget } from './hudPlacement';
 import { diffHighlightField, showDivergentLines, clearHighlight } from './diffHighlight';
 import { resolvePresence } from './missionPresence';
 import { shouldShowPausedBanner, type LineProgress } from './missionProgress';
-import { StatusBarItem } from './StatusBarItem';
 import { PausedBanner } from './PausedBanner';
 import { isMissionEditorKeystroke } from './keystrokeCounter';
 import { NeuroVimSettingTab } from './SettingsTab';
@@ -37,6 +36,7 @@ import {
 } from '@neurovim/core';
 import { ENTRIES } from '@neurovim/content';
 import { realClock } from './vendor/kit-obsidian/clock';
+import { createStatusBarItem, type StatusBarItemHandle } from './vendor/kit-obsidian/status-bar-item';
 import type { HubTab } from './hubTabs';
 import type { PluginData, MissionSummary } from '@neurovim/core';
 
@@ -51,7 +51,7 @@ export default class NeuroVimPlugin extends Plugin {
   private missions: MissionSummary[] = [];
   private session!: MissionSession;
   private hud!: HudMount;
-  private statusBar!: StatusBarItem;
+  private statusBar!: StatusBarItemHandle;
   private banner!: PausedBanner;
   /** Lines reported divergent by the last failed submit. The live highlight is the
    *  intersection of these with the currently divergent ones, so a corrected line clears
@@ -170,7 +170,7 @@ export default class NeuroVimPlugin extends Plugin {
     }
 
     this.hud = new HudMount(new ObsidianHudDom(this.app));
-    this.statusBar = new StatusBarItem(this.addStatusBarItem());
+    this.statusBar = createStatusBarItem({ plugin: this, visible: this.settings.showStatusBar, text: null, cls: 'nv-statusbar' });
     this.banner = new PausedBanner(this.app.workspace.containerEl);
     this.registerEditorExtension([diffHighlightField]);
     this.registerEvent(this.app.workspace.on('layout-change', () => this.repaint()));
@@ -357,6 +357,7 @@ export default class NeuroVimPlugin extends Plugin {
    *  `persist` and invalidates its remembered resolution itself. */
   async saveSettings(): Promise<void> {
     await this.persist();
+    this.statusBar?.setVisible(this.settings.showStatusBar);
     this.repaint();
   }
 

@@ -4,6 +4,7 @@ import { loadRequestSettings as kitLoad } from '../src/vendor/kit/sampling-profi
 
 const loadRequestSettings = (raw: unknown) => kitLoad(raw, REQUEST_MIGRATIONS);
 import { thinkingFor } from '../src/vendor/kit/sampling-profiles';
+import { STATUS_BAR_DEFAULT } from '../src/vendor/kit-obsidian/status-bar-item';
 
 describe('LLM settings', () => {
   it('defaults to unconfigured (feature off)', () => {
@@ -22,6 +23,15 @@ describe('LLM settings', () => {
 
   it('starts with no persisted section states', () => {
     expect(DEFAULT_SETTINGS.uiCollapsed).toEqual({});
+  });
+
+  it('shows the status bar entry by default, keeps an old data.json on, honours a stored false and treats junk as on', () => {
+    expect(DEFAULT_SETTINGS.showStatusBar).toBe(STATUS_BAR_DEFAULT);
+    expect(mergeStoredSettings(undefined).showStatusBar).toBe(true);
+    expect(mergeStoredSettings({ pausedBannerMinutes: 9, hideMissionFolder: true }).showStatusBar).toBe(true);
+    expect(mergeStoredSettings({ showStatusBar: false }).showStatusBar).toBe(false);
+    expect(mergeStoredSettings({ showStatusBar: 'no' }).showStatusBar).toBe(true);
+    expect(mergeStoredSettings({ showStatusBar: null }).showStatusBar).toBe(true);
   });
 
   it('does not hide the mission folder by default (visible unless opted in)', () => {
