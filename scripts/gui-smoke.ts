@@ -40,6 +40,7 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
+import { fakeManagerAendereMit } from "../../tools/obsidian-cdp/fake-manager.js";
 import { Cdp, attachTo, beimAbbruch, bereiteInstanzVor, entferneFakeManager, installFakeManager, closeExtraLeaves, istAbgebrochen, ladePluginNeu, pollUntil, releaseAlwaysOnTop, requireVisible, schliesseDialog, schliesseEinstellungen, setAppConfig, setPluginSetting } from "../../tools/obsidian-cdp/cdp.js";
 import { startLlmStub } from "../../tools/obsidian-cdp/llm-stub.js";
 import { createBilanz, parseArgs, runDriver, Vorbedingung } from "../../tools/obsidian-cdp/bilanz.js";
@@ -134,6 +135,12 @@ const GRUPPEN = {
     "M-f Bei 240 px Breite läuft die Zeile nicht über",
     "M-g Ein Modell- oder Denkstufenwechsel außerhalb der Zeile erscheint ohne Bedienung",
     "M-h Die Zeile übersteht den 500-ms-Takt: dieselbe Wurzel, dieselben Einträge",
+  ],
+  modellgruppen: [
+    "M-i Mit Manager zeigt die Zeile je Endpunkt eine Gruppe, der nicht erreichbare ist gesperrt, und die Wahl unter dem zweiten Endpunkt bindet Endpunkt und Modell",
+    "M-j Verwaiste Wahl: ist der Endpunkt abgeschaltet, zeigt die Zeile Automatic mit Warnzeichen und die gespeicherte Wahl bleibt (Gegenprobe: wieder an, Wahl zeigt wieder)",
+    "M-k Eine Wahl von außen (Verbindung, nicht die Zeile) erscheint ohne Bedienung im Dropdown",
+    "M-l Gegenprobe: ohne Manager zeigt dieselbe Zeile keine Gruppen",
   ],
   echt: ["R7 Kit-Chat-Client streamt gegen den echten Endpunkt", "R7b Anzeigetext des Streams enthält keinen Denktext"],
 } as const satisfies Record<string, readonly string[]>;
@@ -1584,8 +1591,9 @@ async function checkRequestBody(cdp: Cdp): Promise<void> {
  *  neu: M-h misst, dass die Zeile das übersteht (dieselbe Wurzel und dieselben Einträge, also kein Neuzeichnen, das ein offenes Dropdown
  *  schlösse). Ob ein offenes NATIVES Dropdown offen bleibt, misst das nicht (das Popup ist kein DOM): der Punkt sagt, was er misst. */
 async function checkModelRow(cdp: Cdp): Promise<void> {
-  const A = "nv-model-a";
-  const B = "nv-model-b";
+  // Die Namen tragen eine bekannte Familie (qwen3.8): ohne sie bietet das Kit am Stub (Backend unbekannt) keine Denkstufen an, und die Zeile hätte kein Denk-Dropdown zu messen.
+  const A = "qwen3.8-nv-a";
+  const B = "qwen3.8-nv-b";
   const P = JSON.stringify(PLUGIN_ID);
   const stub = await startLlmStub({ models: [A, B], standard: { text: "Use dw.", verzoegerungMs: 4_000 } });
   const chats = () => stub.anfragen().filter((a) => a.route === "chat");
@@ -1730,11 +1738,11 @@ async function checkModelRow(cdp: Cdp): Promise<void> {
       await p.saveSettings();
       return true;
     `);
-    const denkZeigt = (await pollUntil<boolean>(cdp, "return document.querySelector('.nv-uplink-model .okit-thinking-toggle')?.getAttribute('aria-pressed') === 'true';", 3_000, 200)) === true;
+    const denkZeigt = (await pollUntil<boolean>(cdp, "return document.querySelector('.nv-uplink-model .okit-thinking-control select')?.value === 'high';", 3_000, 200)) === true;
     record(
       "M-g Ein Modell- oder Denkstufenwechsel außerhalb der Zeile erscheint ohne Bedienung",
       modellZeigt && denkZeigt,
-      `Modell von außen auf ${A}: Zeile zeigt es ${modellZeigt}; Denkstufe von außen auf high: Knopf gedrückt ${denkZeigt}`,
+      `Modell von außen auf ${A}: Zeile zeigt es ${modellZeigt}; Denkstufe von außen auf high: Denk-Dropdown zeigt high ${denkZeigt}`,
     );
 
     // --- M-f: schmale Seitenleiste ---
@@ -1777,6 +1785,119 @@ async function checkModelRow(cdp: Cdp): Promise<void> {
       return true;
     `).catch(() => undefined);
     await stub.stop();
+  }
+}
+
+/** M-i … M-l (Welle 34, obsidian-kit 0.89.0): die Gruppen der Modellzeile am echten Hub. Ein echter Endpunkt-Manager ist im Staging-Vault nicht
+ *  installiert; der Fake-Manager der Brücke (`fake-manager.ts`) liefert drei Endpunkte, einer davon antwortet auf `models()` nie (`unerreichbar`). Vorlage:
+ *  koda-agent, Punkte 139–141. Gemessen wird das echte `<select>` der Zeile im UPLINK; die Gegenprobe (M-l) nimmt denselben Aufbau ohne Manager. */
+async function checkModelGroups(cdp: Cdp): Promise<void> {
+  console.log("\nM-i … M-l · Modellzeile mit Gruppen je Endpunkt");
+  const [MI, MJ, MK, ML] = GRUPPEN.modellgruppen;
+  const P = JSON.stringify(PLUGIN_ID);
+  const SELECT = `document.querySelector('.nv-uplink-model .okit-model-bar-select')`;
+  const stub = await startLlmStub({ models: ["nv-lokal-a", "nv-lokal-b"] });
+  let manager = false;
+  interface Zeile { gruppen: { label: string; optionen: { text: string; wert: string; gesperrt: boolean }[] }[]; text: string; wert: string; warn: string | null }
+  const lies = (bedingung: string): string => `
+    const s = ${SELECT};
+    if (!s) return null;
+    const w = document.querySelector('.nv-uplink-model .okit-model-bar-warn');
+    const z = {
+      gruppen: [...s.querySelectorAll('optgroup')].map((g) => ({ label: g.label, optionen: [...g.querySelectorAll('option')].map((o) => ({ text: o.textContent ?? '', wert: o.value, gesperrt: o.disabled })) })),
+      text: s.selectedOptions[0]?.textContent ?? '', wert: s.value,
+      warn: w && !w.classList.contains('is-hidden') ? (w.getAttribute('aria-label') ?? '') : null,
+    };
+    return (${bedingung}) ? z : null;`;
+  const warte = (bedingung: string): Promise<Zeile | null> => pollUntil<Zeile>(cdp, lies(bedingung), 15_000, 250).catch(() => null);
+  const wahl = (): Promise<unknown> => cdp.evaluate(`return JSON.parse(JSON.stringify(app.plugins.plugins[${P}].llm.choice()));`);
+  try {
+    await cdp.evaluate(`
+      const p = app.plugins.plugins[${P}];
+      window.__nvVorherGruppen = { eps: JSON.parse(JSON.stringify(p.settings.llmEndpoints)), choice: JSON.parse(JSON.stringify(p.settings.choice)) };
+      p.settings.choice = {};
+      await p.saveSettings();
+      return true;`);
+    const url = stub.url;
+    await installFakeManager(cdp, {
+      endpunkte: [
+        { id: "lm", label: "Smoke LM", url, models: ["nv-eins", "nv-zwei"] },
+        { id: "zwei", label: "Smoke Zwei", url, models: ["z-eins", "z-zwei"] },
+        { id: "aus", label: "Smoke Offline", url, models: ["aus-std"], unerreichbar: true },
+      ],
+      invalidiere: [PLUGIN_ID],
+    });
+    manager = true;
+    // Das Abo des Plugins auf den Manager (`onEndpointManagerChanged`, seit onload) hängt sich erst beim nächsten Layout-Ereignis an, wenn der Manager beim Start fehlte (Kit-Grenze). Wie in Obsidian
+    // nach dem Einschalten des Managers: ein Layout-Ereignis auslösen. Dann stehen zwei Hörer am Fake (Plugin und Zeile); ohne den Plugin-Hörer löst nach einer Änderung niemand neu auf.
+    await cdp.evaluate(`app.workspace.trigger('layout-change'); return true;`);
+    const tabDa = await pollUntil<boolean>(cdp, "return [...document.querySelectorAll('.nv-tabs .nv-tab')].some((b) => b.textContent.trim() === 'UPLINK');", 8_000, 250);
+    if (!tabDa || !(await selectTab(cdp, "UPLINK"))) throw new Vorbedingung("UPLINK-Tab erschien trotz Fake-Manager nicht");
+    await cdp.evaluate(`app.workspace.trigger('layout-change'); return true;`);
+    const hoerer = await pollUntil<number>(cdp, "return (window.__fakeManagerHoerer || []).length >= 2 ? window.__fakeManagerHoerer.length : null;", 6_000, 250).catch(() => null);
+    if (hoerer === null) throw new Vorbedingung("am Fake-Manager hängen nicht zwei Hörer (Plugin und Zeile): die Änderungs-Punkte hätten nichts zu messen");
+
+    // --- M-i: Gruppen, gesperrter Eintrag, Wahl unter dem zweiten Endpunkt ---
+    const z = await warte(`z.gruppen.length === 3 && z.gruppen.every((g) => g.optionen.length > 0)`);
+    // Der UPLINK-Tab ist da und der Fake steht: bleibt die Zeile ohne drei Gruppen, ist das der Befund (Mutationsprobe `endpoints: () => []` ergab sonst „nichts gemessen“ statt Rot).
+    if (z === null) record(MI, false, `die Zeile zeigte nach 15 s keine drei Gruppen (Stand: ${await cdp.evaluate<string>(`return JSON.stringify([...(${SELECT})?.options ?? []].map((o) => o.textContent));`)})`);
+    else {
+      const lm = z.gruppen.find((g) => g.label === "Smoke LM");
+      const zwei = z.gruppen.find((g) => g.label === "Smoke Zwei");
+      const aus = z.gruppen.find((g) => g.label === "Smoke Offline");
+      const gruppenOk = !!lm && !!zwei && !!aus
+        && lm.optionen.some((o) => o.text === "nv-zwei") && zwei.optionen.some((o) => o.text === "z-zwei")
+        && aus.optionen.some((o) => o.gesperrt && o.wert === '' && /not reachable|nicht erreichbar/i.test(o.text));
+      await cdp.evaluate(`
+        const s = ${SELECT};
+        const o = [...s.querySelectorAll("optgroup[label='Smoke Zwei'] option")].find((x) => x.textContent === 'z-zwei');
+        s.value = o.value; s.dispatchEvent(new Event('change', { bubbles: true }));
+        await new Promise((r) => setTimeout(r, 1500)); return true;`);
+      const nach = await warte(`z.text === 'z-zwei'`);
+      const c = await wahl();
+      const gebunden = JSON.stringify(c) === JSON.stringify({ endpointId: "zwei", model: "z-zwei" });
+      record(MI, gruppenOk && gebunden && nach !== null,
+        `Gruppen ${z.gruppen.map((g) => `${g.label}[${g.optionen.map((o) => o.text + (o.gesperrt ? " (gesperrt)" : "")).join(", ")}]`).join(" · ")} · nach der Wahl gezeigt „${nach?.text ?? "?"}“, gespeichert ${JSON.stringify(c)} (soll {endpointId:zwei, model:z-zwei})`);
+    }
+
+    // --- M-j: Endpunkt abschalten → verwaist; wieder an → Wahl zeigt wieder ---
+    const aus = await fakeManagerAendereMit(cdp, { enabled: { zwei: false } });
+    const orphan = await warte(`z.warn !== null && /automatic/i.test(z.text)`);
+    const diag = await cdp.evaluate<string>(`
+      const p = app.plugins.plugins[${P}]; const s = ${SELECT}; const w = document.querySelector('.nv-uplink-model .okit-model-bar-warn');
+      return JSON.stringify({ reason: p.llm.source().reason ?? null, aktiv: p.llm.activeEndpointId() ?? null, wahl: p.llm.choice(), text: s?.selectedOptions[0]?.textContent ?? null, warnKlasse: w?.className ?? null });`);
+    const nachAus = await wahl();
+    const bleibt = JSON.stringify(nachAus) === JSON.stringify({ endpointId: "zwei", model: "z-zwei" });
+    const an = await fakeManagerAendereMit(cdp, { enabled: { zwei: true } });
+    const zurueck = await warte(`z.warn === null && z.text === 'z-zwei'`);
+    record(MJ, orphan !== null && bleibt && zurueck !== null,
+      `abgeschaltet (Hörer gemeldet: ${"gemeldet" in aus ? aus.gemeldet : "?"}): ${orphan ? `Zeile „${orphan.text}“, Warnzeichen „${orphan.warn}“` : `kein Automatic mit Warnzeichen (Stand: ${diag})`} · Wahl blieb ${bleibt} (${JSON.stringify(nachAus)}) · wieder an (${"gemeldet" in an ? an.gemeldet : "?"}): ${zurueck ? `Zeile „${zurueck.text}“, kein Warnzeichen` : "Wahl kam NICHT zurück"}`);
+
+    // --- M-k: Wahl von außen ---
+    await cdp.evaluate(`await app.plugins.plugins[${P}].llm.setChoice({ endpointId: 'lm', model: 'nv-zwei' }); return true;`);
+    const aussen = await warte(`z.text === 'nv-zwei'`);
+    record(MK, aussen !== null, `setChoice(lm/nv-zwei) an der Verbindung: Zeile zeigt „${aussen?.text ?? (await cdp.evaluate<string>(`return (${SELECT})?.selectedOptions[0]?.textContent ?? '';`))}“ ohne Bedienung (misst, dass die Zeile folgt; ob das Abo der Zeile oder der 500-ms-Takt des Hubs es zeichnet, trennt der Punkt nicht)`);
+
+    // --- M-l: Gegenprobe ohne Manager ---
+    await entferneFakeManager(cdp, { invalidiere: [PLUGIN_ID] });
+    manager = false;
+    await cdp.evaluate(`
+      const p = app.plugins.plugins[${P}];
+      p.settings.choice = {};
+      p.settings.llmEndpoints = [{ url: ${JSON.stringify(stub.url)}, model: 'nv-lokal-a' }];
+      await p.saveSettings(); p.llm.invalidate(); return true;`);
+    const tabNeu = await pollUntil<boolean>(cdp, "return [...document.querySelectorAll('.nv-tabs .nv-tab')].some((b) => b.textContent.trim() === 'UPLINK');", 8_000, 250);
+    if (tabNeu) await selectTab(cdp, "UPLINK");
+    const flach = await warte(`z.gruppen.length === 0 && [...document.querySelectorAll('.nv-uplink-model .okit-model-bar-select option')].some((o) => o.textContent === 'nv-lokal-b')`);
+    const optionen = await cdp.evaluate<string[]>(`return [...document.querySelectorAll('.nv-uplink-model .okit-model-bar-select option')].map((o) => o.textContent ?? '');`);
+    record(ML, flach !== null, `ohne Manager: ${flach ? flach.gruppen.length : "?"} Gruppen, Optionen ${JSON.stringify(optionen)} (soll: keine Gruppe, die lokalen Modelle nv-lokal-a/b)`);
+  } finally {
+    if (manager) await entferneFakeManager(cdp, { invalidiere: [PLUGIN_ID] }).catch(() => undefined);
+    await cdp.evaluate(`
+      const p = app.plugins.plugins[${P}]; const v = window.__nvVorherGruppen;
+      if (v) { p.settings.llmEndpoints = v.eps; p.settings.choice = v.choice; await p.saveSettings(); delete window.__nvVorherGruppen; }
+      p.llm.invalidate(); p.cipherUplink = null; p.cipherSession.reset(); return true;`).catch(() => undefined);
+    await stub.stop().catch(() => undefined);
   }
 }
 
@@ -1915,6 +2036,16 @@ async function checkContextFollows(cdp: Cdp, port: number, vault: string | undef
  *  darf dazwischen nicht zuklappen (Pilot lingotuner: im grünen Smoke unsichtbar). */
 async function checkRequestSection(cdp: Cdp, port: number, vault: string | undefined): Promise<void> {
   const name = "N1 Abschnitt Request";
+  const n1Stub = await startLlmStub({ models: ["qwen3.8-nv-n1"] });
+  // Die Denkstufen-Zeile gibt es nur für ein Modell, dessen Familie das Kit kennt; ohne Endpunkt oder mit „stub“ fehlt sie (Kit seit 0.73.0).
+  await cdp.evaluate(`
+    const p = app.plugins.plugins[${JSON.stringify(PLUGIN_ID)}];
+    if (!("__nvVorherN1" in window)) window.__nvVorherN1 = JSON.parse(JSON.stringify(p.settings.llmEndpoints));
+    p.settings.llmEndpoints = [{ url: ${JSON.stringify(n1Stub.url)}, model: 'qwen3.8-nv-n1' }];
+    p.llm.invalidate();
+    await p.llm.resolve({ force: true });   // der Tab zeigt Familie und Stufen nur aus einer fertigen Auflösung
+    return true;
+  `);
   await cdp.evaluate(`
     app.setting.open();
     app.setting.openTabById(${JSON.stringify(PLUGIN_ID)});
@@ -1924,6 +2055,7 @@ async function checkRequestSection(cdp: Cdp, port: number, vault: string | undef
   const sicht = await attachTo("settings", port, vault).catch(() => null);
   if (!sicht) {
     await schliesseEinstellungen(cdp);
+    await n1Stub.stop().catch(() => undefined);
     throw new Vorbedingung("kein Einstellungen-Fenster am Port");
   }
   const abschnitt = `
@@ -1943,6 +2075,12 @@ async function checkRequestSection(cdp: Cdp, port: number, vault: string | undef
     if (!offen.gefunden) throw new Vorbedingung("Kopf „Request“ fehlt in den Einstellungen");
     const inhalt = await sicht.evaluate<{ namen: string[]; letzte: string | null; status: string | null }>(`
       ${abschnitt}
+      // Die Auflösung des Endpunkts läuft im Hintergrund und zeichnet den Tab einmal neu; die Denkstufen-Zeile erscheint erst danach (bis zu 8 s warten).
+      for (let i = 0; i < 32; i++) {
+        const k = [...document.querySelectorAll(".modal.mod-settings .okit-collapsible-header")].find((h) => h.textContent.trim() === "Request")?.nextElementSibling;
+        if (k && [...k.querySelectorAll(".setting-item-name")].some((n) => n.textContent.trim() === "Thinking level")) break;
+        await new Promise((r) => setTimeout(r, 250));
+      }
       return {
         namen: [...koerper.querySelectorAll(".setting-item-name")].map((n) => n.textContent.trim()),
         letzte: koerper.querySelector("pre.okit-request-last")?.textContent ?? null,
@@ -1953,7 +2091,7 @@ async function checkRequestSection(cdp: Cdp, port: number, vault: string | undef
     const fehlt = erwartet.filter((n) => !inhalt.namen.includes(n));
     record(`${name} ist vorhanden, klappt auf und zeigt Modus, Felder und Denkstufe`,
       offen.offen && fehlt.length === 0 && inhalt.namen.some((n) => n.startsWith("Family:")),
-      fehlt.length === 0 ? `${inhalt.namen.length} Zeilen, kein Feld fehlt` : `fehlt: ${fehlt.join(", ")}`);
+      fehlt.length === 0 ? `${inhalt.namen.length} Zeilen, kein Feld fehlt` : `fehlt: ${fehlt.join(", ")} (Zeilen: ${inhalt.namen.join(" | ")})`);
     record("N1-2 Zweites Öffnen zeigt die Anfrage aus N2 („Last request“ ist frisch)",
       inhalt.letzte !== null && inhalt.letzte.includes('"temperature"') && inhalt.letzte.includes('"max_tokens"'),
       inhalt.letzte !== null ? `Aufzeichnung: ${inhalt.letzte.replace(/\s+/g, " ").slice(0, 80)}` : "keine Aufzeichnung — der Tab hat die Session beim erneuten Öffnen nicht neu gelesen");
@@ -2005,6 +2143,12 @@ async function checkRequestSection(cdp: Cdp, port: number, vault: string | undef
       }
       return true;
     `).catch(() => undefined);
+    await cdp.evaluate(`
+      const p = app.plugins.plugins[${JSON.stringify(PLUGIN_ID)}];
+      if ("__nvVorherN1" in window) { p.settings.llmEndpoints = window.__nvVorherN1; delete window.__nvVorherN1; p.llm.invalidate(); }
+      return true;
+    `).catch(() => undefined);
+    await n1Stub.stop().catch(() => undefined);
     sicht.close?.();
     await schliesseEinstellungen(cdp);
   }
@@ -2276,6 +2420,7 @@ async function main(): Promise<void> {
     await gruppe("cipher", () => checkCipherUplink(live));
     await gruppe("claude", () => checkClaude(live));
     await gruppe("modellzeile", () => checkModelRow(live));
+    await gruppe("modellgruppen", () => checkModelGroups(live));
     await gruppe("echt", () => checkCipherReal(live));
   } catch (err) {
     if (err instanceof Vorbedingung) {

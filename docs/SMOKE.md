@@ -78,6 +78,7 @@ grün, weil ein Skip kein Fehlschlag ist — nur kein Erfolg.
 | 2026-08-16 | 1.13.7 | **8/8** | **3/8** mit ausgebauten Fixes — R2-1/R2-3/R2-4/R2-5 rot mit dem historischen Symptom (Tabs abgeschnitten; Modal `rgb(40,42,55)` gegen Hub `rgb(8,18,12)`; 5 Textzeilen auf 13 gerenderten; Abzeichen 80px gegen 11px). Die drei R2-2-Punkte blieben grün — korrekt, ihr Code war nicht Teil der Gegenprobe. |
 | 2026-10-25 | 1.14.5 | **42 grün · 0 rot · 2 übersprungen · 0 nichts gemessen** (von 44; R7/R7b übersprungen mit `--ohne-modell`). Davor 39 grün · 0 rot · 2 übersprungen von 41 | CL1–CL3 je einzeln rot gemacht: (A) falscher Schlüssel im Fake-Manager → CL2 und CL3 rot; (B) kein Strom-Fehler im Stub → CL3 rot, CL1/CL2 grün; (C) der Opt-in aus `main.js` entfernt (gebaut, deployt, frischer Prozess) → CL1, CL2, CL3 rot (Backend `unknown`, keine Anfrage am Stub). |
 | 2026-10-25 | 1.14.5 | **50 grün · 0 rot · 2 übersprungen · 0 nichts gemessen** (von 52; M-a bis M-h neu, R7/R7b übersprungen mit `--ohne-modell`; Baseline davor 42/0/2/0) | M-a bis M-h gegen die Quelle: (S1) der Effekt im Preact-Behälter mit wechselnder Abhängigkeit statt leerer Liste (baut bei jedem Anstrich neu) → nur M-h rot (1 von 1), der Vitest bleibt grün (er sieht die Preact-Ebene nicht); (S2) `disabled` weg → nur M-d rot; (S3) `setModel`-Aufruf weg → nur M-c rot; (S4b) die Denkstufe nicht im Stempel des Hosts → nur M-g rot; (S4) der `update()`-Effekt nach dem Anstrich weg → die Liste kommt nie an (M-a, M-b rot, der Rest „nichts gemessen“ durch den Abbruch) |
+| 2026-11-14 | 1.14.x | **54 grün · 0 rot · 2 übersprungen · 0 nichts gemessen** (von 56; M-i bis M-l neu auf obsidian-kit 0.89.0, R7/R7b übersprungen mit `--ohne-modell`; Zweitinstanz Port 9769, Stand nach `b3e4948`) | Mutation `endpoints: () => []` in `modelBarHost.ts`: M-i und M-j rot (52 grün · 2 rot), nach der Wiederherstellung 54/0. Mutation `subscribe` als Nichts: alles grün — M-k trennt das Abo der Zeile nicht vom 500-ms-Takt des Hubs (siehe unten). Der Lauf davor fand drei Mängel im Treiber selbst: M-i prüfte den Hinweis-Eintrag statt „ein gesperrter Hinweis in der Gruppe“, M-j maß ohne zweiten Hörer am Fake (das Abo des Plugins hängt sich erst bei einem Layout-Ereignis an), M-d/M-g/N1 erwarteten den alten Denk-Knopf bzw. ein Modell ohne bekannte Familie |
 
 Die Gegenprobe deckte außerdem **zwei Mängel im Treiber selbst** auf: `setViewState` in einer
 Poll-Schleife erzeugte pro Runde ein weiteres Hub-Blatt (16 verwaiste nach mehreren Läufen),
@@ -169,20 +170,33 @@ Gegenstelle ist der zentrale LLM-Stub im Anthropic-Modus (`tools/obsidian-cdp/ll
 
 ### M-a bis M-h — die Modellzeile im UPLINK (Welle 27)
 
-Gegenstelle ist der zentrale LLM-Stub mit **zwei Modellen** (`nv-model-a`, `nv-model-b`) und einer Antwort, die erst nach 4 s kommt (damit „CIPHER antwortet“ messbar ist). Anders als R3 stubbt der Abschnitt nichts im Plugin: die Kette ist die echte (Uplink, Verbindung, Kit-Client, XHR), nur der Endpunkt ist ein Stub. Der Hub zeichnet alle 500 ms neu.
+Gegenstelle ist der zentrale LLM-Stub mit **zwei Modellen** (`qwen3.8-nv-a`, `qwen3.8-nv-b`) und einer Antwort, die erst nach 4 s kommt (damit „CIPHER antwortet“ messbar ist). Anders als R3 stubbt der Abschnitt nichts im Plugin: die Kette ist die echte (Uplink, Verbindung, Kit-Client, XHR), nur der Endpunkt ist ein Stub. Der Hub zeichnet alle 500 ms neu.
 
 | # | Prüft | Gemessener Effekt |
 |---|---|---|
 | M-a Die Modellzeile steht über dem Chat, genau einmal, und trägt ihren Namen | Host-Behälter `.nv-uplink-model` in `CipherChat.tsx` | eine Wurzel `.okit-model-bar`, vor `.nv-uplink-log`, `aria-label` „Model for CIPHER“ |
-| M-b Das Dropdown listet die Modelle des Stub-Endpunkts plus Automatisch | `llm.models()` am Stub | Werte `""`, `nv-model-a`, `nv-model-b` |
+| M-b Das Dropdown listet die Modelle des Stub-Endpunkts plus Automatisch | `llm.models()` am Stub | Werte `""`, `qwen3.8-nv-a`, `qwen3.8-nv-b` |
 | M-c Ein Modellwechsel wirkt am Draht | `change` am Dropdown, dann eine Frage | `modelInUse`, gespeichertes Modell der Zeile und das `model` im Body der Frage am Stub sind das neue Modell |
 | M-d Während CIPHER antwortet, ist die Zeile gesperrt | `disabled: () => busy` | Dropdown, Neu-laden und Denk-Steuerung gesperrt, solange die Antwort aussteht; Gegenprobe: nach der Antwort alles wieder frei |
 | M-e Die Denk-Steuerung steht in der Zeile, kein zweiter Knopf | `thinking`-Option | genau ein `.okit-thinking-control`, in der Zeile |
 | M-f Bei 240 px Breite läuft die Zeile nicht über | `flex-wrap` der Kit-CSS | Zeile endet im Panel, kein Kind rechts über dem Rand, Dropdown nicht auf null gedrückt |
-| M-g Ein Wechsel außerhalb der Zeile erscheint ohne Bedienung | `llm.setModel` von außen, `saveSettings()` mit neuer Denkstufe | Dropdown zeigt das Modell, Denk-Knopf `aria-pressed` ohne Klick (innerhalb weniger Takte) |
+| M-g Ein Wechsel außerhalb der Zeile erscheint ohne Bedienung | `llm.setModel` von außen, `saveSettings()` mit neuer Denkstufe | Dropdown zeigt das Modell, das Denk-Dropdown zeigt die Stufe ohne Klick (innerhalb weniger Takte) |
 | M-h Die Zeile übersteht den 500-ms-Takt | Effekt mit leerer Abhängigkeitsliste, `update()` nur bei Änderung | nach 1,8 s dieselbe Wurzel und derselbe erste Eintrag (ein markierter Knoten überlebt die Takte) |
 
 **M-h misst den Mechanismus, nicht das native Popup:** ein geöffnetes `<select>` ist in Chromium kein DOM-Knoten, der Treiber kann es nicht aufklappen und nicht sehen, ob es offen bleibt. Gemessen wird, dass die Einträge, aus denen es besteht, nicht neu gebaut werden; das ist die Bedingung dafür, nicht der Beweis. Das Aussehen (CRT und `native`, hell und dunkel) prüft ein Bild, kein Punkt.
+
+### M-i bis M-l — Gruppen je Endpunkt in der Modellzeile (Welle 34, obsidian-kit 0.89.0)
+
+Ein echter Endpoint Manager ist im Staging-Vault nicht installiert. Der Fake-Manager der zentralen Brücke (`tools/obsidian-cdp/fake-manager.ts`) liefert drei Endpunkte (`lm`, `zwei`, einer davon mit unerreichbarer Modellliste); `fakeManagerAendereMit` schaltet Endpunkte um und meldet „changed“. Die Modelle der übrigen Punkte heißen `qwen3.8-nv-a` und `qwen3.8-nv-b`: nur ein Modell mit bekannter Familie bekommt vom Kit eine Denkstufen-Liste, ein unbekanntes am Stub (Backend unbekannt) keine.
+
+| # | Prüft | Gemessener Effekt |
+|---|---|---|
+| M-i Gruppen je Endpunkt | `endpoints()` des Adapters, `setChoice` | je Endpunkt eine `<optgroup>`, die unerreichbare mit gesperrtem Hinweis-Eintrag; die Wahl unter dem zweiten Endpunkt steht danach als `{ endpointId, model }` in den Einstellungen |
+| M-j Verwaiste Wahl | Endpunkt abschalten, wieder einschalten | Zeile zeigt „Automatic (…)“ mit Warnzeichen, die gespeicherte Wahl bleibt unverändert; wieder an: die Wahl zeigt wieder, kein Warnzeichen |
+| M-k Wahl von außen | `llm.setChoice` an der Verbindung | die Zeile zeigt das neue Modell ohne Bedienung |
+| M-l Gegenprobe | Fake entfernt, lokaler Endpunkt | keine Gruppe, die lokalen Modelle als flache Liste |
+
+**Grenzen.** M-k misst, dass die Zeile folgt, nicht durch welchen Weg: Das Abo der Zeile und der 500-ms-Takt des Hubs zeichnen beide, die Mutation „Abo entfernt“ bleibt grün. **Das Abo des Plugins auf den Manager** (`onEndpointManagerChanged` in `main.ts`) hängt sich erst beim nächsten Layout-Ereignis an, wenn der Manager beim Start fehlte (Kit-Grenze); der Treiber löst es nach dem Einbau des Fakes aus und prüft, dass zwei Hörer am Fake hängen, sonst bräche M-j mit einem Befund, den das Plugin nicht hat. Ein geöffnetes natives Dropdown und der iPhone-Webview sind nicht gemessen.
 
 R7 (echter Endpunkt) bleibt `--ohne-modell`. Ein Debrief läuft über denselben Weg (`llm.complete` im Adapter); R7c deckt ihn mit einem Gemma-Stub ab, die Claude-Wire-Form kommt aus CL2.
 
