@@ -4,5 +4,6 @@
   "sha": "2de89e6c1f8a4cfc73a370a949726713565b3871",
   "version": "0.2.8",
   "vendored": "@neurovim/core (packages/core/src), @neurovim/content (frontmatter.ts, index.ts + generated)",
-  "note": "Verbatim snapshot. Never hand-edit. Re-pin via `npm run vendor`."
+  "note": "Verbatim snapshot. Never hand-edit. Re-pin via `npm run vendor`.",
+  "license": "AGPL-3.0-only"
 }

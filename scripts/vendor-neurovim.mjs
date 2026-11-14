@@ -34,11 +34,14 @@ cpSync(join(contentSrc, 'generated'), join(OUT, 'content/generated'), { recursiv
 
 const sha = execSync('git rev-parse HEAD', { cwd: MONO }).toString().trim();
 const tag = execSync('git describe --tags --abbrev=0', { cwd: MONO }).toString().trim();
-const version = JSON.parse(readFileSync(join(MONO, 'package.json'))).version;
+const monoPkg = JSON.parse(readFileSync(join(MONO, 'package.json')));
+const version = monoPkg.version;
+if (!monoPkg.license) { console.error(`Keine license in ${MONO}/package.json.`); process.exit(1); }
 writeFileSync(join(OUT, 'VENDOR.json'), JSON.stringify({
   source: 'neurovim-standalone', tag, sha, version,
   vendored: `@neurovim/core (packages/core/src), @neurovim/content (${contentModules.join(', ')} + generated)`,
   note: 'Verbatim snapshot. Never hand-edit. Re-pin via `npm run vendor`.',
+  license: monoPkg.license,
 }, null, 2) + '\n');
 
 console.log(`Vendored @neurovim/core + content @ ${tag} (${sha.slice(0, 7)}).`);
