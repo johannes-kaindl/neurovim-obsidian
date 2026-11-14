@@ -13,6 +13,7 @@ All notable changes to this project are documented here. Format loosely follows
 
 - **The model row in the CIPHER pane lists the models of every endpoint, grouped by endpoint.** With the LLM Endpoint Manager installed the dropdown shows one group per endpoint (its "Default" entry, then its models) and picking a model also fixes its endpoint. A stored choice whose endpoint was switched off or deleted shows "Automatic" with a warning icon and the reason instead of silently sending the old model name to the automatic endpoint; the stored choice itself is left alone. The "Another endpoint …" entry is now "Manage endpoints …" and appears only when the manager is installed.
 - **Thinking is a level dropdown inside the model row** (the levels of the chosen model, the icon in front) instead of an on/off button next to it; models without levels show no control.
+- **The model row and the model choice now name and bind the endpoint the manager really uses** (before: the first enabled one, even when it was unreachable). A model choice made while its endpoint is switched off or deleted now acts on the automatically chosen endpoint.
 
 ## [0.18.1] — 2026-11-12
 

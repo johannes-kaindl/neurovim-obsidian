@@ -9,7 +9,7 @@
       "dir": "src/vendor/kit",
       "source": "code-kit",
       "from": "src/ts/pure",
-      "modules": ["backend-probe", "capabilities", "embeddings-client", "endpoint", "endpoint_config", "endpoint_diagnostics", "error_body", { "name": "error-message", "ref": "0.68.0" }, "local-stamp", "model-choice", "model-context", "model-list-cache", "reasoning", { "name": "redact", "ref": "0.60.0" }, { "name": "sampling-profiles", "ref": "0.66.0" }, "secrets", "slug", "sse", "think-splitter", "timeout"]
+      "modules": ["backend-probe", "capabilities", "embeddings-client", "endpoint", "endpoint_config", "endpoint_diagnostics", "error_body", { "name": "error-message", "ref": "0.68.0" }, "local-stamp", "model-choice", "model-context", "model-list-cache", "reasoning", { "name": "redact", "ref": "0.60.0" }, { "name": "sampling-profiles", "ref": "0.68.0" }, "secrets", "slug", "sse", "think-splitter", "timeout"]
     },
     {
       "dir": "src/vendor/kit",
@@ -21,21 +21,21 @@
       "dir": "src/vendor/kit",
       "source": "obsidian-kit",
       "from": "src/pure",
-      "modules": ["anthropic-wire", "endpoint-secret-hook", { "name": "endpoint-source", "ref": "0.88.0" }, "override-guard"],
+      "modules": ["anthropic-wire", "endpoint-secret-hook", { "name": "endpoint-source", "ref": "0.89.0" }, "override-guard"],
       "rewrite": [["../vendor/code-kit/pure/", "./"], ["../vendor/code-kit/web/", "./"]]
     },
     {
       "dir": "src/vendor/kit-obsidian",
       "source": "obsidian-kit",
       "from": "src/obsidian",
-      "modules": ["anthropic-transport", "backend-probe", "chat-client", "chat-transport", "clipboard", "clock", "collapsible", "embedding-connection", "endpoint-list", { "name": "endpoint-plumbing", "ref": "0.88.0" }, "endpoint-secrets", "endpoint-status-text", { "name": "endpoint-source", "ref": "0.88.0" }, "folder-hide", "folder-suggest", "help-setting", { "name": "llm-connection", "ref": "0.88.0" }, { "name": "llm-connection-strings", "ref": "0.88.0" }, { "name": "model-bar", "ref": "0.88.0" }, { "name": "model-bar-strings", "ref": "0.88.0" }, "model-picker", "plugin-api", { "name": "request-section", "ref": "0.88.0" }, "request-session", "secrets", "settings_walker", "shortcuts-bridge", { "name": "thinking-control", "ref": "0.88.0" }, { "name": "status-bar-item", "ref": "0.88.0" }, { "name": "status-indicator", "ref": "0.88.0" }],
+      "modules": ["anthropic-transport", "backend-probe", "chat-client", "chat-transport", "clipboard", "clock", "collapsible", "embedding-connection", "endpoint-list", { "name": "endpoint-plumbing", "ref": "0.89.0" }, "endpoint-secrets", "endpoint-status-text", { "name": "endpoint-source", "ref": "0.89.0" }, "folder-hide", "folder-suggest", "help-setting", { "name": "llm-connection", "ref": "0.89.0" }, { "name": "llm-connection-strings", "ref": "0.89.0" }, { "name": "model-bar", "ref": "0.89.0" }, { "name": "model-bar-strings", "ref": "0.89.0" }, "model-picker", "plugin-api", { "name": "request-section", "ref": "0.89.0" }, "request-session", "secrets", "settings_walker", "shortcuts-bridge", { "name": "thinking-control", "ref": "0.89.0" }, { "name": "status-bar-item", "ref": "0.89.0" }, { "name": "status-indicator", "ref": "0.89.0" }],
       "rewrite": [["../vendor/code-kit/pure/", "../kit/"], ["../vendor/code-kit/web/", "../kit/"], ["../pure/", "../kit/"]]
     },
     {
       "dir": "test/vendor/kit",
       "source": "obsidian-kit",
       "from": "src/testing",
-      "modules": ["kit-css", { "name": "obsidian-mock", "ref": "0.88.0" }]
+      "modules": [{ "name": "kit-css", "ref": "0.89.0" }, { "name": "obsidian-mock", "ref": "0.89.0" }]
     }
   ]
 }

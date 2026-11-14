@@ -119,3 +119,21 @@ describe('status bar row (UI-STANDARD §8 Statusleisten-Eintrag)', () => {
     expect(s.value()).toBe(false);
   });
 });
+
+describe('SettingsTab LLM connection section', () => {
+  // NeuroVim is English-only on purpose (no UI language switch, `src/llm/modelBarHost.ts`): the kit's
+  // section must say so explicitly instead of relying on the kit default, and must not follow Obsidian's language.
+  it('draws the kit connection in English, whatever language Obsidian runs in', () => {
+    const calls: unknown[][] = [];
+    const plugin = {
+      settings: { ...DEFAULT_SETTINGS },
+      llm: { renderSettings: (...args: unknown[]) => { calls.push(args); }, hideSettings: () => undefined },
+    };
+    const tab = new NeuroVimSettingTab(new App() as never, plugin as never);
+    const host = { createDiv: () => ({}) };
+    const setting = { settingEl: { empty: () => undefined, removeClass: () => undefined, createDiv: host.createDiv } };
+    (tab as unknown as { renderConnection: (s: unknown) => void }).renderConnection(setting);
+    expect(calls).toHaveLength(1);
+    expect(calls[0]?.[1]).toEqual({ lang: 'en' });
+  });
+});

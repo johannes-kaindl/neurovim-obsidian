@@ -148,7 +148,10 @@ export class NeuroVimSettingTab extends PluginSettingTab {
   /** The kit connection draws source, list and request section. `renderSettings` empties its
    *  container when it redraws, so it gets a host of its own — never the tab. */
   private renderConnection = (setting: Setting): void => {
-    this.plugin.llm.renderSettings(settingBodyHost(setting).createDiv());
+    // `lang: 'en'` is the plugin's choice, not the kit default by accident: NeuroVim has no UI language
+    // switch (see `src/llm/modelBarHost.ts`), so a German Obsidian gets English here as everywhere else
+    // in the plugin; the kit's German wording would make one block of an English page German.
+    this.plugin.llm.renderSettings(settingBodyHost(setting).createDiv(), { lang: 'en' });
   };
 
   hide(): void {
